@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   hubPartTitle: { flex: 1, marginLeft: 8, color: colors.text, fontSize: 17, lineHeight: 22, fontWeight: '900' },
   hubPartTitleNoIcon: { marginLeft: 0 },
   hubPartTrailing: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 12 },
-  hubPartCount: { color: colors.textMuted, fontSize: 12, fontWeight: '400' },
+  hubPartCount: { color: colors.textMuted, fontSize: 14, fontWeight: '800' },
   hubPartChevron: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 },
   hubPartBody: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
   hubDoseRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomColor: colors.border, borderBottomWidth: 1 },
