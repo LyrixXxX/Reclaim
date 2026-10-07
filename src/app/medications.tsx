@@ -8,6 +8,7 @@ import { Header } from '@/components/header';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   formatMedicationTime,
+  medicationIsActiveOnDate,
   groupMedicationEventsByDate,
   MedicationInput,
   Meridiem,
@@ -51,9 +52,7 @@ export default function MedicationsScreen() {
   const taken = doses.filter((dose) => dose.status === 'taken').length;
   const skipped = doses.filter((dose) => dose.status === 'skipped').length;
   const remaining = doses.length - taken - skipped;
-  const activeAsNeeded = medications.filter((item) => !item.archived
-    && (!item.startedAt || item.startedAt.slice(0, 10) <= today)
-    && (!item.endedAt || item.endedAt.slice(0, 10) >= today)
+  const activeAsNeeded = medications.filter((item) => medicationIsActiveOnDate(item, today)
     && (item.schedule.type === 'as_needed' || item.schedule.type === 'interval'));
   const stackedSlots = new Set(supplementStacks.flatMap((stack) => stackMembersForToday(stack, doses)
     .map((dose) => stackDoseKey(dose.medication.id, dose.time))));

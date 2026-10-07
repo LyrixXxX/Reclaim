@@ -1,6 +1,6 @@
 import { DashboardWidget, TrackerState } from '@/models/tracker';
 import { goalForDate, macroCalories, nutritionTotals } from './nutrition';
-import { formatMedicationTime } from './medications';
+import { formatMedicationTime, medicationIsActiveOnDate } from './medications';
 import { scheduledDosesForDate } from './medication-regimen';
 import { localDateKey } from './progress';
 import { completedCalendarDays, formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from './taper-quit';
@@ -66,7 +66,7 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
       rows: [{ label: 'Pulse', value: `${latest.pulse} bpm` }] };
   }
   if (widget.id === 'medications') {
-    const medications = (state.medications ?? []).filter((item) => !item.archived && (!item.startedAt || item.startedAt.slice(0, 10) <= today) && (!item.endedAt || item.endedAt.slice(0, 10) >= today));
+    const medications = (state.medications ?? []).filter((item) => medicationIsActiveOnDate(item, today));
     const events = (state.medicationEvents ?? []).filter((event) => medications.some((item) => item.id === event.medicationId));
     const due = scheduledDosesForDate(medications, events, today);
     const pending = due.filter((dose) => !dose.status)

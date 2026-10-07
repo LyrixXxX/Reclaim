@@ -2,6 +2,7 @@ import { TrackerState } from '@/models/tracker';
 import { dashboardContent } from './dashboard-content';
 import { homeOverview } from './home-overview';
 import { localDateKey } from './progress';
+import { medicationIsActiveOnDate } from './medications';
 
 /** Read-only summaries of the same records used by each full tracker screen. */
 export function healthHubSummary(state: TrackerState, now: Date) {
@@ -9,9 +10,7 @@ export function healthHubSummary(state: TrackerState, now: Date) {
   const readings = [...(state.healthReadings ?? [])]
     .filter((reading) => Number.isFinite(Date.parse(reading.measuredAt)) && Date.parse(reading.measuredAt) <= now.getTime())
     .sort((a, b) => Date.parse(b.measuredAt) - Date.parse(a.measuredAt));
-  const activeMedications = (state.medications ?? []).filter((medication) => !medication.archived
-    && (!medication.startedAt || medication.startedAt.slice(0, 10) <= today)
-    && (!medication.endedAt || medication.endedAt.slice(0, 10) >= today));
+  const activeMedications = (state.medications ?? []).filter((medication) => medicationIsActiveOnDate(medication, today));
   const medicationStatus = homeOverview(state, { status: 'unsupported' }, now).medications;
   const nextDoses = dashboardContent(state, { id: 'medications', visible: true, expanded: true }, now).rows;
   const trackedLabs = state.labTrackers ?? [];

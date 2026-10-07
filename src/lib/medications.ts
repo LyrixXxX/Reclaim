@@ -6,9 +6,29 @@ export type Meridiem = 'AM' | 'PM';
 
 const NORMALIZED_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+export function medicationDateKey(value?: string) {
+  if (!value) return undefined;
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|T)/.exec(value.trim());
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day, 12);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return undefined;
+  return `${match[1]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function medicationIsActiveOnDate(medication: Medication, date: string) {
+  const start = medicationDateKey(medication.startedAt);
+  const end = medicationDateKey(medication.endedAt);
+  return !medication.archived && (!start || start <= date) && (!end || end >= date);
+}
+
 export function validateMedication(input: MedicationInput) {
   if (input.kind !== undefined && input.kind !== 'medication' && input.kind !== 'supplement') return 'Choose Medication or Supplement.';
   if (!input.name.trim()) return `Enter the ${input.kind === 'supplement' ? 'supplement' : 'medication'} name.`;
+  if (input.startedAt && !medicationDateKey(input.startedAt)) return 'Enter a valid start date as YYYY-MM-DD.';
+  if (input.endedAt && !medicationDateKey(input.endedAt)) return 'Enter a valid end date as YYYY-MM-DD.';
   if (input.schedule.type !== 'as_needed' && input.schedule.type !== 'interval' && !input.schedule.times.length) return 'Add at least one dose time.';
   if (input.schedule.times.some((time) => !NORMALIZED_TIME.test(time))) return 'Enter a valid time using hour, minute, AM, and PM.';
   if (new Set(input.schedule.times).size !== input.schedule.times.length) return 'Each dose time must be different.';
@@ -24,6 +44,8 @@ export function upsertMedication(items: Medication[], input: MedicationInput, id
     kind: input.kind ?? existing?.kind ?? 'medication',
     id: input.id ?? id,
     name: input.name.trim(),
+    startedAt: medicationDateKey(input.startedAt),
+    endedAt: medicationDateKey(input.endedAt),
     discreetName: clean(input.discreetName),
     strength: clean(input.strength),
     form: clean(input.form),

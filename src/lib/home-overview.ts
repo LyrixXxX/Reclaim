@@ -4,6 +4,7 @@ import { goalForDate as stepGoalForDate } from './activity-step-history';
 import { routeCaloriesForDate } from './activity';
 import { cpapGoalProgress } from './cpap';
 import { scheduledDosesForDate } from './medication-regimen';
+import { medicationIsActiveOnDate } from './medications';
 import { goalForDate as nutritionGoalForDate, macroCalories, nutritionTotals } from './nutrition';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
@@ -32,7 +33,7 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date) 
   const nutritionReached = Boolean(nutrition && nutritionGoalReached(nutrition.calories, nutrition.budget, nutrition.entryCount));
 
   const activeMedications = preferences.visibleSections.health && preferences.visibleHealthModules.medications
-    ? (state.medications ?? []).filter((medication) => !medication.archived && (!medication.startedAt || medication.startedAt.slice(0, 10) <= today) && (!medication.endedAt || medication.endedAt.slice(0, 10) >= today))
+    ? (state.medications ?? []).filter((medication) => medicationIsActiveOnDate(medication, today))
     : [];
   const dueToday = scheduledDosesForDate(activeMedications, state.medicationEvents ?? [], today);
   const taken = dueToday.filter((dose) => dose.status === 'taken').length;

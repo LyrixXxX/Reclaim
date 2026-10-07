@@ -1,5 +1,6 @@
 import { Medication, MedicationEvent, SupplementStack } from '@/models/tracker';
 import { addScheduledDoseBatch, doseDayPart, scheduledDosesForDate, stackMembersForToday, stackNeedsReview, validateSupplementStack } from './medication-regimen';
+import { medicationDateKey, medicationIsActiveOnDate, upsertMedication, validateMedication } from './medications';
 
 const medication: Medication = { id: 'med', name: 'Morning medication', kind: 'medication', schedule: { type: 'daily', times: ['08:00'] }, remindersEnabled: false, notificationIds: [], archived: false, recordedAt: '2026-10-01T12:00:00Z' };
 const supplement: Medication = { ...medication, id: 'supp', name: 'Supplement', kind: 'supplement', schedule: { type: 'daily', times: ['08:00', '20:00'] } };
@@ -14,6 +15,18 @@ test('today follows local date, weekly weekdays, dates, and recorded status', ()
   expect(monday.find((dose) => dose.medication.id === 'med')?.status).toBe('taken');
   expect(scheduledDosesForDate([weekly], events, '2026-10-06')).toHaveLength(0);
   expect(scheduledDosesForDate([medication], events, '2026-10-06')[0].status).toBeNull();
+});
+
+test('a non-padded October 6 start date includes NAC on October 7, including its evening dose', () => {
+  const nac: Medication = { ...supplement, id: 'nac', name: 'NAC', startedAt: '2026-10-6', schedule: { type: 'daily', times: ['09:00', '18:00'] } };
+  const morning: MedicationEvent = { id: 'nac-morning', medicationId: 'nac', scheduledFor: '2026-10-07T09:00', occurredAt: '2026-10-07T14:00:00Z', outcome: 'taken' };
+  const today = scheduledDosesForDate([nac], [morning], '2026-10-07');
+  expect(today.map((dose) => [dose.time, dose.status])).toEqual([['09:00', 'taken'], ['18:00', null]]);
+  expect(medicationIsActiveOnDate(nac, '2026-10-05')).toBe(false);
+  expect(medicationDateKey('2026-10-6')).toBe('2026-10-06');
+  expect(medicationDateKey('2026-02-30')).toBeUndefined();
+  expect(validateMedication({ ...nac, startedAt: '2026-02-30' })).toMatch(/valid start date/);
+  expect(upsertMedication([], nac, 'unused')[0].startedAt).toBe('2026-10-06');
 });
 
 test('as-needed and interval items do not enter scheduled progress', () => {

@@ -1,5 +1,5 @@
 import { Medication, MedicationEvent, SupplementStack } from '@/models/tracker';
-import { normalizeScheduleTimes, scheduledDoseKey, upsertMedicationEvent, MedicationEventInput } from './medications';
+import { medicationIsActiveOnDate, normalizeScheduleTimes, scheduledDoseKey, upsertMedicationEvent, MedicationEventInput } from './medications';
 
 export type ScheduledDose = {
   medication: Medication;
@@ -11,8 +11,7 @@ export type ScheduledDose = {
 export function scheduledDosesForDate(medications: Medication[], events: MedicationEvent[], date: string): ScheduledDose[] {
   const weekday = new Date(`${date}T12:00:00`).getDay() + 1;
   return medications.flatMap((medication) => {
-    if (medication.archived || (medication.startedAt && medication.startedAt.slice(0, 10) > date)
-      || (medication.endedAt && medication.endedAt.slice(0, 10) < date)) return [];
+    if (!medicationIsActiveOnDate(medication, date)) return [];
     if (medication.schedule.type !== 'daily'
       && !(medication.schedule.type === 'weekly' && medication.schedule.weekdays?.includes(weekday))) return [];
     return [...new Set(normalizeScheduleTimes(medication.schedule.times))].map((time) => {
