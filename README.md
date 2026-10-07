@@ -1,56 +1,74 @@
-# Welcome to your Expo app 👋
+# Reclaim
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A private, dark-mode personal health dashboard built with Expo Router and
+TypeScript. Reclaim stores tracker, health, CPAP, weight, medication,
+laboratory, and nutrition history locally with AsyncStorage. There are no
+accounts.
 
-## Get started
+## Included
 
-1. Install dependencies
+- Customizable Home dashboard with reorder handles, accessible move buttons, compact/expanded widgets, and selected labs/habits
+- Reusable quit, taper, and habit trackers with cumulative history
+- Health readings, medications and reminders, and laboratory trends
+- CPAP image extraction, trends, care reminders, and doctor summaries
+- Weight history and rolling trend charts
+- Nutrition goals derived from carbohydrate, protein, and fat targets
+- Manual food logging, saved foods, meal groups, fiber, and intake trends
+- Optional AI-assisted meal descriptions and nutrition-label extraction
+- Local backup and restore, including saved source photos
 
-   ```bash
-   npm install
-   ```
+Nutrition AI is optional. It uses a separately deployed stateless relay so an
+OpenAI API key is never embedded in the Android app. Manual nutrition tracking
+continues to work offline.
 
-2. Start the app
+Reclaim is a personal tracking tool and does not provide medical advice.
 
-   ```bash
-   npx expo start
-   ```
+## Home dashboard
 
-In the output, you'll find options to open the app in a
+Running record lists use the shared `HistoryPages` component: seven entries per
+page, newest first, with Previous/Next controls. This applies to CPAP nights and
+settings, weight, blood pressure, medication events, lab results, habit entries,
+and taper steps. Seven entries need not equal a calendar week when dates are
+missing or multiple events occur on one day. Date headings are retained within
+each page. Charts, calculations, backups, and reports always use the full input
+history; Nutrition retains its existing day-by-day navigation. New running logs
+should reuse this component rather than render an unbounded list.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Home is the normal launch destination; Habits is now its own tab. Use **Edit
+dashboard** (also available in Settings) to toggle widgets, reorder them, and
+choose their details. Drag the handle to move between visible rows; use the
+up/down buttons for longer moves or accessibility. Save applies the draft;
+Cancel leaves the previous layout unchanged. Restoring defaults requires
+confirmation and still needs Save to apply.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Dashboard preferences are local and included in full backups. Hiding a section
+or Health module in Settings suppresses its widgets and quick actions without
+deleting records or layout preferences. Labs and Habits are optional widgets;
+their expanded cards preview up to three selected items. Open their sections
+for the full list. Reading cards label their recorded dates; Nutrition is today
+so far, not a completed-day average. Medication cards summarize recorded doses
+and pending daily/weekly slots; interval and as-needed schedules remain in the
+Medications screen.
 
-## Get a fresh project
+Device review checklist: launch to Home, drag and use move buttons, save and
+reopen, cancel a draft, hide a section, restore defaults, test quick actions,
+and review at 360px width and with enlarged system text. Automated checks do
+not replace this hands-on review.
 
-When you're ready, run:
+## Run
 
 ```bash
-npm run reset-project
+npm install
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Then open the app with Expo Go, an Android/iOS simulator, or press `w` for web.
 
-### Other setup steps
+## Quality checks
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run verify
+```
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This runs Expo ESLint, strict TypeScript checking, the Jest test suite, and the
+Nutrition AI relay tests.

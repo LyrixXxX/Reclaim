@@ -2,6 +2,9 @@
 
 # dependencies
 node_modules/
+.npm-cache/
+.npm-task-cache/
+.expo-task-home/
 
 # Expo
 .expo/
@@ -17,6 +20,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+credentials.json
+credentials/
 
 # Metro
 .metro-health-check*
@@ -25,6 +30,11 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+*.apk
+.jest-cache/
+package-lock.backup.json
+audit-screens/
 
 # macOS
 .DS_Store
@@ -32,6 +42,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+services/nutrition-ai/.dev.vars*
+services/nutrition-ai/.wrangler/
 
 # typescript
 *.tsbuildinfo

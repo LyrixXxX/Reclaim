@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "types": ["jest"],
     "paths": {
       "@/*": [
         "./src/*"
@@ -16,5 +17,18 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "src/components/animated-icon*",
+    "src/components/app-tabs*",
+    "src/components/external-link.tsx",
+    "src/components/hint-row.tsx",
+    "src/components/themed-text.tsx",
+    "src/components/themed-view.tsx",
+    "src/components/ui/**",
+    "src/components/web-badge.tsx",
+    "src/constants/**",
+    "src/hooks/use-color-scheme.ts",
+    "src/hooks/use-theme.ts"
   ]
 }
