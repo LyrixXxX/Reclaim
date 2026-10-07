@@ -22,7 +22,7 @@ export type ReclaimBackup = {
 const stateArrayKeys = [
   'trackers', 'checkIns', 'lapseEvents', 'historicalEntries', 'taperSteps',
   'healthReadings', 'cpapReadings', 'cpapTherapySettings', 'cpapUsageGoals', 'weightEntries', 'cpapEquipment',
-  'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications',
+  'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutritionMealGroups',
   'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals',
 ] as const;
@@ -107,6 +107,22 @@ function validateState(value: Record<string, unknown>) {
   if (Array.isArray(value.medications) && value.medications.some((item) => !isObject(item)
     || (item.kind !== undefined && item.kind !== 'medication' && item.kind !== 'supplement'))) {
     throw new Error('This Reclaim backup contains an invalid medication or supplement type. Nothing was restored.');
+  }
+  if (Array.isArray(value.supplementStacks)) {
+    const slots = new Set<string>();
+    for (const stack of value.supplementStacks) {
+      if (!isObject(stack) || typeof stack.id !== 'string' || !stack.id || typeof stack.name !== 'string' || !stack.name.trim()
+        || !Array.isArray(stack.members) || stack.members.some((member: unknown) => !isObject(member)
+          || typeof member.medicationId !== 'string' || typeof member.time !== 'string'
+          || !/^([01]\d|2[0-3]):[0-5]\d$/.test(member.time))) {
+        throw new Error('This Reclaim backup contains invalid supplement stacks. Nothing was restored.');
+      }
+      for (const member of stack.members) {
+        const key = `${member.medicationId}\u0000${member.time}`;
+        if (slots.has(key)) throw new Error('This Reclaim backup contains duplicate supplement stack doses. Nothing was restored.');
+        slots.add(key);
+      }
+    }
   }
   if (value.weightTdeeProfile !== undefined && (!isObject(value.weightTdeeProfile)
     || typeof value.weightTdeeProfile.heightCm !== 'number' || !Number.isFinite(value.weightTdeeProfile.heightCm)

@@ -41,6 +41,15 @@ describe('full Reclaim backups', () => {
     expect(() => parseReclaimBackup(JSON.stringify({ ...supplement, state: { ...supplement.state, medications: [{ ...legacy, kind: 'other' }] } }))).toThrow(/invalid medication or supplement type/);
   });
 
+  it('round-trips supplement stacks and rejects malformed or duplicate dose slots', () => {
+    const supplementStacks = [{ id: 'morning', name: 'Morning', members: [{ medicationId: 'supp', time: '08:00' }] }];
+    const backup = createReclaimBackup({ ...state, supplementStacks });
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.supplementStacks).toEqual(supplementStacks);
+    expect(parseReclaimBackup(JSON.stringify(createReclaimBackup(state))).state.supplementStacks).toBeUndefined();
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, supplementStacks: [{ ...supplementStacks[0], members: [{ medicationId: 'supp', time: '8am' }] }] } }))).toThrow(/invalid supplement stacks/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, supplementStacks: [...supplementStacks, { ...supplementStacks[0], id: 'second' }] } }))).toThrow(/duplicate supplement stack doses/);
+  });
+
   it('rejects invalid CPAP goal history without affecting older backups', () => {
     expect(() => parseReclaimBackup(JSON.stringify(createReclaimBackup({ ...state, cpapUsageGoals: [{ effectiveDate: '2026-09-18', minutes: 0 }] })))).toThrow(/invalid CPAP usage goals/);
     expect(parseReclaimBackup(JSON.stringify(createReclaimBackup({ ...state, cpapUsageGoals: undefined }))).state.cpapUsageGoals).toBeUndefined();

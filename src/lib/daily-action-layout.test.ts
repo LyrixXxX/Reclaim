@@ -20,11 +20,11 @@ describe('daily action layout contracts', () => {
     expect(source.indexOf('<NutritionNavigation date={date}')).toBeLessThan(source.indexOf('{!goal ?'));
     for (const mode of ['text', 'label', 'manual']) expect(source).toContain(`mode: '${mode}', date`);
   });
-  test('dose history starts collapsed and retains the paged editable history', () => {
+  test('dose history lives behind its own tab and retains paged, editable records', () => {
     const source = screen('medications');
-    expect(source).toContain('useState<Record<string, boolean>>({})');
-    expect(source).toContain('{historyExpanded[item.id] && <HistoryPages');
-    expect(source).toContain('accessibilityState={{ expanded: !!historyExpanded[item.id] }}');
+    expect(source).toContain("useState<HubTab>('today')");
+    expect(source).toContain("tab === 'history'");
+    expect(source).toContain('<HistoryPages items={history} pageSize={10}>');
     expect(source).toContain('setEventEditor({ medication: item, event })');
   });
   test('health hub cards navigate to their trackers and keep detailed BP reports behind recorded data', () => {

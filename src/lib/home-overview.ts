@@ -3,7 +3,7 @@ import { StepResult } from './activity-steps';
 import { goalForDate as stepGoalForDate } from './activity-step-history';
 import { routeCaloriesForDate } from './activity';
 import { cpapGoalProgress } from './cpap';
-import { normalizeScheduleTimes, scheduledDoseKey } from './medications';
+import { scheduledDosesForDate } from './medication-regimen';
 import { goalForDate as nutritionGoalForDate, macroCalories, nutritionTotals } from './nutrition';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
@@ -34,18 +34,13 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date) 
   const activeMedications = preferences.visibleSections.health && preferences.visibleHealthModules.medications
     ? (state.medications ?? []).filter((medication) => !medication.archived && (!medication.startedAt || medication.startedAt.slice(0, 10) <= today) && (!medication.endedAt || medication.endedAt.slice(0, 10) >= today))
     : [];
-  const weekday = now.getDay() + 1;
-  const dueToday = activeMedications.flatMap((medication) => {
-    if (medication.schedule.type !== 'daily' && !(medication.schedule.type === 'weekly' && medication.schedule.weekdays?.includes(weekday))) return [];
-    return normalizeScheduleTimes(medication.schedule.times).map((time) => ({ medication, time, key: scheduledDoseKey(today, time) }));
-  });
-  const statusFor = (medicationId: string, key: string) => (state.medicationEvents ?? []).find((event) => event.medicationId === medicationId && event.scheduledFor === key && event.outcome !== 'snoozed')?.outcome;
-  const taken = dueToday.filter(({ medication, key }) => statusFor(medication.id, key) === 'taken').length;
-  const skipped = dueToday.filter(({ medication, key }) => statusFor(medication.id, key) === 'skipped').length;
+  const dueToday = scheduledDosesForDate(activeMedications, state.medicationEvents ?? [], today);
+  const taken = dueToday.filter((dose) => dose.status === 'taken').length;
+  const skipped = dueToday.filter((dose) => dose.status === 'skipped').length;
   const medications = dueToday.length ? { total: dueToday.length, taken, skipped, reached: taken === dueToday.length } : null;
 
   const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const overdue = dueToday.filter(({ medication, key, time: scheduledTime }) => scheduledTime < time && !statusFor(medication.id, key));
+  const overdue = dueToday.filter((dose) => dose.time < time && !dose.status);
   const attention: HomeAttention[] = [];
   if (overdue.length) attention.push({ id: 'overdue-medications', title: `${overdue.length} scheduled ${overdue.length === 1 ? 'dose' : 'doses'} not logged`, detail: 'Open Medications & Supplements to review today’s schedule.', href: '/medications' });
   if (preferences.visibleSections.activity && steps.status === 'interrupted') attention.push({ id: 'steps-interrupted', title: 'Step tracking interrupted', detail: 'Open Activity to restart tracking.', href: '/activity' });

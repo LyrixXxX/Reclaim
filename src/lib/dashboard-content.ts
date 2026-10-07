@@ -1,6 +1,7 @@
 import { DashboardWidget, TrackerState } from '@/models/tracker';
 import { goalForDate, macroCalories, nutritionTotals } from './nutrition';
-import { formatMedicationTime, medicationEventDate, scheduledDoseKey } from './medications';
+import { formatMedicationTime } from './medications';
+import { scheduledDosesForDate } from './medication-regimen';
 import { localDateKey } from './progress';
 import { completedCalendarDays, formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from './taper-quit';
 import { currentStreakFromEntries } from './recovery';
@@ -67,13 +68,10 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
   if (widget.id === 'medications') {
     const medications = (state.medications ?? []).filter((item) => !item.archived && (!item.startedAt || item.startedAt.slice(0, 10) <= today) && (!item.endedAt || item.endedAt.slice(0, 10) >= today));
     const events = (state.medicationEvents ?? []).filter((event) => medications.some((item) => item.id === event.medicationId));
-    const logged = events.filter((event) => medicationEventDate(event) === today && event.outcome !== 'snoozed');
-    const pending = medications.flatMap((item) => {
-      if (item.schedule.type !== 'daily' && !(item.schedule.type === 'weekly' && item.schedule.weekdays?.includes(now.getDay() + 1))) return [];
-      return item.schedule.times.filter((time) => !events.some((event) => event.medicationId === item.id && event.scheduledFor === scheduledDoseKey(today, time) && event.outcome !== 'snoozed'))
-        .map((time) => ({ time, name: item.discreetName || item.name }));
-    }).sort((a, b) => a.time.localeCompare(b.time));
-    return { value: `${logged.filter((event) => event.outcome === 'taken').length} taken · ${logged.filter((event) => event.outcome === 'skipped').length} skipped`,
+    const due = scheduledDosesForDate(medications, events, today);
+    const pending = due.filter((dose) => !dose.status)
+      .map((dose) => ({ time: dose.time, name: dose.medication.discreetName || dose.medication.name }));
+    return { value: `${due.filter((dose) => dose.status === 'taken').length} taken · ${due.filter((dose) => dose.status === 'skipped').length} skipped`,
       caption: `Today · ${pending.length} scheduled doses not logged. Open Medications & Supplements for as-needed or interval schedules.`,
       rows: pending.slice(0, 3).map((dose) => ({ label: dose.name, value: formatMedicationTime(dose.time) })) };
   }

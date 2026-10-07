@@ -4,6 +4,8 @@ import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } fr
 import { Link } from 'expo-router';
 
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
+import { Header } from '@/components/header';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   formatMedicationTime,
   groupMedicationEventsByDate,
@@ -18,72 +20,132 @@ import {
   validateMedication,
 } from '@/lib/medications';
 import { localDateKey } from '@/lib/progress';
-import { Medication, MedicationEvent, MedicationSchedule } from '@/models/tracker';
+import { useNow } from '@/hooks/use-now';
+import { doseDayPart, ScheduledDose, scheduledDosesForDate, stackDoseKey, stackMembersForToday, stackNeedsReview } from '@/lib/medication-regimen';
+import { Medication, MedicationEvent, MedicationSchedule, SupplementStack } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
 
 const WEEKDAYS = [{ id: 1, label: 'Sun' }, { id: 2, label: 'Mon' }, { id: 3, label: 'Tue' }, { id: 4, label: 'Wed' }, { id: 5, label: 'Thu' }, { id: 6, label: 'Fri' }, { id: 7, label: 'Sat' }];
 type DoseTimeDraft = { hour: string; minute: string; period: Meridiem };
 type EventEditor = { medication: Medication; event: MedicationEvent | null };
+type HubTab = 'today' | 'regimen' | 'history';
+type RegimenFilter = 'active' | 'medications' | 'supplements' | 'as_needed' | 'archived';
+type DoseConfirmation = { outcome: 'taken' | 'skipped'; doses: ScheduledDose[]; item?: Medication; label: string };
 
 export default function MedicationsScreen() {
-  const { medications = [], medicationEvents = [], saveMedication, deleteMedication, saveMedicationLog, deleteMedicationLog } = useTrackers();
+  const { medications = [], medicationEvents = [], supplementStacks = [], saveMedication, deleteMedication, saveMedicationLog, saveMedicationLogs, deleteMedicationLog, deleteMedicationLogs, saveSupplementStack, deleteSupplementStack } = useTrackers();
+  const [tab, setTab] = useState<HubTab>('today');
+  const [regimenFilter, setRegimenFilter] = useState<RegimenFilter>('active');
   const [editing, setEditing] = useState<Medication | null | undefined>();
   const [eventEditor, setEventEditor] = useState<EventEditor>();
-  const [showArchived, setShowArchived] = useState(false);
-  const [historyExpanded, setHistoryExpanded] = useState<Record<string, boolean>>({});
-  const [undo, setUndo] = useState<{ id: string; label: string }>();
-  const visible = medications.filter((item) => showArchived ? item.archived : !item.archived);
-  const today = localDateKey();
-
-  const log = (medication: Medication, outcome: 'taken' | 'skipped', scheduledFor?: string) => {
-    const timeLabel = scheduledFor ? formatMedicationTime(scheduledFor.slice(11, 16)) : medication.name;
-    Alert.alert(
-      outcome === 'taken' ? 'Confirm dose taken?' : 'Confirm skipped dose?',
-      `${medication.name} · ${timeLabel}\n\nThis will move the dose into today’s logged history.`,
-      [
-        { text: 'Go back', style: 'cancel' },
-        { text: outcome === 'taken' ? 'Confirm Taken' : 'Confirm Skipped', onPress: () => {
-          const id = saveMedicationLog({ medicationId: medication.id, scheduledFor, outcome });
-          if (id) setUndo({ id, label: `${medication.name} · ${outcome === 'taken' ? 'Taken' : 'Skipped'} · ${timeLabel}` });
-        } },
-      ],
-    );
+  const [detail, setDetail] = useState<Medication>();
+  const [stackEditor, setStackEditor] = useState<SupplementStack | null | undefined>();
+  const [expandedStacks, setExpandedStacks] = useState<Record<string, boolean>>({});
+  const [collapsedParts, setCollapsedParts] = useState<Record<string, boolean>>({});
+  const [asNeededOpen, setAsNeededOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<DoseConfirmation>();
+  const [undo, setUndo] = useState<{ ids: string[]; label: string }>();
+  const today = localDateKey(new Date(useNow(60_000)));
+  const doses = scheduledDosesForDate(medications, medicationEvents, today);
+  const taken = doses.filter((dose) => dose.status === 'taken').length;
+  const skipped = doses.filter((dose) => dose.status === 'skipped').length;
+  const remaining = doses.length - taken - skipped;
+  const activeAsNeeded = medications.filter((item) => !item.archived
+    && (!item.startedAt || item.startedAt.slice(0, 10) <= today)
+    && (!item.endedAt || item.endedAt.slice(0, 10) >= today)
+    && (item.schedule.type === 'as_needed' || item.schedule.type === 'interval'));
+  const stackedSlots = new Set(supplementStacks.flatMap((stack) => stackMembersForToday(stack, doses)
+    .map((dose) => stackDoseKey(dose.medication.id, dose.time))));
+  const askDose = (dose: ScheduledDose, outcome: 'taken' | 'skipped') => setConfirmation({ outcome, doses: [dose], label: dose.medication.name });
+  const confirmLog = () => {
+    if (!confirmation) return;
+    if (confirmation.doses.some((dose) => dose.key.slice(0, 10) !== localDateKey())) {
+      setConfirmation(undefined);
+      Alert.alert('The day changed', 'Review today’s schedule before recording this dose.');
+      return;
+    }
+    const ids = confirmation.item
+      ? [saveMedicationLog({ medicationId: confirmation.item.id, outcome: confirmation.outcome })].filter((id): id is string => !!id)
+      : saveMedicationLogs(confirmation.doses.filter((dose) => !dose.status).map((dose) => ({ medicationId: dose.medication.id, scheduledFor: dose.key, outcome: confirmation.outcome })));
+    if (ids.length) setUndo({ ids, label: `${confirmation.label} · ${confirmation.outcome === 'taken' ? 'Taken' : 'Skipped'}` });
+    setConfirmation(undefined);
   };
+  const doseRow = (dose: ScheduledDose) => <View key={stackDoseKey(dose.medication.id, dose.time)} style={styles.hubDoseRow}>
+    <View style={[styles.hubIcon, dose.medication.kind === 'supplement' ? styles.supplementIcon : styles.medicationIcon]}><Text style={styles.hubIconText}>{dose.medication.kind === 'supplement' ? '🌱' : '✚'}</Text></View>
+    <View style={styles.flex}><Text style={styles.hubDoseName} numberOfLines={1}>{dose.medication.name}</Text><Text style={styles.hubDoseMeta}>{dose.medication.strength ? `${dose.medication.strength} · ` : ''}{formatMedicationTime(dose.time)}</Text></View>
+    {dose.status ? <Text style={[styles.hubStatus, dose.status === 'taken' ? styles.takenStatus : styles.skippedStatus]}>{dose.status === 'taken' ? '✓ Taken' : 'Skipped'}</Text>
+      : <View style={styles.hubDoseActions}><Pressable accessibilityRole="button" accessibilityLabel={`Take ${dose.medication.name} at ${formatMedicationTime(dose.time)}`} onPress={() => askDose(dose, 'taken')} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Skip ${dose.medication.name} at ${formatMedicationTime(dose.time)}`} onPress={() => askDose(dose, 'skipped')} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View>}
+  </View>;
+  const regimenItems = medications.filter((item) => regimenFilter === 'archived' ? item.archived
+    : !item.archived && (regimenFilter === 'active' || (regimenFilter === 'medications' && item.kind !== 'supplement')
+      || (regimenFilter === 'supplements' && item.kind === 'supplement')
+      || (regimenFilter === 'as_needed' && (item.schedule.type === 'as_needed' || item.schedule.type === 'interval'))));
+  const history = [...medicationEvents].sort((a, b) => (b.scheduledFor ?? b.occurredAt).localeCompare(a.scheduledFor ?? a.occurredAt));
 
-  return <KeyboardSafeScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.eyebrow}>PRIVATE · ON DEVICE</Text><Text style={styles.subtitle}>Today’s doses, medications, supplements, and dose history.</Text>
-    <Pressable onPress={() => setEditing(null)} style={styles.add}><Text style={styles.addText}>+ Add medication or supplement</Text></Pressable>
-    <Link href={'/medication-reminder-settings' as never} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Reminder Status, Tests & Android Settings</Text></Pressable></Link>
-    {undo && <View style={styles.undo}><View style={styles.flex}><Text style={styles.undoTitle}>Dose recorded</Text><Text style={styles.undoText}>{undo.label}</Text></View><Pressable onPress={() => { deleteMedicationLog(undo.id); setUndo(undefined); }}><Text style={styles.undoAction}>Undo</Text></Pressable></View>}
-    <View style={styles.filter}><Pressable onPress={() => setShowArchived(false)} style={[styles.filterButton, !showArchived && styles.filterActive]}><Text style={[styles.filterText, !showArchived && styles.filterTextActive]}>Active</Text></Pressable><Pressable onPress={() => setShowArchived(true)} style={[styles.filterButton, showArchived && styles.filterActive]}><Text style={[styles.filterText, showArchived && styles.filterTextActive]}>Archived</Text></Pressable></View>
-    {visible.map((item) => {
-      const events = medicationEvents.filter((event) => event.medicationId === item.id).sort((a, b) => (b.scheduledFor ?? b.occurredAt).localeCompare(a.scheduledFor ?? a.occurredAt));
-      const pendingTimes = normalizeScheduleTimes(item.schedule.times).filter((time) => !events.some((event) => event.scheduledFor === scheduledDoseKey(today, time)));
-      const instructionWarning = scheduleInstructionWarning(item.instructions, item.schedule);
-      return <View key={item.id} style={styles.card}>
-        <View style={styles.cardHead}><View style={styles.flex}><Text style={styles.medName}>{item.name}</Text><Text style={styles.strength}>{item.kind === 'supplement' ? 'SUPPLEMENT' : 'MEDICATION'}{item.strength ? ` · ${item.strength}` : ''}{item.form ? ` · ${item.form}` : ''}</Text></View><Pressable onPress={() => setEditing(item)}><Text style={styles.edit}>Edit</Text></Pressable></View>
-        <Text style={styles.schedule}>{scheduleLabel(item.schedule)}{item.remindersEnabled ? ` · ${item.reminderMode === 'audible' ? 'audible' : 'normal'} reminders` : ''}</Text>
-        {item.instructions && <Text style={styles.instructions}>{item.instructions}</Text>}
-        {instructionWarning && <Text style={styles.warning}>{instructionWarning}</Text>}
-        {!item.archived && item.schedule.type !== 'interval' && item.schedule.type !== 'as_needed' && <View style={styles.doseList}>
-          <Text style={styles.doseHeading}>TODAY’S SCHEDULE</Text>
-          {pendingTimes.map((time) => {
-            const scheduledFor = scheduledDoseKey(today, time);
-            return <View key={time} style={styles.doseRow}><View style={styles.flex}><Text style={styles.doseTime}>{formatMedicationTime(time)}</Text><Text style={styles.doseStatus}>Pending</Text></View><View style={styles.doseActions}><Pressable onPress={() => log(item, 'taken', scheduledFor)} style={styles.taken}><Text style={styles.takenText}>Taken</Text></Pressable><Pressable onPress={() => log(item, 'skipped', scheduledFor)} style={styles.skipped}><Text style={styles.smallText}>Skipped</Text></Pressable></View></View>;
+  return <SafeAreaView style={styles.screen} edges={['top']}><KeyboardSafeScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <Header />
+    <Text style={styles.hubEyebrow}>MEDICATIONS & SUPPLEMENTS</Text><Text style={styles.subtitle}>Stay on track, your way.</Text>
+    <View style={styles.hubTabs}>{(['today', 'regimen', 'history'] as const).map((choice) => <Pressable key={choice} accessibilityRole="tab" accessibilityState={{ selected: tab === choice }} onPress={() => setTab(choice)} style={[styles.hubTab, tab === choice && styles.hubTabSelected]}><Text style={[styles.hubTabText, tab === choice && styles.hubTabTextSelected]}>{choice === 'today' ? 'Today' : choice === 'regimen' ? 'Regimen' : 'History'}</Text></Pressable>)}</View>
+    {undo && <View style={styles.undo}><View style={styles.flex}><Text style={styles.undoTitle}>Dose recorded</Text><Text style={styles.undoText}>{undo.label}</Text></View><Pressable accessibilityRole="button" onPress={() => { deleteMedicationLogs(undo.ids); setUndo(undefined); }}><Text style={styles.undoAction}>Undo</Text></Pressable></View>}
+    {tab === 'today' && <>
+      <View style={styles.hubProgress}><View style={styles.hubProgressTop}><View><Text style={styles.hubProgressTitle}>Today’s progress</Text><Text style={styles.hubProgressMeta}>{taken} of {doses.length} scheduled doses taken</Text></View><Text style={styles.hubPercent}>{doses.length ? Math.round(taken / doses.length * 100) : 0}%</Text></View><View style={styles.hubProgressTrack}><View style={[styles.hubProgressFill, { width: `${doses.length ? taken / doses.length * 100 : 0}%` }]} /></View><View style={styles.hubStats}><Text style={styles.hubStat}>✓  {taken} taken</Text><Text style={styles.hubStat}>◷  {remaining} remaining</Text><Text style={styles.hubStat}>×  {skipped} skipped</Text></View></View>
+      {!doses.length && <Text style={styles.empty}>No scheduled doses today. As-needed items remain available below.</Text>}
+      {(['Overnight', 'Morning', 'Afternoon', 'Evening'] as const).map((part) => {
+        const partDoses = doses.filter((dose) => doseDayPart(dose.time) === part);
+        const partStacks = supplementStacks.map((stack) => ({ stack, members: stackMembersForToday(stack, partDoses) })).filter((entry) => entry.members.length);
+        const standalone = partDoses.filter((dose) => !stackedSlots.has(stackDoseKey(dose.medication.id, dose.time)));
+        if (!partDoses.length) return null;
+        return <View key={part} style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsedParts[part] }} onPress={() => setCollapsedParts((current) => ({ ...current, [part]: !current[part] }))} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>{part === 'Morning' ? '☀  ' : part === 'Evening' || part === 'Overnight' ? '☾  ' : '◉  '}{part}</Text><Text style={styles.hubPartCount}>{partDoses.length} {partDoses.length === 1 ? 'dose' : 'doses'}  {collapsedParts[part] ? '⌄' : '⌃'}</Text></Pressable>{!collapsedParts[part] && <View style={styles.hubPartBody}>
+          {partStacks.map(({ stack, members }) => {
+            const pending = members.filter((dose) => !dose.status);
+            return <View key={stack.id} style={styles.hubStack}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !!expandedStacks[stack.id] }} onPress={() => setExpandedStacks((current) => ({ ...current, [stack.id]: !current[stack.id] }))} style={styles.hubStackHead}><Text style={styles.hubStackIcon}>🌱</Text><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{members.length} supplement {members.length === 1 ? 'dose' : 'doses'} · {members.filter((dose) => dose.status === 'taken').length} taken</Text></View><Text style={styles.hubChevron}>{expandedStacks[stack.id] ? '⌃' : '⌄'}</Text></Pressable>{expandedStacks[stack.id] && <><View style={styles.hubBulk}>{pending.length > 0 && <><Pressable onPress={() => setConfirmation({ outcome: 'taken', doses: pending, label: stack.name })} style={styles.hubBulkTake}><Text style={styles.hubBulkTakeText}>Take all ({pending.length})</Text></Pressable><Pressable onPress={() => setConfirmation({ outcome: 'skipped', doses: pending, label: stack.name })} style={styles.hubBulkSkip}><Text style={styles.hubSkipText}>Skip all</Text></Pressable></>}{!pending.length && <Text style={styles.hubDoseMeta}>All stack doses logged today.</Text>}</View>{members.map(doseRow)}</>}</View>;
           })}
-          {!pendingTimes.length && <Text style={styles.allLogged}>All scheduled doses for today are logged. Open dose history below to review.</Text>}
-        </View>}
-        {!item.archived && (item.schedule.type === 'interval' || item.schedule.type === 'as_needed') && <View style={styles.actions}><Pressable onPress={() => log(item, 'taken')} style={styles.taken}><Text style={styles.takenText}>Taken</Text></Pressable><Pressable onPress={() => log(item, 'skipped')} style={styles.smallButton}><Text style={styles.smallText}>Skipped</Text></Pressable></View>}
-        <View style={styles.cardLinks}><Pressable onPress={() => setEventEditor({ medication: item, event: null })}><Text style={styles.backfill}>+ Backfill a dose</Text></Pressable><Pressable onPress={() => saveMedication({ ...item, archived: !item.archived, remindersEnabled: item.archived ? item.remindersEnabled : false }).catch((error) => Alert.alert('Could not update', String(error)))}><Text style={styles.archive}>{item.archived ? 'Restore' : 'Archive'}</Text></Pressable></View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Dose history for ${item.name}`} accessibilityState={{ expanded: !!historyExpanded[item.id] }} onPress={() => setHistoryExpanded((current) => ({ ...current, [item.id]: !current[item.id] }))} style={styles.secondary}><Text style={styles.secondaryText}>{historyExpanded[item.id] ? 'Hide' : 'Show'} dose history · {events.length} {events.length === 1 ? 'event' : 'events'} {historyExpanded[item.id] ? '−' : '+'}</Text></Pressable>
-        {historyExpanded[item.id] && <HistoryPages key={item.id} items={events}>{(page) => groupMedicationEventsByDate(page).map((group) => <View key={group.date} style={styles.historyGroup}><Text style={styles.historyGroupDate}>{formatEventDate(group.date)}</Text>{group.events.map((event) => <Pressable key={event.id} onPress={() => setEventEditor({ medication: item, event })} style={styles.historyRow}><View style={styles.flex}><Text style={styles.historyOutcome}>{event.correctedAt ? 'Corrected' : event.outcome === 'taken' ? 'Taken' : event.outcome === 'skipped' ? 'Skipped' : 'Snoozed'}</Text><Text style={styles.historyDate}>{formatScheduledEvent(event)}</Text>{event.correctedAt && <Text style={styles.correctedOutcome}>{event.outcome === 'taken' ? 'Taken' : 'Skipped'} · corrected {new Date(event.correctedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</Text>}</View><Text style={styles.historyEdit}>Edit</Text></Pressable>)}</View>)}</HistoryPages>}
-      </View>;
-    })}
-    {!visible.length && <Text style={styles.empty}>{showArchived ? 'No archived medications or supplements.' : 'Add a medication or supplement to begin your private list.'}</Text>}
+          {standalone.map(doseRow)}
+        </View>}</View>;
+      })}
+      {!!activeAsNeeded.length && <View style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: asNeededOpen }} onPress={() => setAsNeededOpen(!asNeededOpen)} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>As needed & interval</Text><Text style={styles.hubPartCount}>{activeAsNeeded.length}  {asNeededOpen ? '⌃' : '⌄'}</Text></Pressable>{asNeededOpen && activeAsNeeded.map((item) => <View key={item.id} style={styles.hubDoseRow}><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta}>{scheduleLabel(item.schedule)}</Text></View><View style={styles.hubDoseActions}><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'taken', label: item.name })} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'skipped', label: item.name })} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View></View>)}</View>}
+    </>}
+    {tab === 'regimen' && <>
+      <Text style={styles.hubProgressTitle}>Your regimen</Text><Text style={styles.subtitle}>Manage medications, supplements, and stacks.</Text>
+      <View style={styles.hubFilters}>{([['active', 'Active'], ['medications', 'Medications'], ['supplements', 'Supplements'], ['as_needed', 'As needed'], ['archived', 'Archived']] as const).map(([id, label]) => <Pressable key={id} onPress={() => setRegimenFilter(id)} style={[styles.hubFilter, regimenFilter === id && styles.hubFilterSelected]}><Text style={[styles.hubFilterText, regimenFilter === id && styles.hubTabTextSelected]}>{label}</Text></Pressable>)}</View>
+      <Pressable onPress={() => setEditing(null)} style={styles.hubAdd}><Text style={styles.hubAddText}>+ Add medication or supplement</Text></Pressable><Pressable onPress={() => setStackEditor(null)} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>+ Create supplement stack</Text></Pressable>
+      {(regimenFilter === 'active' || regimenFilter === 'supplements') && !!supplementStacks.length && <View style={styles.hubRegimenSection}><Text style={styles.hubSectionLabel}>SUPPLEMENT STACKS</Text>{supplementStacks.map((stack) => <Pressable key={stack.id} accessibilityRole="button" onPress={() => setStackEditor(stack)} style={styles.hubRegimenRow}><Text style={styles.hubStackIcon}>🌱</Text><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{stack.members.length} dose {stack.members.length === 1 ? 'slot' : 'slots'}{stackNeedsReview(stack, medications) ? ' · Needs review' : ''}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}</View>}
+      <Text style={styles.hubSectionLabel}>{regimenFilter === 'archived' ? 'ARCHIVED ITEMS' : 'ACTIVE ITEMS'} · {regimenItems.length}</Text>
+      {regimenItems.map((item) => <Pressable key={item.id} accessibilityRole="button" onPress={() => setDetail(item)} style={styles.hubRegimenRow}><View style={[styles.hubIcon, item.kind === 'supplement' ? styles.supplementIcon : styles.medicationIcon]}><Text style={styles.hubIconText}>{item.kind === 'supplement' ? '🌱' : '✚'}</Text></View><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta} numberOfLines={2}>{item.kind === 'supplement' ? 'Supplement' : 'Medication'}{item.strength ? ` · ${item.strength}` : ''} · {scheduleLabel(item.schedule)}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}
+      {!regimenItems.length && <Text style={styles.empty}>No items in this view.</Text>}
+      <Link href={'/medication-reminder-settings' as never} asChild><Pressable style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>Reminder status & Android settings</Text></Pressable></Link>
+    </>}
+    {tab === 'history' && <><Text style={styles.hubProgressTitle}>Dose history</Text><Text style={styles.subtitle}>Tap a record to review or correct it.</Text>{history.length ? <HistoryPages items={history} pageSize={10}>{(page) => groupMedicationEventsByDate(page).map((group) => <View key={group.date} style={styles.historyGroup}><Text style={styles.historyGroupDate}>{formatEventDate(group.date)}</Text>{group.events.map((event) => {
+      const item = medications.find((medication) => medication.id === event.medicationId);
+      return <Pressable key={event.id} accessibilityRole="button" disabled={!item} onPress={() => item && setEventEditor({ medication: item, event })} style={styles.hubRegimenRow}><View style={styles.flex}><Text style={styles.hubDoseName}>{item?.name ?? 'Deleted item'} · {event.outcome === 'taken' ? 'Taken' : event.outcome === 'skipped' ? 'Skipped' : 'Snoozed'}</Text><Text style={styles.hubDoseMeta}>{formatScheduledEvent(event)}{event.correctedAt ? ' · Corrected' : ''}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>;
+    })}</View>)}</HistoryPages> : <Text style={styles.empty}>No doses logged yet.</Text>}</>}
+    {detail && <Modal transparent animationType="fade" onRequestClose={() => setDetail(undefined)}><KeyboardSafeScrollView contentContainerStyle={styles.backdrop}><View style={styles.modal}><Text style={styles.modalTitle}>{detail.name}</Text><Text style={styles.hubDoseMeta}>{detail.kind === 'supplement' ? 'Supplement' : 'Medication'}{detail.strength ? ` · ${detail.strength}` : ''}</Text><Text style={styles.schedule}>{scheduleLabel(detail.schedule)}</Text>{detail.instructions && <Text style={styles.instructions}>{detail.instructions}</Text>}<Pressable onPress={() => { setEditing(detail); setDetail(undefined); }} style={styles.hubAdd}><Text style={styles.hubAddText}>Edit item</Text></Pressable><Pressable onPress={() => { setEventEditor({ medication: detail, event: null }); setDetail(undefined); }} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>+ Backfill a dose</Text></Pressable><Pressable onPress={() => { const item = detail; setDetail(undefined); void saveMedication({ ...item, archived: !item.archived }).catch((error) => Alert.alert('Could not update', String(error))); }} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>{detail.archived ? 'Restore item' : 'Archive item'}</Text></Pressable><Pressable onPress={() => setDetail(undefined)} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>Close</Text></Pressable></View></KeyboardSafeScrollView></Modal>}
+    {stackEditor !== undefined && <SupplementStackModal key={stackEditor?.id ?? 'new'} stack={stackEditor} stacks={supplementStacks} medications={medications} onClose={() => setStackEditor(undefined)} onSave={(value) => { const error = saveSupplementStack(value); if (error) Alert.alert('Check stack', error); else setStackEditor(undefined); }} onDelete={(id) => { deleteSupplementStack(id); setStackEditor(undefined); }} />}
+    {confirmation && <Modal transparent animationType="fade" onRequestClose={() => setConfirmation(undefined)}><KeyboardSafeScrollView contentContainerStyle={styles.backdrop}><View style={styles.modal}><Text style={styles.hubConfirmIcon}>{confirmation.outcome === 'taken' ? '✓' : '×'}</Text><Text style={styles.hubConfirmTitle}>Mark as {confirmation.outcome}?</Text><Text style={styles.hubConfirmLabel}>{confirmation.label}</Text><Text style={styles.hubDoseMeta}>{confirmation.item ? scheduleLabel(confirmation.item.schedule) : `${confirmation.doses.length} scheduled ${confirmation.doses.length === 1 ? 'dose' : 'doses'}`}</Text>{confirmation.doses.length > 0 && <View style={styles.hubConfirmList}>{confirmation.doses.map((dose) => <Text key={stackDoseKey(dose.medication.id, dose.time)} style={styles.hubConfirmEntry}>✓ {dose.medication.name} · {formatMedicationTime(dose.time)}</Text>)}</View>}<Pressable onPress={confirmLog} style={[styles.hubConfirmButton, confirmation.outcome === 'skipped' && styles.hubConfirmSkip]}><Text style={styles.hubConfirmButtonText}>Mark {confirmation.doses.length > 1 ? 'all' : 'as'} {confirmation.outcome}</Text></Pressable><Pressable onPress={() => setConfirmation(undefined)} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>Cancel</Text></Pressable></View></KeyboardSafeScrollView></Modal>}
     {editing !== undefined && <MedicationModal key={editing?.id ?? 'new'} medication={editing} onClose={() => setEditing(undefined)} onSave={saveMedication} onDelete={async (item) => { await deleteMedication(item.id, true); setEditing(undefined); }} />}
     {eventEditor && <DoseEventModal key={eventEditor.event?.id ?? `${eventEditor.medication.id}-new`} medication={eventEditor.medication} event={eventEditor.event} events={medicationEvents.filter((item) => item.medicationId === eventEditor.medication.id)} onClose={() => setEventEditor(undefined)} onSave={(event) => { const id = saveMedicationLog(event); if (id) setEventEditor(undefined); }} onDelete={(id) => { deleteMedicationLog(id); setEventEditor(undefined); }} />}
-  </KeyboardSafeScrollView>;
+  </KeyboardSafeScrollView></SafeAreaView>;
+}
+
+function SupplementStackModal({ stack, stacks, medications, onClose, onSave, onDelete }: { stack: SupplementStack | null; stacks: SupplementStack[]; medications: Medication[]; onClose: () => void; onSave: (value: SupplementStack) => void; onDelete: (id: string) => void }) {
+  const [name, setName] = useState(stack?.name ?? '');
+  const [selected, setSelected] = useState(stack?.members.map((member) => stackDoseKey(member.medicationId, member.time)) ?? []);
+  const options = medications.filter((item) => !item.archived && item.kind === 'supplement' && (item.schedule.type === 'daily' || item.schedule.type === 'weekly'))
+    .flatMap((item) => normalizeScheduleTimes(item.schedule.times).map((time) => ({ item, time, key: stackDoseKey(item.id, time) })))
+    .sort((a, b) => a.time.localeCompare(b.time) || a.item.name.localeCompare(b.item.name));
+  const unavailable = new Set(stacks.filter((item) => item.id !== stack?.id).flatMap((item) => item.members.map((member) => stackDoseKey(member.medicationId, member.time))));
+  const stale = selected.filter((key) => !options.some((option) => option.key === key));
+  const toggle = (key: string) => setSelected((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
+  const save = () => onSave({ id: stack?.id ?? `stack-${Date.now().toString(36)}-${Math.floor(Math.random() * 1_000_000).toString(36)}`, name, members: selected.map((key) => {
+    const [medicationId, time] = key.split('\u0000');
+    return { medicationId, time };
+  }) });
+  return <Modal transparent animationType="fade" onRequestClose={onClose}><KeyboardSafeScrollView contentContainerStyle={styles.backdrop}><View style={styles.modal}><Text style={styles.modalTitle}>{stack ? 'Edit supplement stack' : 'Create supplement stack'}</Text><Text style={styles.modalHelp}>Choose the specific scheduled dose times to take together. Each dose time can belong to one stack.</Text><Field label="STACK NAME" value={name} onChange={setName} placeholder="Morning stack" />
+    <Text style={styles.fieldLabel}>SUPPLEMENT DOSE TIMES</Text>{options.map(({ item, time, key }) => <Pressable key={key} accessibilityRole="checkbox" accessibilityState={{ checked: selected.includes(key), disabled: unavailable.has(key) }} disabled={unavailable.has(key)} onPress={() => toggle(key)} style={[styles.hubChoice, selected.includes(key) && styles.hubChoiceSelected, unavailable.has(key) && styles.hubChoiceDisabled]}><Text style={styles.hubChoiceText}>{selected.includes(key) ? '✓' : '○'}  {item.name} · {formatMedicationTime(time)}{unavailable.has(key) ? ' · In another stack' : ''}</Text></Pressable>)}
+    {!options.length && <Text style={styles.empty}>Add a supplement with a daily or weekly dose time first.</Text>}{stale.map((key) => <Pressable key={key} onPress={() => toggle(key)} style={styles.hubChoice}><Text style={styles.hubChoiceText}>Unavailable dose time · Tap to remove</Text></Pressable>)}
+    <View style={styles.modalActions}><Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable><Pressable onPress={save} style={styles.save}><Text style={styles.saveText}>Save stack</Text></Pressable></View>{stack && <Pressable onPress={() => Alert.alert(`Delete ${stack.name}?`, 'This removes the stack only. Supplement items and dose history stay intact.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete stack', style: 'destructive', onPress: () => onDelete(stack.id) }])} style={styles.delete}><Text style={styles.deleteText}>Delete stack</Text></Pressable>}
+  </View></KeyboardSafeScrollView></Modal>;
 }
 
 function MedicationModal({ medication, onClose, onSave, onDelete }: { medication: Medication | null; onClose: () => void; onSave: (input: MedicationInput) => Promise<void>; onDelete: (item: Medication) => Promise<void> }) {
@@ -112,7 +174,7 @@ function MedicationModal({ medication, onClose, onSave, onDelete }: { medication
   </View></KeyboardSafeScrollView></Modal>;
 }
 
-function DoseEventModal({ medication, event, events, onClose, onSave, onDelete }: { medication: Medication; event: MedicationEvent | null; events: MedicationEvent[]; onClose: () => void; onSave: (event: { id?: string; medicationId: string; scheduledFor: string; outcome: 'taken' | 'skipped'; note?: string }) => void; onDelete: (id: string) => void }) {
+function DoseEventModal({ medication, event, events, onClose, onSave, onDelete }: { medication: Medication; event: MedicationEvent | null; events: MedicationEvent[]; onClose: () => void; onSave: (event: { id?: string; medicationId: string; scheduledFor?: string; outcome: 'taken' | 'skipped'; note?: string }) => void; onDelete: (id: string) => void }) {
   const initialTime = event?.scheduledFor?.slice(11, 16) ?? medication.schedule.times[0] ?? '09:00';
   const doseTimes = normalizeScheduleTimes([...medication.schedule.times, ...(event?.scheduledFor ? [event.scheduledFor.slice(11, 16)] : [])]);
   const [date, setDate] = useState(event?.scheduledFor?.slice(0, 10) ?? (event ? localDateKey(new Date(event.occurredAt)) : localDateKey()));
@@ -120,17 +182,31 @@ function DoseEventModal({ medication, event, events, onClose, onSave, onDelete }
   const [time, setTime] = useState<DoseTimeDraft>(splitMedicationTime(initialTime));
   const [outcome, setOutcome] = useState<'taken' | 'skipped'>(event?.outcome === 'skipped' ? 'skipped' : 'taken');
   const [note, setNote] = useState(event?.note ?? '');
+  const unscheduledCorrection = !!event && !event.scheduledFor;
   const normalized = doseTimes.length ? selectedTime : parse12HourTime(time.hour, time.minute, time.period);
   const save = () => {
+    if (unscheduledCorrection) return onSave({ id: event.id, medicationId: medication.id, outcome, note });
     if (!validDate(date) || date > localDateKey()) return Alert.alert('Check dose date', 'Enter today or an earlier date as YYYY-MM-DD.');
     if (!normalized) return Alert.alert('Check dose time', 'Enter a valid 12-hour time.');
     const scheduledFor = scheduledDoseKey(date, normalized);
-    if (events.some((item) => item.id !== event?.id && item.scheduledFor === scheduledFor)) {
+    if (events.some((item) => item.id !== event?.id && item.scheduledFor === scheduledFor && item.outcome !== 'snoozed')) {
       return Alert.alert('Dose already logged', 'That scheduled dose already has a record. Open its existing history entry to correct it.');
     }
     onSave({ id: event?.id, medicationId: medication.id, scheduledFor, outcome, note });
   };
-  return <Modal transparent animationType="fade" onRequestClose={onClose}><KeyboardSafeScrollView contentContainerStyle={styles.backdrop}><View style={styles.modal}><Text style={styles.modalTitle}>{event ? 'Correct dose record' : 'Backfill a dose'}</Text><Text style={styles.modalHelp}>{medication.name} · Choose the configured dose this record belongs to. Historical changes do not alter the medication schedule.</Text><Field label="DOSE DATE" value={date} onChange={setDate} placeholder="YYYY-MM-DD" /><Text style={styles.fieldLabel}>SCHEDULED DOSE</Text>{doseTimes.length ? <View style={styles.doseChips}>{doseTimes.map((doseTime) => <Pressable key={doseTime} onPress={() => setSelectedTime(doseTime)} style={[styles.doseChip, selectedTime === doseTime && styles.doseChipActive]}><Text style={[styles.doseChipText, selectedTime === doseTime && styles.doseChipTextActive]}>{formatMedicationTime(doseTime)}</Text></Pressable>)}</View> : <View style={styles.timeRow}><TextInput value={time.hour} onChangeText={(hour) => setTime((current) => ({ ...current, hour }))} keyboardType="number-pad" maxLength={2} style={[styles.input, styles.hourInput]} /><Text style={styles.timeColon}>:</Text><TextInput value={time.minute} onChangeText={(minute) => setTime((current) => ({ ...current, minute }))} keyboardType="number-pad" maxLength={2} style={[styles.input, styles.minuteInput]} /><View style={styles.periodRow}>{(['AM', 'PM'] as const).map((period) => <Pressable key={period} onPress={() => setTime((current) => ({ ...current, period }))} style={[styles.periodButton, time.period === period && styles.periodActive]}><Text style={[styles.periodText, time.period === period && styles.periodTextActive]}>{period}</Text></Pressable>)}</View></View>}<Text style={styles.fieldLabel}>OUTCOME</Text><View style={styles.outcomeRow}><Pressable onPress={() => setOutcome('taken')} style={[styles.outcomeButton, outcome === 'taken' && styles.outcomeActive]}><Text style={[styles.outcomeText, outcome === 'taken' && styles.outcomeTextActive]}>Taken</Text></Pressable><Pressable onPress={() => setOutcome('skipped')} style={[styles.outcomeButton, outcome === 'skipped' && styles.outcomeActive]}><Text style={[styles.outcomeText, outcome === 'skipped' && styles.outcomeTextActive]}>Skipped</Text></Pressable></View><Field label="NOTE · OPTIONAL" value={note} onChange={setNote} multiline /><View style={styles.modalActions}><Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable><Pressable onPress={save} style={styles.save}><Text style={styles.saveText}>Save dose record</Text></Pressable></View>{event && <Pressable onPress={() => Alert.alert('Delete dose record?', 'This removes this record and returns the scheduled dose to the pending list when applicable.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => onDelete(event.id) }])} style={styles.delete}><Text style={styles.deleteText}>Delete dose record</Text></Pressable>}</View></KeyboardSafeScrollView></Modal>;
+  return <Modal transparent animationType="fade" onRequestClose={onClose}><KeyboardSafeScrollView contentContainerStyle={styles.backdrop}><View style={styles.modal}>
+    <Text style={styles.modalTitle}>{event ? 'Correct dose record' : 'Backfill a dose'}</Text>
+    <Text style={styles.modalHelp}>{medication.name} · {unscheduledCorrection ? 'This as-needed or interval log keeps its original recorded time.' : 'Choose the dose this record belongs to. Historical changes do not alter the item schedule.'}</Text>
+    {unscheduledCorrection ? <Text style={styles.hubDoseMeta}>{formatScheduledEvent(event)}</Text> : <>
+      <Field label="DOSE DATE" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
+      <Text style={styles.fieldLabel}>SCHEDULED DOSE</Text>
+      {doseTimes.length ? <View style={styles.doseChips}>{doseTimes.map((doseTime) => <Pressable key={doseTime} onPress={() => setSelectedTime(doseTime)} style={[styles.doseChip, selectedTime === doseTime && styles.doseChipActive]}><Text style={[styles.doseChipText, selectedTime === doseTime && styles.doseChipTextActive]}>{formatMedicationTime(doseTime)}</Text></Pressable>)}</View>
+        : <View style={styles.timeRow}><TextInput value={time.hour} onChangeText={(hour) => setTime((current) => ({ ...current, hour }))} keyboardType="number-pad" maxLength={2} style={[styles.input, styles.hourInput]} /><Text style={styles.timeColon}>:</Text><TextInput value={time.minute} onChangeText={(minute) => setTime((current) => ({ ...current, minute }))} keyboardType="number-pad" maxLength={2} style={[styles.input, styles.minuteInput]} /><View style={styles.periodRow}>{(['AM', 'PM'] as const).map((period) => <Pressable key={period} onPress={() => setTime((current) => ({ ...current, period }))} style={[styles.periodButton, time.period === period && styles.periodActive]}><Text style={[styles.periodText, time.period === period && styles.periodTextActive]}>{period}</Text></Pressable>)}</View></View>}
+    </>}
+    <Text style={styles.fieldLabel}>OUTCOME</Text><View style={styles.outcomeRow}><Pressable onPress={() => setOutcome('taken')} style={[styles.outcomeButton, outcome === 'taken' && styles.outcomeActive]}><Text style={[styles.outcomeText, outcome === 'taken' && styles.outcomeTextActive]}>Taken</Text></Pressable><Pressable onPress={() => setOutcome('skipped')} style={[styles.outcomeButton, outcome === 'skipped' && styles.outcomeActive]}><Text style={[styles.outcomeText, outcome === 'skipped' && styles.outcomeTextActive]}>Skipped</Text></Pressable></View>
+    <Field label="NOTE · OPTIONAL" value={note} onChange={setNote} multiline /><View style={styles.modalActions}><Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable><Pressable onPress={save} style={styles.save}><Text style={styles.saveText}>Save dose record</Text></Pressable></View>
+    {event && <Pressable onPress={() => Alert.alert('Delete dose record?', 'This removes this record and returns the scheduled dose to the pending list when applicable.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => onDelete(event.id) }])} style={styles.delete}><Text style={styles.deleteText}>Delete dose record</Text></Pressable>}
+  </View></KeyboardSafeScrollView></Modal>;
 }
 
 function formatScheduledEvent(event: MedicationEvent) {
@@ -151,5 +227,57 @@ function validDate(value: string) {
 function Field({ label, value, onChange, placeholder, multiline, keyboard }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; multiline?: boolean; keyboard?: 'number-pad' }) { return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textDim} multiline={multiline} keyboardType={keyboard} style={[styles.input, multiline && styles.multiline]} /></View>; }
 
 const styles = StyleSheet.create({
+  hubEyebrow: { color: colors.healthNav, fontSize: 20, fontWeight: '900', letterSpacing: 1, marginTop: 26 },
+  hubTabs: { flexDirection: 'row', gap: 5, marginTop: 19, marginBottom: 16 },
+  hubTab: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 11, borderColor: colors.border, borderWidth: 1 },
+  hubTabSelected: { backgroundColor: colors.healthNav, borderColor: colors.healthNav },
+  hubTabText: { color: colors.textMuted, fontSize: 13, fontWeight: '800' },
+  hubTabTextSelected: { color: colors.background },
+  hubProgress: { backgroundColor: colors.surface, borderColor: colors.healthNav, borderWidth: 1, borderRadius: 17, padding: 15, marginBottom: 15 },
+  hubProgressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  hubProgressTitle: { color: colors.text, fontSize: 20, fontWeight: '900' },
+  hubProgressMeta: { color: colors.textMuted, fontSize: 13, marginTop: 5 },
+  hubPercent: { color: colors.text, fontSize: 23, fontWeight: '900' },
+  hubProgressTrack: { height: 10, borderRadius: 8, backgroundColor: colors.surfaceRaised, overflow: 'hidden', marginTop: 13 },
+  hubProgressFill: { height: 10, borderRadius: 8, backgroundColor: colors.healthNav },
+  hubStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 5, marginTop: 15 },
+  hubStat: { flex: 1, color: colors.text, fontSize: 11, textAlign: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 9, overflow: 'hidden', paddingVertical: 11, fontWeight: '800' },
+  hubPart: { marginBottom: 15 }, hubPartHead: { minHeight: 47, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hubPartTitle: { color: colors.text, fontSize: 16, fontWeight: '900' }, hubPartCount: { color: colors.textMuted, fontSize: 12 },
+  hubPartBody: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
+  hubDoseRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomColor: colors.border, borderBottomWidth: 1 },
+  hubIcon: { width: 41, height: 41, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  supplementIcon: { backgroundColor: '#0C2B20' }, medicationIcon: { backgroundColor: '#351521' },
+  hubIconText: { color: colors.healthNav, fontSize: 21, fontWeight: '900' }, hubDoseName: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  hubDoseMeta: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 3 }, hubDoseActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  hubTake: { minHeight: 42, minWidth: 50, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, borderColor: colors.accent, borderWidth: 1, borderRadius: 9 },
+  hubTakeText: { color: colors.accent, fontSize: 12, fontWeight: '900' },
+  hubSkip: { minHeight: 42, minWidth: 47, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderColor: colors.border, borderWidth: 1, borderRadius: 9 },
+  hubSkipText: { color: colors.text, fontSize: 12, fontWeight: '800' },
+  hubStatus: { fontSize: 11, fontWeight: '900', paddingVertical: 7, paddingHorizontal: 9, borderRadius: 9, overflow: 'hidden' },
+  takenStatus: { color: colors.accent, backgroundColor: '#0C2B20' }, skippedStatus: { color: colors.danger, backgroundColor: '#31191D' },
+  hubStack: { borderBottomColor: colors.border, borderBottomWidth: 1 }, hubStackHead: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11 },
+  hubStackIcon: { fontSize: 25, marginRight: 6 }, hubChevron: { color: colors.textMuted, fontSize: 21, paddingHorizontal: 5 },
+  hubBulk: { flexDirection: 'row', gap: 7, paddingHorizontal: 10, paddingBottom: 9 },
+  hubBulkTake: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: 9 },
+  hubBulkTakeText: { color: colors.background, fontSize: 12, fontWeight: '900' },
+  hubBulkSkip: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 9 },
+  hubFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 16, marginBottom: 8 },
+  hubFilter: { minHeight: 42, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 10, borderColor: colors.border, borderWidth: 1 },
+  hubFilterSelected: { backgroundColor: colors.healthNav, borderColor: colors.healthNav }, hubFilterText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
+  hubAdd: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.healthNav, borderRadius: 12, marginTop: 9, paddingHorizontal: 10 },
+  hubAddText: { color: colors.background, fontSize: 13, fontWeight: '900', textAlign: 'center' },
+  hubSecondary: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12, marginTop: 8, paddingHorizontal: 10 },
+  hubSecondaryText: { color: colors.text, fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  hubRegimenSection: { marginTop: 15 }, hubSectionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 18, marginBottom: 7 },
+  hubRegimenRow: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, padding: 10, marginBottom: 6 },
+  hubConfirmIcon: { color: colors.healthNav, fontSize: 37, textAlign: 'center', fontWeight: '900' },
+  hubConfirmTitle: { color: colors.text, fontSize: 24, fontWeight: '900', textAlign: 'center', marginTop: 7 },
+  hubConfirmLabel: { color: colors.text, fontSize: 17, fontWeight: '800', textAlign: 'center', marginTop: 14 },
+  hubConfirmList: { backgroundColor: colors.surfaceRaised, borderRadius: 12, padding: 12, marginTop: 13 }, hubConfirmEntry: { color: colors.text, fontSize: 12, paddingVertical: 5 },
+  hubConfirmButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.healthNav, borderRadius: 12, marginTop: 17 },
+  hubConfirmSkip: { backgroundColor: colors.danger }, hubConfirmButtonText: { color: colors.background, fontSize: 14, fontWeight: '900' },
+  hubChoice: { minHeight: 45, justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 10, marginTop: 6, paddingHorizontal: 11 },
+  hubChoiceSelected: { borderColor: colors.accent, backgroundColor: '#0C2B20' }, hubChoiceDisabled: { opacity: .45 }, hubChoiceText: { color: colors.text, fontSize: 12 },
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg }, eyebrow: { color: colors.accent, fontSize: 9, fontWeight: '800', letterSpacing: 1.1 }, title: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 7 }, subtitle: { color: colors.textMuted, fontSize: 11, lineHeight: 18, marginTop: 6 }, add: { backgroundColor: colors.accent, borderRadius: 14, alignItems: 'center', padding: 14, marginTop: 18 }, addText: { color: colors.background, fontWeight: '900', fontSize: 12 }, secondary: { borderColor: colors.border, borderWidth: 1, borderRadius: 13, alignItems: 'center', padding: 12, marginTop: 8 }, secondaryText: { color: colors.text, fontSize: 10, fontWeight: '800' }, undo: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.accentSoft, borderRadius: 13, padding: 12, marginTop: 10 }, undoTitle: { color: colors.text, fontSize: 11, fontWeight: '900' }, undoText: { color: colors.textMuted, fontSize: 9, marginTop: 2 }, undoAction: { color: colors.accent, fontSize: 11, fontWeight: '900', padding: 8 }, filter: { flexDirection: 'row', gap: 7, marginVertical: 16 }, filterButton: { flex: 1, alignItems: 'center', padding: 9, backgroundColor: colors.surface, borderRadius: 10 }, filterActive: { backgroundColor: colors.accentSoft }, filterText: { color: colors.textDim, fontSize: 9, fontWeight: '800' }, filterTextActive: { color: colors.accent }, card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 11 }, cardHead: { flexDirection: 'row', alignItems: 'flex-start' }, flex: { flex: 1 }, medName: { color: colors.text, fontSize: 17, fontWeight: '800' }, strength: { color: colors.textMuted, fontSize: 11, marginTop: 3 }, edit: { color: colors.accent, fontSize: 10, fontWeight: '800', padding: 4 }, schedule: { color: colors.caffeine, fontSize: 9, marginTop: 9 }, instructions: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 6 }, warning: { color: colors.caffeine, backgroundColor: '#2A2419', borderRadius: 10, padding: 9, fontSize: 9, lineHeight: 14, marginTop: 10 }, doseList: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 13, paddingTop: 11 }, doseHeading: { color: colors.textDim, fontSize: 8, fontWeight: '900', letterSpacing: .8 }, doseRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', borderBottomColor: colors.border, borderBottomWidth: 1, paddingVertical: 7 }, doseTime: { color: colors.text, fontSize: 14, fontWeight: '900' }, doseStatus: { color: colors.textDim, fontSize: 8, marginTop: 3 }, doseActions: { flexDirection: 'row', gap: 5 }, allLogged: { color: colors.textMuted, fontSize: 9, lineHeight: 14, paddingVertical: 11 }, taken: { backgroundColor: colors.accentSoft, borderRadius: 9, alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9 }, takenText: { color: colors.accent, fontSize: 9, fontWeight: '900' }, skipped: { borderColor: colors.border, borderWidth: 1, borderRadius: 9, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9 }, smallButton: { flex: 1, borderColor: colors.border, borderWidth: 1, borderRadius: 10, alignItems: 'center', padding: 9 }, smallText: { color: colors.textMuted, fontSize: 9, fontWeight: '800' }, actions: { flexDirection: 'row', gap: 6, marginTop: 12 }, cardLinks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }, backfill: { color: colors.accent, fontSize: 9, fontWeight: '800', paddingVertical: 5 }, archive: { color: colors.textDim, fontSize: 9, fontWeight: '800', paddingVertical: 5 }, historyHeading: { color: colors.textDim, fontSize: 8, fontWeight: '900', marginTop: 12 }, historyGroup: { marginTop: 10 }, historyGroupDate: { color: colors.textMuted, fontSize: 10, fontWeight: '900', paddingBottom: 2 }, historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopColor: colors.border, borderTopWidth: 1, marginTop: 5 }, historyOutcome: { color: colors.text, fontSize: 10, fontWeight: '800' }, historyDate: { color: colors.textDim, fontSize: 8, marginTop: 3 }, correctedOutcome: { color: colors.caffeine, fontSize: 8, marginTop: 3 }, historyEdit: { color: colors.accent, fontSize: 9, fontWeight: '800' }, empty: { color: colors.textMuted, textAlign: 'center', paddingVertical: 36 }, backdrop: { flexGrow: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.82)', padding: spacing.lg }, modal: { width: '100%', maxWidth: 580, alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg }, modalTitle: { color: colors.text, fontSize: 23, fontWeight: '900' }, modalHelp: { color: colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 6 }, field: { flex: 1 }, fieldLabel: { color: colors.textDim, fontSize: 8, fontWeight: '800', letterSpacing: .7, marginTop: 13, marginBottom: 5 }, input: { minHeight: 44, color: colors.text, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 11, paddingHorizontal: 11 }, multiline: { minHeight: 72, paddingTop: 10, textAlignVertical: 'top' }, two: { flexDirection: 'row', gap: 8 }, typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 }, typeButton: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.surfaceRaised, borderRadius: 9 }, typeActive: { backgroundColor: colors.accentSoft }, typeText: { color: colors.textDim, fontSize: 8, fontWeight: '800' }, typeTextActive: { color: colors.accent }, reminderChoice: { flex: 1, minWidth: 130, padding: 11, backgroundColor: colors.surfaceRaised, borderRadius: 10 }, reminderChoiceTitle: { color: colors.text, fontSize: 10, fontWeight: '900' }, reminderChoiceHelp: { color: colors.textDim, fontSize: 8, marginTop: 3 }, deliveryNotice: { color: colors.textDim, fontSize: 8, lineHeight: 13, marginTop: 8 }, timeHelp: { color: colors.textDim, fontSize: 9, lineHeight: 14, marginBottom: 2 }, timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 }, hourInput: { width: 48, textAlign: 'center' }, minuteInput: { width: 52, textAlign: 'center' }, timeColon: { color: colors.text, fontSize: 18, fontWeight: '900' }, periodRow: { flexDirection: 'row', backgroundColor: colors.surfaceRaised, borderRadius: 9, padding: 2 }, periodButton: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 8, borderRadius: 7 }, periodActive: { backgroundColor: colors.accentSoft }, periodText: { color: colors.textDim, fontSize: 9, fontWeight: '900' }, periodTextActive: { color: colors.accent }, removeTime: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 8, borderColor: colors.border, borderWidth: 1, borderRadius: 9 }, removeTimeText: { color: colors.danger, fontSize: 8, fontWeight: '800' }, addTime: { minHeight: 40, justifyContent: 'center', alignItems: 'center', marginTop: 8, borderColor: colors.border, borderWidth: 1, borderStyle: 'dashed', borderRadius: 11 }, addTimeText: { color: colors.accent, fontSize: 9, fontWeight: '800' }, weekdays: { flexDirection: 'row', gap: 4, marginTop: 9 }, day: { flex: 1, alignItems: 'center', paddingVertical: 8, backgroundColor: colors.surfaceRaised, borderRadius: 8 }, dayActive: { backgroundColor: colors.accentSoft }, dayText: { color: colors.textDim, fontSize: 7, fontWeight: '800' }, dayTextActive: { color: colors.accent }, switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, padding: 11, backgroundColor: colors.surfaceRaised, borderRadius: 11 }, switchTitle: { color: colors.text, fontSize: 11, fontWeight: '800' }, switchHelp: { color: colors.textDim, fontSize: 8, marginTop: 3 }, modalActions: { flexDirection: 'row', gap: 8, marginTop: 18 }, cancel: { flex: 1, alignItems: 'center', padding: 13, backgroundColor: colors.surfaceRaised, borderRadius: 11 }, cancelText: { color: colors.text, fontSize: 10, fontWeight: '800' }, save: { flex: 1, alignItems: 'center', padding: 13, backgroundColor: colors.accent, borderRadius: 11 }, saveText: { color: colors.background, fontSize: 10, fontWeight: '900' }, delete: { alignItems: 'center', padding: 12, marginTop: 13, borderTopColor: colors.border, borderTopWidth: 1 }, deleteText: { color: colors.danger, fontSize: 9, fontWeight: '800' }, outcomeRow: { flexDirection: 'row', gap: 8 }, outcomeButton: { flex: 1, alignItems: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 10, padding: 11 }, outcomeActive: { backgroundColor: colors.accentSoft }, outcomeText: { color: colors.textMuted, fontSize: 10, fontWeight: '800' }, outcomeTextActive: { color: colors.accent }, doseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, doseChip: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }, doseChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent }, doseChipText: { color: colors.textMuted, fontSize: 10, fontWeight: '800' }, doseChipTextActive: { color: colors.accent },
 });

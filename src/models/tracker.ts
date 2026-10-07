@@ -220,6 +220,12 @@ export type MedicationEvent = {
   note?: string;
 };
 
+export type SupplementStack = {
+  id: string;
+  name: string;
+  members: { medicationId: string; time: string }[];
+};
+
 export type LabResult = {
   id: string;
   /** Stable parent identity. Legacy records are migrated from marker names. */
@@ -362,6 +368,7 @@ export type TrackerState = {
   preferences?: AppPreferences;
   medications?: Medication[];
   medicationEvents?: MedicationEvent[];
+  supplementStacks?: SupplementStack[];
   medicationScheduleVersion?: number;
   medicationReminderVersion?: number;
   labTrackers?: LabTracker[];

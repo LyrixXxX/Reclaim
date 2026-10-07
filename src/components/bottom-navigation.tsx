@@ -31,7 +31,7 @@ export function BottomNavigation() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moduleScroll} contentContainerStyle={styles.moduleContent} onContentSizeChange={setContentWidth} onScroll={setOffset} scrollEventThrottle={32}>
           <Tab href="/" label="Home" icon="home" color={colors.accent} active={path === '/'} />
           {preferences.visibleSections.goals && <Tab href="/habits" label="Habits" icon="habits" color={colors.habitsNav} active={path === '/habits'} />}
-          {preferences.visibleSections.health && <Tab href="/health" label="Health" icon="health" color={colors.healthNav} active={path.startsWith('/health')} />}
+          {preferences.visibleSections.health && <Tab href="/health" label="Health" icon="health" color={colors.healthNav} active={path.startsWith('/health') || path === '/medications'} />}
           {preferences.visibleSections.cpap && <Tab href="/cpap" label="CPAP" icon="cpap" color={colors.cpapNav} active={path.startsWith('/cpap')} />}
           {preferences.visibleSections.weight && <Tab href="/weight" label="Weight" icon="weight" color={colors.weightNav} active={path.startsWith('/weight')} />}
           {preferences.visibleSections.nutrition && <Tab href="/nutrition" label="Nutrition" icon="nutrition" color={colors.nutritionNav} active={path.startsWith('/nutrition')} />}

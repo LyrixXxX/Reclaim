@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, AppSection, DashboardWidget, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, Tracker, TrackerId, TrackerState, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
+import { ActivityRoute, AppSection, DashboardWidget, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { HealthReadingInput, healthReadingId, removeHealthReading, upsertHealthReading } from '@/lib/health';
@@ -33,6 +33,7 @@ import { DEFAULT_PREFERENCES, migratePreferences, setHealthModuleVisible, setRou
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { medicationEventId, medicationId, MedicationEventInput, MedicationInput, migrateMedicationState, removeMedication, removeMedicationEvent, upsertMedication, upsertMedicationEvent } from '@/lib/medications';
+import { addScheduledDoseBatch, upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { cancelMedicationNotifications, rescheduleMedication } from '@/lib/medication-notifications';
 import { labResultId, LabResultInput, LabTrackerInput, labTrackerId, mergeLabResults, migrateLabState, removeLabResult, removeLabTracker, upsertLabResult, upsertLabTracker } from '@/lib/labs';
 import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertMealGroup, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
@@ -82,7 +83,11 @@ type TrackerContextValue = TrackerState & {
   saveMedication: (input: MedicationInput) => Promise<void>;
   deleteMedication: (id: string, confirmed: boolean) => Promise<void>;
   saveMedicationLog: (event: MedicationEventInput) => string | undefined;
+  saveMedicationLogs: (events: MedicationEventInput[]) => string[];
   deleteMedicationLog: (id: string) => void;
+  deleteMedicationLogs: (ids: string[]) => void;
+  saveSupplementStack: (stack: SupplementStack) => string | undefined;
+  deleteSupplementStack: (id: string) => void;
   saveLabResult: (input: LabResultInput) => void;
   saveLabResults: (inputs: LabResultInput[]) => { added: number; duplicates: number };
   deleteLabResult: (id: string, confirmed: boolean) => void;
@@ -293,7 +298,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       if (!confirmed) return;
       const item = (state.medications ?? []).find((medication) => medication.id === id);
       if (item) await cancelMedicationNotifications(item.notificationIds);
-      setState((previous) => ({ ...previous, medications: removeMedication(previous.medications ?? [], id, true), medicationEvents: (previous.medicationEvents ?? []).filter((event) => event.medicationId !== id) }));
+      setState((previous) => ({ ...previous, medications: removeMedication(previous.medications ?? [], id, true), medicationEvents: (previous.medicationEvents ?? []).filter((event) => event.medicationId !== id), supplementStacks: (previous.supplementStacks ?? []).map((stack) => ({ ...stack, members: stack.members.filter((member) => member.medicationId !== id) })) }));
     },
     saveMedicationLog: (event) => {
       const duplicate = !event.id && Boolean(event.scheduledFor) && (state.medicationEvents ?? []).some((item) =>
@@ -303,7 +308,22 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       setState((previous) => ({ ...previous, medicationEvents: upsertMedicationEvent(previous.medicationEvents ?? [], event, id) }));
       return id;
     },
+    saveMedicationLogs: (events) => {
+      const ids = events.map(() => medicationEventId());
+      const preview = addScheduledDoseBatch(state.medicationEvents ?? [], events, ids);
+      if (!preview.addedIds.length) return [];
+      setState((previous) => ({ ...previous, medicationEvents: addScheduledDoseBatch(previous.medicationEvents ?? [], events, ids).events }));
+      return preview.addedIds;
+    },
     deleteMedicationLog: (id) => setState((previous) => ({ ...previous, medicationEvents: removeMedicationEvent(previous.medicationEvents ?? [], id) })),
+    deleteMedicationLogs: (ids) => setState((previous) => ({ ...previous, medicationEvents: (previous.medicationEvents ?? []).filter((event) => !ids.includes(event.id)) })),
+    saveSupplementStack: (stack) => {
+      const error = validateSupplementStack(stack, state.supplementStacks ?? [], state.medications ?? []);
+      if (error) return error;
+      setState((previous) => ({ ...previous, supplementStacks: upsertSupplementStack(previous.supplementStacks ?? [], stack) }));
+      return undefined;
+    },
+    deleteSupplementStack: (id) => setState((previous) => ({ ...previous, supplementStacks: (previous.supplementStacks ?? []).filter((stack) => stack.id !== id) })),
     saveLabResult: (input) => setState((previous) => ({ ...previous, labResults: upsertLabResult(previous.labResults ?? [], input, labResultId()) })),
     saveLabResults: (inputs) => {
       const result = mergeLabResults(state.labResults ?? [], inputs);

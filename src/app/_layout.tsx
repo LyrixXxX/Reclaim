@@ -31,7 +31,7 @@ function AppShell() {
   const pathname = usePathname();
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/health', '/cpap', '/weight', '/nutrition', '/activity', '/activity-map', '/settings'];
+  const mainTabs = ['/', '/habits', '/health', '/medications', '/cpap', '/weight', '/nutrition', '/activity', '/activity-map', '/settings'];
   const showBottomNavigation = mainTabs.includes(pathname);
   useEffect(() => {
     Promise.all([ImagePicker.getPendingResultAsync(), consumePendingCaptureTarget()]).then(([result, target]) => {
@@ -85,7 +85,7 @@ function AppShell() {
           <Stack.Screen name="nutrition-ai-settings" options={{ title: 'Private AI' }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
-          <Stack.Screen name="medications" options={{ title: 'Medications & Supplements' }} />
+          <Stack.Screen name="medications" options={{ headerShown: false }} />
           <Stack.Screen name="medication-reminder-settings" options={{ title: 'Reminder settings' }} />
           <Stack.Screen name="labs" options={{ title: 'Laboratory results' }} />
         </Stack>
