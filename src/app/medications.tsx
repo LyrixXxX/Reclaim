@@ -2,6 +2,7 @@ import { HistoryPages } from '@/components/history-pages';
 import { useState } from 'react';
 import { Alert, Image, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
+import Svg, { Polyline } from 'react-native-svg';
 
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { Header } from '@/components/header';
@@ -49,6 +50,14 @@ function DayPartIcon({ part }: { part: 'Overnight' | 'Morning' | 'Afternoon' | '
   if (part === 'Morning') return <Image source={iconImages.morning} style={styles.hubPartIcon} accessibilityLabel="Morning" />;
   if (part === 'Evening' || part === 'Overnight') return <Image source={iconImages.evening} style={styles.hubPartIcon} accessibilityLabel={part} />;
   return <Text style={styles.hubAfternoonIcon}>◉</Text>;
+}
+
+function SectionChevron({ expanded }: { expanded: boolean }) {
+  return <View style={styles.hubPartChevron} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Svg width={19} height={19} viewBox="0 0 24 24">
+      <Polyline points={expanded ? '5,15 12,8 19,15' : '5,9 12,16 19,9'} fill="none" stroke={colors.text} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  </View>;
 }
 
 export default function MedicationsScreen() {
@@ -112,7 +121,7 @@ export default function MedicationsScreen() {
         const partStacks = supplementStacks.map((stack) => ({ stack, members: stackMembersForToday(stack, partDoses) })).filter((entry) => entry.members.length);
         const standalone = partDoses.filter((dose) => !stackedSlots.has(stackDoseKey(dose.medication.id, dose.time)));
         if (!partDoses.length) return null;
-        return <View key={part} style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsedParts[part] }} onPress={() => setCollapsedParts((current) => ({ ...current, [part]: !current[part] }))} style={styles.hubPartHead}><DayPartIcon part={part} /><Text style={styles.hubPartTitle}>{part}</Text><Text style={styles.hubPartCount}>{partDoses.length} {partDoses.length === 1 ? 'dose' : 'doses'}  {collapsedParts[part] ? '⌄' : '⌃'}</Text></Pressable>{!collapsedParts[part] && <View style={styles.hubPartBody}>
+        return <View key={part} style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityLabel={`${collapsedParts[part] ? 'Expand' : 'Collapse'} ${part}, ${partDoses.length} ${partDoses.length === 1 ? 'dose' : 'doses'}`} accessibilityState={{ expanded: !collapsedParts[part] }} onPress={() => setCollapsedParts((current) => ({ ...current, [part]: !current[part] }))} style={styles.hubPartHead}><DayPartIcon part={part} /><Text style={styles.hubPartTitle} numberOfLines={2}>{part}</Text><View style={styles.hubPartTrailing}><Text style={styles.hubPartCount}>{partDoses.length} {partDoses.length === 1 ? 'dose' : 'doses'}</Text><SectionChevron expanded={!collapsedParts[part]} /></View></Pressable>{!collapsedParts[part] && <View style={styles.hubPartBody}>
           {partStacks.map(({ stack, members }) => {
             const pending = members.filter((dose) => !dose.status);
             return <View key={stack.id} style={styles.hubStack}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !!expandedStacks[stack.id] }} onPress={() => setExpandedStacks((current) => ({ ...current, [stack.id]: !current[stack.id] }))} style={styles.hubStackHead}><Image source={iconImages.supplement} style={styles.hubIcon} accessibilityLabel="Supplement stack" /><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{members.length} supplement {members.length === 1 ? 'dose' : 'doses'} · {members.filter((dose) => dose.status === 'taken').length} taken</Text></View><Text style={styles.hubChevron}>{expandedStacks[stack.id] ? '⌃' : '⌄'}</Text></Pressable>{expandedStacks[stack.id] && <><View style={styles.hubBulk}>{pending.length > 0 && <><Pressable onPress={() => setConfirmation({ outcome: 'taken', doses: pending, label: stack.name })} style={styles.hubBulkTake}><Text style={styles.hubBulkTakeText}>Take all ({pending.length})</Text></Pressable><Pressable onPress={() => setConfirmation({ outcome: 'skipped', doses: pending, label: stack.name })} style={styles.hubBulkSkip}><Text style={styles.hubSkipText}>Skip all</Text></Pressable></>}{!pending.length && <Text style={styles.hubDoseMeta}>All stack doses logged today.</Text>}</View>{members.map(doseRow)}</>}</View>;
@@ -120,7 +129,7 @@ export default function MedicationsScreen() {
           {standalone.map(doseRow)}
         </View>}</View>;
       })}
-      {!!activeAsNeeded.length && <View style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: asNeededOpen }} onPress={() => setAsNeededOpen(!asNeededOpen)} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>As needed & interval</Text><Text style={styles.hubPartCount}>{activeAsNeeded.length}  {asNeededOpen ? '⌃' : '⌄'}</Text></Pressable>{asNeededOpen && activeAsNeeded.map((item) => <View key={item.id} style={styles.hubDoseRow}><ItemIcon kind={item.kind} /><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta}>{scheduleLabel(item.schedule)}</Text></View><View style={styles.hubDoseActions}><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'taken', label: item.name })} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'skipped', label: item.name })} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View></View>)}</View>}
+      {!!activeAsNeeded.length && <View style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityLabel={`${asNeededOpen ? 'Collapse' : 'Expand'} As needed & interval, ${activeAsNeeded.length} ${activeAsNeeded.length === 1 ? 'item' : 'items'}`} accessibilityState={{ expanded: asNeededOpen }} onPress={() => setAsNeededOpen(!asNeededOpen)} style={styles.hubPartHead}><Text style={[styles.hubPartTitle, styles.hubPartTitleNoIcon]} numberOfLines={2}>As needed & interval</Text><View style={styles.hubPartTrailing}><Text style={styles.hubPartCount}>{activeAsNeeded.length}</Text><SectionChevron expanded={asNeededOpen} /></View></Pressable>{asNeededOpen && activeAsNeeded.map((item) => <View key={item.id} style={styles.hubDoseRow}><ItemIcon kind={item.kind} /><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta}>{scheduleLabel(item.schedule)}</Text></View><View style={styles.hubDoseActions}><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'taken', label: item.name })} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'skipped', label: item.name })} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View></View>)}</View>}
     </>}
     {tab === 'regimen' && <>
       <Text style={styles.hubProgressTitle}>Your regimen</Text><Text style={styles.subtitle}>Manage medications, supplements, and stacks.</Text>
@@ -258,10 +267,14 @@ const styles = StyleSheet.create({
   hubProgressFill: { height: 10, borderRadius: 8, backgroundColor: colors.healthNav },
   hubStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 5, marginTop: 15 },
   hubStat: { flex: 1, color: colors.text, fontSize: 11, textAlign: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 9, overflow: 'hidden', paddingVertical: 11, fontWeight: '800' },
-  hubPart: { marginBottom: 15 }, hubPartHead: { minHeight: 47, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hubPart: { marginBottom: 15 }, hubPartHead: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
   hubPartIcon: { width: 34, height: 34, borderRadius: 8 },
   hubAfternoonIcon: { color: colors.healthNav, fontSize: 20, width: 34, textAlign: 'center' },
-  hubPartTitle: { flex: 1, marginLeft: 8, color: colors.text, fontSize: 16, fontWeight: '900' }, hubPartCount: { color: colors.textMuted, fontSize: 12 },
+  hubPartTitle: { flex: 1, marginLeft: 8, color: colors.text, fontSize: 17, lineHeight: 22, fontWeight: '900' },
+  hubPartTitleNoIcon: { marginLeft: 0 },
+  hubPartTrailing: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 12 },
+  hubPartCount: { color: colors.textMuted, fontSize: 12, fontWeight: '400' },
+  hubPartChevron: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 },
   hubPartBody: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
   hubDoseRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomColor: colors.border, borderBottomWidth: 1 },
   hubIcon: { width: 41, height: 41, borderRadius: 9 },
