@@ -1,6 +1,6 @@
 import { HistoryPages } from '@/components/history-pages';
 import { useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
@@ -33,6 +33,23 @@ type EventEditor = { medication: Medication; event: MedicationEvent | null };
 type HubTab = 'today' | 'regimen' | 'history';
 type RegimenFilter = 'active' | 'medications' | 'supplements' | 'as_needed' | 'archived';
 type DoseConfirmation = { outcome: 'taken' | 'skipped'; doses: ScheduledDose[]; item?: Medication; label: string };
+
+const iconImages = {
+  medication: require('../../assets/images/medication-combination-icon.png'),
+  supplement: require('../../assets/images/medication-supplement-icon.png'),
+  morning: require('../../assets/images/medication-morning-icon.png'),
+  evening: require('../../assets/images/medication-evening-icon.png'),
+} as const;
+
+function ItemIcon({ kind }: { kind?: Medication['kind'] }) {
+  return <Image source={kind === 'supplement' ? iconImages.supplement : iconImages.medication} style={styles.hubIcon} accessibilityLabel={kind === 'supplement' ? 'Supplement' : 'Medication'} />;
+}
+
+function DayPartIcon({ part }: { part: 'Overnight' | 'Morning' | 'Afternoon' | 'Evening' }) {
+  if (part === 'Morning') return <Image source={iconImages.morning} style={styles.hubPartIcon} accessibilityLabel="Morning" />;
+  if (part === 'Evening' || part === 'Overnight') return <Image source={iconImages.evening} style={styles.hubPartIcon} accessibilityLabel={part} />;
+  return <Text style={styles.hubAfternoonIcon}>◉</Text>;
+}
 
 export default function MedicationsScreen() {
   const { medications = [], medicationEvents = [], supplementStacks = [], saveMedication, deleteMedication, saveMedicationLog, saveMedicationLogs, deleteMedicationLog, deleteMedicationLogs, saveSupplementStack, deleteSupplementStack } = useTrackers();
@@ -71,7 +88,7 @@ export default function MedicationsScreen() {
     setConfirmation(undefined);
   };
   const doseRow = (dose: ScheduledDose) => <View key={stackDoseKey(dose.medication.id, dose.time)} style={styles.hubDoseRow}>
-    <View style={[styles.hubIcon, dose.medication.kind === 'supplement' ? styles.supplementIcon : styles.medicationIcon]}><Text style={styles.hubIconText}>{dose.medication.kind === 'supplement' ? '🌱' : '✚'}</Text></View>
+    <ItemIcon kind={dose.medication.kind} />
     <View style={styles.flex}><Text style={styles.hubDoseName} numberOfLines={1}>{dose.medication.name}</Text><Text style={styles.hubDoseMeta}>{dose.medication.strength ? `${dose.medication.strength} · ` : ''}{formatMedicationTime(dose.time)}</Text></View>
     {dose.status ? <Text style={[styles.hubStatus, dose.status === 'taken' ? styles.takenStatus : styles.skippedStatus]}>{dose.status === 'taken' ? '✓ Taken' : 'Skipped'}</Text>
       : <View style={styles.hubDoseActions}><Pressable accessibilityRole="button" accessibilityLabel={`Take ${dose.medication.name} at ${formatMedicationTime(dose.time)}`} onPress={() => askDose(dose, 'taken')} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Skip ${dose.medication.name} at ${formatMedicationTime(dose.time)}`} onPress={() => askDose(dose, 'skipped')} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View>}
@@ -95,23 +112,23 @@ export default function MedicationsScreen() {
         const partStacks = supplementStacks.map((stack) => ({ stack, members: stackMembersForToday(stack, partDoses) })).filter((entry) => entry.members.length);
         const standalone = partDoses.filter((dose) => !stackedSlots.has(stackDoseKey(dose.medication.id, dose.time)));
         if (!partDoses.length) return null;
-        return <View key={part} style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsedParts[part] }} onPress={() => setCollapsedParts((current) => ({ ...current, [part]: !current[part] }))} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>{part === 'Morning' ? '☀  ' : part === 'Evening' || part === 'Overnight' ? '☾  ' : '◉  '}{part}</Text><Text style={styles.hubPartCount}>{partDoses.length} {partDoses.length === 1 ? 'dose' : 'doses'}  {collapsedParts[part] ? '⌄' : '⌃'}</Text></Pressable>{!collapsedParts[part] && <View style={styles.hubPartBody}>
+        return <View key={part} style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsedParts[part] }} onPress={() => setCollapsedParts((current) => ({ ...current, [part]: !current[part] }))} style={styles.hubPartHead}><DayPartIcon part={part} /><Text style={styles.hubPartTitle}>{part}</Text><Text style={styles.hubPartCount}>{partDoses.length} {partDoses.length === 1 ? 'dose' : 'doses'}  {collapsedParts[part] ? '⌄' : '⌃'}</Text></Pressable>{!collapsedParts[part] && <View style={styles.hubPartBody}>
           {partStacks.map(({ stack, members }) => {
             const pending = members.filter((dose) => !dose.status);
-            return <View key={stack.id} style={styles.hubStack}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !!expandedStacks[stack.id] }} onPress={() => setExpandedStacks((current) => ({ ...current, [stack.id]: !current[stack.id] }))} style={styles.hubStackHead}><Text style={styles.hubStackIcon}>🌱</Text><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{members.length} supplement {members.length === 1 ? 'dose' : 'doses'} · {members.filter((dose) => dose.status === 'taken').length} taken</Text></View><Text style={styles.hubChevron}>{expandedStacks[stack.id] ? '⌃' : '⌄'}</Text></Pressable>{expandedStacks[stack.id] && <><View style={styles.hubBulk}>{pending.length > 0 && <><Pressable onPress={() => setConfirmation({ outcome: 'taken', doses: pending, label: stack.name })} style={styles.hubBulkTake}><Text style={styles.hubBulkTakeText}>Take all ({pending.length})</Text></Pressable><Pressable onPress={() => setConfirmation({ outcome: 'skipped', doses: pending, label: stack.name })} style={styles.hubBulkSkip}><Text style={styles.hubSkipText}>Skip all</Text></Pressable></>}{!pending.length && <Text style={styles.hubDoseMeta}>All stack doses logged today.</Text>}</View>{members.map(doseRow)}</>}</View>;
+            return <View key={stack.id} style={styles.hubStack}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !!expandedStacks[stack.id] }} onPress={() => setExpandedStacks((current) => ({ ...current, [stack.id]: !current[stack.id] }))} style={styles.hubStackHead}><Image source={iconImages.supplement} style={styles.hubIcon} accessibilityLabel="Supplement stack" /><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{members.length} supplement {members.length === 1 ? 'dose' : 'doses'} · {members.filter((dose) => dose.status === 'taken').length} taken</Text></View><Text style={styles.hubChevron}>{expandedStacks[stack.id] ? '⌃' : '⌄'}</Text></Pressable>{expandedStacks[stack.id] && <><View style={styles.hubBulk}>{pending.length > 0 && <><Pressable onPress={() => setConfirmation({ outcome: 'taken', doses: pending, label: stack.name })} style={styles.hubBulkTake}><Text style={styles.hubBulkTakeText}>Take all ({pending.length})</Text></Pressable><Pressable onPress={() => setConfirmation({ outcome: 'skipped', doses: pending, label: stack.name })} style={styles.hubBulkSkip}><Text style={styles.hubSkipText}>Skip all</Text></Pressable></>}{!pending.length && <Text style={styles.hubDoseMeta}>All stack doses logged today.</Text>}</View>{members.map(doseRow)}</>}</View>;
           })}
           {standalone.map(doseRow)}
         </View>}</View>;
       })}
-      {!!activeAsNeeded.length && <View style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: asNeededOpen }} onPress={() => setAsNeededOpen(!asNeededOpen)} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>As needed & interval</Text><Text style={styles.hubPartCount}>{activeAsNeeded.length}  {asNeededOpen ? '⌃' : '⌄'}</Text></Pressable>{asNeededOpen && activeAsNeeded.map((item) => <View key={item.id} style={styles.hubDoseRow}><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta}>{scheduleLabel(item.schedule)}</Text></View><View style={styles.hubDoseActions}><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'taken', label: item.name })} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'skipped', label: item.name })} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View></View>)}</View>}
+      {!!activeAsNeeded.length && <View style={styles.hubPart}><Pressable accessibilityRole="button" accessibilityState={{ expanded: asNeededOpen }} onPress={() => setAsNeededOpen(!asNeededOpen)} style={styles.hubPartHead}><Text style={styles.hubPartTitle}>As needed & interval</Text><Text style={styles.hubPartCount}>{activeAsNeeded.length}  {asNeededOpen ? '⌃' : '⌄'}</Text></Pressable>{asNeededOpen && activeAsNeeded.map((item) => <View key={item.id} style={styles.hubDoseRow}><ItemIcon kind={item.kind} /><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta}>{scheduleLabel(item.schedule)}</Text></View><View style={styles.hubDoseActions}><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'taken', label: item.name })} style={styles.hubTake}><Text style={styles.hubTakeText}>Take</Text></Pressable><Pressable onPress={() => setConfirmation({ item, doses: [], outcome: 'skipped', label: item.name })} style={styles.hubSkip}><Text style={styles.hubSkipText}>Skip</Text></Pressable></View></View>)}</View>}
     </>}
     {tab === 'regimen' && <>
       <Text style={styles.hubProgressTitle}>Your regimen</Text><Text style={styles.subtitle}>Manage medications, supplements, and stacks.</Text>
       <View style={styles.hubFilters}>{([['active', 'Active'], ['medications', 'Medications'], ['supplements', 'Supplements'], ['as_needed', 'As needed'], ['archived', 'Archived']] as const).map(([id, label]) => <Pressable key={id} onPress={() => setRegimenFilter(id)} style={[styles.hubFilter, regimenFilter === id && styles.hubFilterSelected]}><Text style={[styles.hubFilterText, regimenFilter === id && styles.hubTabTextSelected]}>{label}</Text></Pressable>)}</View>
       <Pressable onPress={() => setEditing(null)} style={styles.hubAdd}><Text style={styles.hubAddText}>+ Add medication or supplement</Text></Pressable><Pressable onPress={() => setStackEditor(null)} style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>+ Create supplement stack</Text></Pressable>
-      {(regimenFilter === 'active' || regimenFilter === 'supplements') && !!supplementStacks.length && <View style={styles.hubRegimenSection}><Text style={styles.hubSectionLabel}>SUPPLEMENT STACKS</Text>{supplementStacks.map((stack) => <Pressable key={stack.id} accessibilityRole="button" onPress={() => setStackEditor(stack)} style={styles.hubRegimenRow}><Text style={styles.hubStackIcon}>🌱</Text><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{stack.members.length} dose {stack.members.length === 1 ? 'slot' : 'slots'}{stackNeedsReview(stack, medications) ? ' · Needs review' : ''}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}</View>}
+      {(regimenFilter === 'active' || regimenFilter === 'supplements') && !!supplementStacks.length && <View style={styles.hubRegimenSection}><Text style={styles.hubSectionLabel}>SUPPLEMENT STACKS</Text>{supplementStacks.map((stack) => <Pressable key={stack.id} accessibilityRole="button" onPress={() => setStackEditor(stack)} style={styles.hubRegimenRow}><Image source={iconImages.supplement} style={styles.hubIcon} accessibilityLabel="Supplement stack" /><View style={styles.flex}><Text style={styles.hubDoseName}>{stack.name}</Text><Text style={styles.hubDoseMeta}>{stack.members.length} dose {stack.members.length === 1 ? 'slot' : 'slots'}{stackNeedsReview(stack, medications) ? ' · Needs review' : ''}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}</View>}
       <Text style={styles.hubSectionLabel}>{regimenFilter === 'archived' ? 'ARCHIVED ITEMS' : 'ACTIVE ITEMS'} · {regimenItems.length}</Text>
-      {regimenItems.map((item) => <Pressable key={item.id} accessibilityRole="button" onPress={() => setDetail(item)} style={styles.hubRegimenRow}><View style={[styles.hubIcon, item.kind === 'supplement' ? styles.supplementIcon : styles.medicationIcon]}><Text style={styles.hubIconText}>{item.kind === 'supplement' ? '🌱' : '✚'}</Text></View><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta} numberOfLines={2}>{item.kind === 'supplement' ? 'Supplement' : 'Medication'}{item.strength ? ` · ${item.strength}` : ''} · {scheduleLabel(item.schedule)}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}
+      {regimenItems.map((item) => <Pressable key={item.id} accessibilityRole="button" onPress={() => setDetail(item)} style={styles.hubRegimenRow}><ItemIcon kind={item.kind} /><View style={styles.flex}><Text style={styles.hubDoseName}>{item.name}</Text><Text style={styles.hubDoseMeta} numberOfLines={2}>{item.kind === 'supplement' ? 'Supplement' : 'Medication'}{item.strength ? ` · ${item.strength}` : ''} · {scheduleLabel(item.schedule)}</Text></View><Text style={styles.hubChevron}>›</Text></Pressable>)}
       {!regimenItems.length && <Text style={styles.empty}>No items in this view.</Text>}
       <Link href={'/medication-reminder-settings' as never} asChild><Pressable style={styles.hubSecondary}><Text style={styles.hubSecondaryText}>Reminder status & Android settings</Text></Pressable></Link>
     </>}
@@ -242,12 +259,13 @@ const styles = StyleSheet.create({
   hubStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 5, marginTop: 15 },
   hubStat: { flex: 1, color: colors.text, fontSize: 11, textAlign: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 9, overflow: 'hidden', paddingVertical: 11, fontWeight: '800' },
   hubPart: { marginBottom: 15 }, hubPartHead: { minHeight: 47, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hubPartTitle: { color: colors.text, fontSize: 16, fontWeight: '900' }, hubPartCount: { color: colors.textMuted, fontSize: 12 },
+  hubPartIcon: { width: 34, height: 34, borderRadius: 8 },
+  hubAfternoonIcon: { color: colors.healthNav, fontSize: 20, width: 34, textAlign: 'center' },
+  hubPartTitle: { flex: 1, marginLeft: 8, color: colors.text, fontSize: 16, fontWeight: '900' }, hubPartCount: { color: colors.textMuted, fontSize: 12 },
   hubPartBody: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 15, overflow: 'hidden' },
   hubDoseRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomColor: colors.border, borderBottomWidth: 1 },
-  hubIcon: { width: 41, height: 41, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  supplementIcon: { backgroundColor: '#0C2B20' }, medicationIcon: { backgroundColor: '#351521' },
-  hubIconText: { color: colors.healthNav, fontSize: 21, fontWeight: '900' }, hubDoseName: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  hubIcon: { width: 41, height: 41, borderRadius: 9 },
+  hubDoseName: { color: colors.text, fontSize: 14, fontWeight: '800' },
   hubDoseMeta: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 3 }, hubDoseActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   hubTake: { minHeight: 42, minWidth: 50, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, borderColor: colors.accent, borderWidth: 1, borderRadius: 9 },
   hubTakeText: { color: colors.accent, fontSize: 12, fontWeight: '900' },
@@ -256,7 +274,7 @@ const styles = StyleSheet.create({
   hubStatus: { fontSize: 11, fontWeight: '900', paddingVertical: 7, paddingHorizontal: 9, borderRadius: 9, overflow: 'hidden' },
   takenStatus: { color: colors.accent, backgroundColor: '#0C2B20' }, skippedStatus: { color: colors.danger, backgroundColor: '#31191D' },
   hubStack: { borderBottomColor: colors.border, borderBottomWidth: 1 }, hubStackHead: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11 },
-  hubStackIcon: { fontSize: 25, marginRight: 6 }, hubChevron: { color: colors.textMuted, fontSize: 21, paddingHorizontal: 5 },
+  hubChevron: { color: colors.textMuted, fontSize: 21, paddingHorizontal: 5 },
   hubBulk: { flexDirection: 'row', gap: 7, paddingHorizontal: 10, paddingBottom: 9 },
   hubBulkTake: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: 9 },
   hubBulkTakeText: { color: colors.background, fontSize: 12, fontWeight: '900' },

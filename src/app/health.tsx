@@ -1,7 +1,7 @@
 import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
 
@@ -15,6 +15,8 @@ import { DEFAULT_PREFERENCES } from '@/lib/preferences';
 import { HealthReading } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
+
+const medicationCombinationIcon = require('../../assets/images/medication-combination-icon.png');
 
 export default function HealthScreen() {
   const { add, detail } = useLocalSearchParams<{ add?: string; detail?: string }>();
@@ -53,7 +55,7 @@ export default function HealthScreen() {
         {preferences.visibleHealthModules.bloodPressure && <HubCard title="Blood pressure & pulse" icon="♥" color={colors.healthNav} onPress={() => router.push('/health?detail=bloodPressure')}>
           {latest ? <><View style={styles.valueRow}><View style={styles.valueGroup}><Text style={styles.bpValue}>{latest.systolic} / {latest.diastolic}</Text><Text style={styles.muted}>mmHg</Text></View><View style={styles.valueDivider} /><View><Text style={styles.bpValue}>{latest.pulse}</Text><Text style={styles.muted}>bpm</Text></View></View><BloodPressureSparkline readings={summary.readings} /><Text style={styles.muted}>Latest reading · {formatDateTime(latest.measuredAt)}</Text></> : <EmptyCard icon="♡" title="No readings yet" description="Start tracking your blood pressure and pulse to see trends over time." action="+ Add first reading" onAction={firstReading} color={colors.healthNav} />}
         </HubCard>}
-        {preferences.visibleHealthModules.medications && <HubCard title="Medications & Supplements" icon="✚" color={colors.healthNav} onPress={() => router.push('/medications')}>
+        {preferences.visibleHealthModules.medications && <HubCard title="Medications & Supplements" icon="✚" iconImage={medicationCombinationIcon} color={colors.healthNav} onPress={() => router.push('/medications')}>
           {summary.activeMedications.length ? <><Text style={styles.muted}>{summary.activeMedications.length} active {summary.activeMedications.length === 1 ? 'item' : 'items'}</Text>{summary.medicationStatus ? <><View style={styles.medStats}><Stat value={summary.medicationStatus.taken} label="taken" /><Stat value={Math.max(0, summary.medicationStatus.total - summary.medicationStatus.taken - summary.medicationStatus.skipped)} label="remaining" /><Stat value={summary.medicationStatus.skipped} label="skipped" /></View>{summary.nextDoses.length ? <View style={styles.nextDose}><Text style={styles.smallLabel}>SCHEDULED DOSES NOT LOGGED</Text>{summary.nextDoses.slice(0, 2).map((dose, index) => <View key={`${dose.label}-${index}`} style={styles.doseRow}><Text style={styles.doseName} numberOfLines={1}>{dose.label}</Text><Text style={styles.doseTime}>{dose.value}</Text></View>)}</View> : <Text style={styles.muted}>All scheduled doses logged today.</Text>}</> : <Text style={styles.muted}>No fixed-time doses scheduled today. As-needed and interval items remain in Medications & Supplements.</Text>}</> : <EmptyCard icon="✚" title="No medications or supplements yet" description="Track doses, schedules, and local reminders." action="+ Add item" onAction={() => router.push('/medications')} color={colors.healthNav} />}
         </HubCard>}
         {preferences.visibleHealthModules.labs && <HubCard title="Laboratory results" icon="⌁" color={colors.nutritionNav} onPress={() => router.push('/labs')}>
@@ -67,8 +69,8 @@ export default function HealthScreen() {
   </SafeAreaView>;
 }
 
-function HubCard({ title, icon, color, onPress, children }: { title: string; icon: string; color: string; onPress: () => void; children: ReactNode }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onPress} style={[styles.card, { borderColor: `${color}55` }]}><View style={styles.cardHeading}><View style={[styles.icon, { backgroundColor: `${color}20`, borderColor: `${color}77` }]}><Text style={[styles.iconText, { color }]}>{icon}</Text></View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.chevron}>›</Text></View><View style={styles.cardBody}>{children}</View></Pressable>;
+function HubCard({ title, icon, iconImage, color, onPress, children }: { title: string; icon: string; iconImage?: ImageSourcePropType; color: string; onPress: () => void; children: ReactNode }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onPress} style={[styles.card, { borderColor: `${color}55` }]}><View style={styles.cardHeading}>{iconImage ? <Image source={iconImage} style={styles.iconImage} /> : <View style={[styles.icon, { backgroundColor: `${color}20`, borderColor: `${color}77` }]}><Text style={[styles.iconText, { color }]}>{icon}</Text></View>}<Text style={styles.cardTitle}>{title}</Text><Text style={styles.chevron}>›</Text></View><View style={styles.cardBody}>{children}</View></Pressable>;
 }
 
 function EmptyCard({ icon, title, description, action, onAction, color }: { icon: string; title: string; description: string; action: string; onAction: () => void; color: string }) {
@@ -90,7 +92,7 @@ function BloodPressureSparkline({ readings }: { readings: HealthReading[] }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingBottom: 40 },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderRadius: layout.radius, padding: 16, marginBottom: 14, minHeight: 90 }, cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, cardBody: { marginTop: 10 }, icon: { width: 46, height: 46, borderWidth: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, iconText: { fontSize: 25, fontWeight: '900' }, cardTitle: { color: colors.text, fontSize: 18, fontWeight: '900', flex: 1 }, chevron: { color: colors.textMuted, fontSize: 28 },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderRadius: layout.radius, padding: 16, marginBottom: 14, minHeight: 90 }, cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, cardBody: { marginTop: 10 }, icon: { width: 46, height: 46, borderWidth: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, iconImage: { width: 46, height: 46, borderRadius: 12 }, iconText: { fontSize: 25, fontWeight: '900' }, cardTitle: { color: colors.text, fontSize: 18, fontWeight: '900', flex: 1 }, chevron: { color: colors.textMuted, fontSize: 28 },
   muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18 }, smallLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 1 }, valueRow: { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' }, valueGroup: { flexShrink: 1 }, valueDivider: { width: 1, height: 44, backgroundColor: colors.border }, bpValue: { color: colors.text, fontSize: 27, fontWeight: '900' }, unit: { color: colors.textMuted, fontSize: 12 }, pulseValue: { color: colors.text, fontSize: 16, fontWeight: '800' }, sparkline: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 13, paddingTop: 10, marginBottom: 6 },
   emptyBody: { alignItems: 'center', gap: 8 }, emptyTitle: { color: colors.textMuted, fontSize: 13, alignSelf: 'flex-start' }, emptyIcon: { color: colors.border, fontSize: 40, paddingVertical: 4 }, emptyDescription: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 }, emptyAction: { minHeight: 44, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, marginTop: 5 }, emptyActionText: { fontSize: 12, fontWeight: '900' },
   medStats: { flexDirection: 'row', gap: 8, marginTop: 12 }, stat: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: colors.surfaceRaised, borderRadius: 10, paddingVertical: 8 }, statValue: { color: colors.text, fontSize: 20, fontWeight: '900' }, nextDose: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 14, paddingTop: 10 }, doseRow: { flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingVertical: 6 }, doseName: { color: colors.text, fontSize: 12, flex: 1 }, doseTime: { color: colors.text, fontSize: 12, fontWeight: '800' },
