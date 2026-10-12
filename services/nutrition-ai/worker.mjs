@@ -62,6 +62,17 @@ const labHistorySchema = {
   },
 };
 
+const produceSchema = {
+  type: 'object', additionalProperties: false, required: ['suggestions'], properties: {
+    suggestions: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false,
+      required: ['nutritionEntryId', 'servings', 'explanation'], properties: {
+        nutritionEntryId: { type: 'string' }, servings: { type: 'number', exclusiveMinimum: 0, maximum: 20 }, explanation: { type: 'string' },
+      } } },
+  },
+};
+
+const produceInstructions = `Estimate fruit and vegetable servings only for clearly identifiable produce in user-selected food entries. Return suggestions, not advice. Do not invent ingredients in mixed or ambiguous dishes. One serving is approximately one cup raw produce, half a cup cooked produce, or one medium whole fruit. Use the supplied quantity; omit entries whose amount cannot be reasonably estimated. Never diagnose or recommend a dietary target.`;
+
 const instructions = `You extract nutrition facts for a personal food log. Return only the requested structured output.
 - When the user supplies one complete total nutrition summary with calories, protein, carbohydrates, fat, and fiber, return exactly one item for the whole named meal.
 - For a complete supplied summary, use the user's meal label as the item name and transcribe every supplied number exactly. A ~ or approximately marker means the value is estimated, but it does not authorize changing the number.
@@ -99,7 +110,7 @@ export async function handleRequest(request, env) {
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404, headers);
     const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
-    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history') return json({ error: 'Not found.' }, 404, headers);
+    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce') return json({ error: 'Not found.' }, 404, headers);
 
     const safetyIdentifier = `reclaim-${(await sha256(token)).slice(0, 32)}`;
     if (env.RATE_LIMITER) {
@@ -123,6 +134,12 @@ export async function handleRequest(request, env) {
         { type: 'input_text', text: 'Read this nutrition label. Return the product as one item using values per labeled serving.' },
         { type: 'input_image', image_url: imageDataUrl, detail: 'high' },
       ];
+    } else if (url.pathname === '/v1/suggest-produce') {
+      if (!Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 20 || body.entries.some((entry) => typeof entry?.id !== 'string' || typeof entry?.name !== 'string' || typeof entry?.servingLabel !== 'string' || typeof entry?.servings !== 'number')) return json({ error: 'Select up to 20 valid food entries.' }, 400, headers);
+      responseInstructions = produceInstructions;
+      responseSchema = produceSchema;
+      responseName = 'produce_suggestions';
+      content = [{ type: 'input_text', text: `Estimate produce servings for these selected entries. Return only confident suggestions with the matching entry ID:\n${JSON.stringify(body.entries)}` }];
     } else {
       const labName = typeof body.labName === 'string' ? body.labName.trim() : '';
       const ocrText = typeof body.ocrText === 'string' ? body.ocrText.trim() : '';
@@ -154,7 +171,7 @@ export async function handleRequest(request, env) {
     const outputText = extractOutputText(response);
     if (!outputText) return json({ error: 'The private parser returned no usable data.' }, 502, headers);
     const parsed = JSON.parse(outputText);
-    return json(responseName === 'lab_history_parse' ? parsed : normalizeResult(parsed), 200, headers);
+    return json(responseName === 'lab_history_parse' || responseName === 'produce_suggestions' ? parsed : normalizeResult(parsed), 200, headers);
   } catch (error) {
     return json({ error: error instanceof SyntaxError ? 'The private parser returned invalid structured data.' : 'The private parser encountered an unexpected error.' }, 500, headers);
   }

@@ -1,5 +1,6 @@
 import { TrackerState } from '@/models/tracker';
 import { validWaterDate } from '@/lib/water-habit';
+import { GOOD_HABIT_TEMPLATES, validHabitLog } from '@/lib/good-habit-templates';
 
 export const RECLAIM_BACKUP_FORMAT = 'reclaim-full-backup' as const;
 export const RECLAIM_BACKUP_VERSION = 2 as const;
@@ -25,7 +26,7 @@ const stateArrayKeys = [
   'healthReadings', 'cpapReadings', 'cpapTherapySettings', 'cpapUsageGoals', 'weightEntries', 'cpapEquipment',
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutritionMealGroups',
-  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs',
+  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs',
 ] as const;
 
 export function createReclaimBackup(
@@ -91,7 +92,10 @@ function validateState(value: Record<string, unknown>) {
     || typeof tracker.name !== 'string'
     || !['abstinence', 'reduction', 'habit'].includes(String(tracker.mode))
     || (tracker.habitLogStyle !== undefined && !['done', 'count'].includes(String(tracker.habitLogStyle)))
-    || (tracker.habitTemplate !== undefined && (tracker.habitTemplate !== 'water' || tracker.mode !== 'habit'))
+    || (tracker.habitTemplate !== undefined && (![...GOOD_HABIT_TEMPLATES.map((item) => item.id), 'water'].includes(String(tracker.habitTemplate)) || tracker.mode !== 'habit'))
+    || (GOOD_HABIT_TEMPLATES.some((item) => item.id === tracker.habitTemplate && (item.checklist ? !Array.isArray(tracker.habitChecklistHistory) || !tracker.habitChecklistHistory.length : !Array.isArray(tracker.habitGoalHistory) || !tracker.habitGoalHistory.length)))
+    || (tracker.habitGoalHistory !== undefined && (!Array.isArray(tracker.habitGoalHistory) || tracker.habitGoalHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || typeof item.value !== 'number' || !Number.isFinite(item.value) || item.value <= 0 || item.value > 10000)))
+    || (tracker.habitChecklistHistory !== undefined && (!Array.isArray(tracker.habitChecklistHistory) || tracker.habitChecklistHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !Array.isArray(item.items) || !item.items.length || item.items.some((step: unknown) => !isObject(step) || typeof step.id !== 'string' || typeof step.label !== 'string' || !step.label.trim()))))
     || (tracker.habitTemplate === 'water' && (!Array.isArray(tracker.waterGoals) || !tracker.waterGoals.length || tracker.waterQuickAddOz === undefined))
     || (tracker.waterQuickAddOz !== undefined && (typeof tracker.waterQuickAddOz !== 'number' || !Number.isFinite(tracker.waterQuickAddOz) || tracker.waterQuickAddOz <= 0 || tracker.waterQuickAddOz > 1000))
     || (tracker.waterDisplayUnit !== undefined && tracker.waterDisplayUnit !== 'fl oz' && tracker.waterDisplayUnit !== 'mL')
@@ -185,6 +189,9 @@ function validateState(value: Record<string, unknown>) {
     || typeof log.recordedAt !== 'string' || !Number.isFinite(Date.parse(log.recordedAt))
     || typeof log.ounces !== 'number' || !Number.isFinite(log.ounces) || log.ounces <= 0 || log.ounces > 1000)) {
     throw new Error('This Reclaim backup contains invalid water logs. Nothing was restored.');
+  }
+  if (Array.isArray(value.goodHabitLogs) && value.goodHabitLogs.some((log) => !isObject(log) || !validHabitLog(log as never))) {
+    throw new Error('This Reclaim backup contains invalid good habit logs. Nothing was restored.');
   }
 }
 

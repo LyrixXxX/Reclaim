@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, AppSection, DashboardWidget, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
+import { ActivityRoute, AppSection, DashboardWidget, GoodHabitLog, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { HealthReadingInput, healthReadingId, removeHealthReading, upsertHealthReading } from '@/lib/health';
@@ -38,6 +38,7 @@ import { cancelMedicationNotifications, rescheduleMedication } from '@/lib/medic
 import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
 import { logHabitCompletion } from '@/lib/habit-log';
 import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
+import { validHabitLog } from '@/lib/good-habit-templates';
 import { labResultId, LabResultInput, LabTrackerInput, labTrackerId, mergeLabResults, migrateLabState, removeLabResult, removeLabTracker, upsertLabResult, upsertLabTracker } from '@/lib/labs';
 import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertMealGroup, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 
@@ -63,6 +64,8 @@ type TrackerContextValue = TrackerState & {
   logGoodHabit: (id: TrackerId) => void;
   saveWaterDrink: (log: WaterLog) => void;
   deleteWaterDrink: (id: string) => void;
+  saveGoodHabitLog: (log: GoodHabitLog) => void;
+  deleteGoodHabitLog: (id: string) => void;
   setArchived: (id: TrackerId, archived: boolean) => void;
   deleteTracker: (id: TrackerId, confirmed: boolean, confirmationText?: string) => Promise<boolean>;
   addReductionStep: (trackerId: TrackerId, input: TaperStepInput, stepId: string) => void;
@@ -278,6 +281,14 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     logGoodHabit: (id) => setState((previous) => logHabitCompletion(previous, id, localDateKey())),
     saveWaterDrink: (log) => setState((previous) => saveWaterLog(previous, log)),
     deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
+    saveGoodHabitLog: (log) => setState((previous) => {
+      const tracker = previous.trackers.find((item) => item.id === log.trackerId && item.habitTemplate && item.habitTemplate !== 'water' && !item.archived);
+      if (!tracker || !validHabitLog(log) || (log.nutritionEntryId && tracker.habitTemplate !== 'produce')) return previous;
+      return { ...previous, goodHabitLogs: [...(previous.goodHabitLogs ?? []).filter((item) => item.id !== log.id
+        && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)
+        && !(log.nutritionEntryId && item.trackerId === log.trackerId && item.nutritionEntryId === log.nutritionEntryId)), log] };
+    }),
+    deleteGoodHabitLog: (id) => setState((previous) => ({ ...previous, goodHabitLogs: (previous.goodHabitLogs ?? []).filter((log) => log.id !== id) })),
     setArchived: (id, archived) => {
       const tracker = state.trackers.find((item) => item.id === id);
       if (archived) void cancelHabitReminder(tracker?.habitNotificationId);

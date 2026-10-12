@@ -1,4 +1,4 @@
-export const PRIVACY_UPDATED = 'September 30, 2026';
+export const PRIVACY_UPDATED = 'October 12, 2026';
 
 export const PRIVACY_SECTIONS = [
   {
@@ -11,7 +11,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'When information leaves your device',
-    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, or laboratory-report text to a configured Private AI relay, that content is sent to the relay and its AI provider. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
+    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, selected Nutrition entries for produce-serving suggestions, or laboratory-report text to a configured Private AI relay, that content is sent to the relay and its AI provider. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
   },
   {
     title: 'Advertising and purchases',

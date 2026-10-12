@@ -9,6 +9,7 @@ import { ReductionCard } from '@/components/reduction-card';
 import { TimerCard } from '@/components/timer-card';
 import { HabitCard } from '@/components/habit-card';
 import { WaterHabitCard } from '@/components/water-habit-card';
+import { GoodHabitTemplateCard } from '@/components/good-habit-template-card';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, type } from '@/theme';
 import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
@@ -19,7 +20,7 @@ import { localDateKey } from '@/lib/progress';
 
 export default function HabitsScreen() {
   const { deleted } = useLocalSearchParams<{ deleted?: string }>();
-  const { trackers, historicalEntries = [], waterLogs = [], taperSteps = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
+  const { trackers, historicalEntries = [], waterLogs = [], goodHabitLogs = [], activityRoutes = [], taperSteps = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
   const active = trackers.filter((tracker) => !tracker.archived);
   const quitting = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'quitting');
   const reduction = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'reducing');
@@ -133,7 +134,8 @@ export default function HabitsScreen() {
               {habits.map((tracker) => (
                 <View key={tracker.id}>{tracker.habitTemplate === 'water'
                   ? <WaterHabitCard tracker={tracker} logs={waterLogs} onLog={() => saveWaterDrink({ id: `water-${Date.now()}-${Math.random().toString(36).slice(2)}`, trackerId: tracker.id, eventDate: localDateKey(), ounces: tracker.waterQuickAddOz ?? 8, recordedAt: new Date().toISOString() })} />
-                  : <HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} onLog={() => logGoodHabit(tracker.id)} />}{orderControls(habits, tracker.id)}</View>
+                  : tracker.habitTemplate ? <GoodHabitTemplateCard tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} />
+                    : <HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} onLog={() => logGoodHabit(tracker.id)} />}{orderControls(habits, tracker.id)}</View>
               ))}
             </View>
           </>

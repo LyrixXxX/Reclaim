@@ -62,6 +62,7 @@ function AppShell() {
           <Stack.Screen name="archived" options={{ title: 'Archived trackers' }} />
           <Stack.Screen name="tracker-form" options={{ title: 'Tracker setup' }} />
           <Stack.Screen name="good-habit-types" options={{ title: 'Add good habit' }} />
+          <Stack.Screen name="good-habit-form" options={{ title: 'Good habit setup' }} />
           <Stack.Screen name="water-form" options={{ title: 'Water habit setup' }} />
           <Stack.Screen name="water-history" options={{ title: 'Water history' }} />
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />

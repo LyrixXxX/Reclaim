@@ -9,6 +9,7 @@ import { StepResult } from './activity-steps';
 import { formatMiles } from './activity-units';
 import { routeCaloriesForDate } from './activity';
 import { waterDisplayAmount } from './water-habit';
+import { habitProgress, templateConfig } from './good-habit-templates';
 
 export type DashboardContent = {
   value: string;
@@ -100,6 +101,11 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
       const goal = [...(tracker.waterGoals ?? [])].filter((item) => item.effectiveDate <= today).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.ounces;
       const unit = tracker.waterDisplayUnit ?? 'fl oz';
       return { label, value: `${waterDisplayAmount(todayOz, unit)} / ${goal === undefined ? '—' : waterDisplayAmount(goal, unit)} ${unit} today` };
+    }
+    if (tracker.habitTemplate && templateConfig(tracker.habitTemplate)) {
+      const config = templateConfig(tracker.habitTemplate)!;
+      const progress = habitProgress(tracker, state.goodHabitLogs ?? [], state.activityRoutes ?? [], now);
+      return { label, value: `${Number(progress.amount.toFixed(1))} / ${progress.goal} ${config.unit} this ${config.period}` };
     }
     return { label, value: tracker.mode === 'reduction' ? `${tracker.current ?? '—'} ${tracker.unit ?? ''}` : `${tracker.frequencyCount ?? 1} per ${tracker.frequencyPeriod ?? 'day'}${start ? ` · Started ${dashboardDate(start)}` : ''}` };
   }) };

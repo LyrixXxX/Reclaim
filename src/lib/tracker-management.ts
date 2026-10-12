@@ -2,6 +2,7 @@ import { FrequencyPeriod, Tracker, TrackerId, TrackerMode, TrackerState } from '
 import { localDateKey } from '@/lib/progress';
 import { reconcileSavingsExpenses, SavingsExpenseDraft, validateSavingsDrafts } from '@/lib/habit-savings';
 import { parseClockTime } from '@/lib/clock-time';
+import { checklistOn, goalOn, templateConfig } from '@/lib/good-habit-templates';
 
 export type TrackerDraft = {
   name: string;
@@ -19,7 +20,9 @@ export type TrackerDraft = {
   frequencyCount?: string;
   frequencyPeriod?: FrequencyPeriod;
   habitLogStyle?: 'done' | 'count';
-  habitTemplate?: 'water';
+  habitTemplate?: Tracker['habitTemplate'];
+  habitGoalValue?: string;
+  habitChecklistItems?: { id: string; label: string }[];
   waterGoalOz?: string;
   waterQuickAddOz?: string;
   waterDisplayUnit?: 'fl oz' | 'mL';
@@ -54,6 +57,11 @@ export function validateTrackerDraft(draft: TrackerDraft): TrackerValidation {
       if (!positiveOunces(draft.waterQuickAddOz)) errors.waterQuickAddOz = 'Enter a serving greater than zero.';
       if (draft.waterDisplayUnit && !['fl oz', 'mL'].includes(draft.waterDisplayUnit)) errors.waterDisplayUnit = 'Choose fl oz or mL.';
       if (draft.waterPresetOz?.some((amount) => !Number.isFinite(amount) || amount <= 0 || amount > 1000) || (draft.waterPresetOz?.length ?? 0) > 8) errors.waterPresetOz = 'Use up to eight valid drink shortcuts.';
+    } else if (draft.habitTemplate && templateConfig(draft.habitTemplate)) {
+      const config = templateConfig(draft.habitTemplate)!;
+      if (config.checklist) {
+        if (!draft.habitChecklistItems?.length || draft.habitChecklistItems.some((item) => !item.id || !item.label.trim())) errors.habitChecklistItems = 'Add at least one named checklist step.';
+      } else if (!Number.isFinite(Number(draft.habitGoalValue)) || Number(draft.habitGoalValue) <= 0 || Number(draft.habitGoalValue) > 10000) errors.habitGoalValue = 'Choose a goal greater than zero.';
     } else {
       const count = Number(draft.frequencyCount);
       if (!Number.isInteger(count) || count < 1) errors.frequencyCount = 'Enter a whole number of at least 1.';
@@ -80,17 +88,21 @@ export function trackerFromDraft(draft: TrackerDraft, id: TrackerId, existing?: 
     name: draft.name.trim(),
     displayName: draft.displayName?.trim() || undefined,
     mode: draft.mode,
-    startedAt: draft.habitTemplate === 'water' && existing?.startedAt ? existing.startedAt : `${draft.startDate}T${startTime24Hour(draft) || '00:00'}:00`,
+    startedAt: draft.habitTemplate && existing?.startedAt ? existing.startedAt : `${draft.startDate}T${startTime24Hour(draft) || '00:00'}:00`,
     icon: draft.icon,
     color: draft.color,
     unit: draft.mode === 'reduction' ? draft.unit?.trim() : undefined,
     baseline: draft.mode === 'reduction' ? Number(draft.baseline) : undefined,
     current: draft.mode === 'reduction' ? Number(draft.current) : undefined,
     target: draft.mode === 'reduction' && draft.target ? Number(draft.target) : undefined,
-    frequencyCount: draft.mode === 'habit' && draft.habitTemplate !== 'water' ? Number(draft.frequencyCount) : undefined,
-    frequencyPeriod: draft.mode === 'habit' && draft.habitTemplate !== 'water' ? draft.frequencyPeriod : undefined,
+    frequencyCount: draft.mode === 'habit' && !draft.habitTemplate ? Number(draft.frequencyCount) : undefined,
+    frequencyPeriod: draft.mode === 'habit' && !draft.habitTemplate ? draft.frequencyPeriod : undefined,
     habitLogStyle: draft.mode === 'habit' ? 'count' : undefined,
     habitTemplate: draft.mode === 'habit' ? draft.habitTemplate : undefined,
+    habitGoalHistory: draft.mode === 'habit' && draft.habitTemplate && templateConfig(draft.habitTemplate) && !templateConfig(draft.habitTemplate)?.checklist
+      ? reconcileDated(existing?.habitGoalHistory ?? [], Number(draft.habitGoalValue), localDateKey()) : existing?.habitGoalHistory,
+    habitChecklistHistory: draft.mode === 'habit' && draft.habitTemplate && templateConfig(draft.habitTemplate)?.checklist
+      ? reconcileChecklist(existing?.habitChecklistHistory ?? [], draft.habitChecklistItems ?? [], localDateKey()) : existing?.habitChecklistHistory,
     waterQuickAddOz: draft.mode === 'habit' && draft.habitTemplate === 'water' ? Number(draft.waterQuickAddOz) : undefined,
     waterDisplayUnit: draft.mode === 'habit' && draft.habitTemplate === 'water' ? draft.waterDisplayUnit ?? 'fl oz' : undefined,
     waterPresetOz: draft.mode === 'habit' && draft.habitTemplate === 'water' ? draft.waterPresetOz ?? existing?.waterPresetOz ?? [] : undefined,
@@ -112,6 +124,15 @@ function reconcileWaterGoals(goals: NonNullable<Tracker['waterGoals']>, ounces: 
   if (latest?.ounces === ounces) return goals;
   return [...goals.filter((goal) => goal.effectiveDate !== today), { effectiveDate: today, ounces }]
     .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+}
+
+function reconcileDated(history: NonNullable<Tracker['habitGoalHistory']>, value: number, date: string) {
+  if (history.length && goalOn({ habitGoalHistory: history } as Tracker, date) === value) return history;
+  return [...history.filter((item) => item.effectiveDate !== date), { effectiveDate: date, value }].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+}
+function reconcileChecklist(history: NonNullable<Tracker['habitChecklistHistory']>, items: NonNullable<TrackerDraft['habitChecklistItems']>, date: string) {
+  if (history.length && JSON.stringify(checklistOn({ habitChecklistHistory: history } as Tracker, date)) === JSON.stringify(items)) return history;
+  return [...history.filter((item) => item.effectiveDate !== date), { effectiveDate: date, items }].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
 }
 
 export function startTime24Hour(draft: Pick<TrackerDraft, 'startTime' | 'startPeriod'>) {
@@ -175,6 +196,7 @@ export function setTrackerArchived(state: TrackerState, id: TrackerId, archived:
 
 export function trackerHasHistory(state: TrackerState, id: TrackerId) {
   return (state.waterLogs ?? []).some((log) => log.trackerId === id)
+    || (state.goodHabitLogs ?? []).some((log) => log.trackerId === id)
     || (state.historicalEntries ?? []).some((entry) => entry.trackerId === id)
     || (state.lapseEvents ?? []).some((entry) => entry.trackerId === id)
     || (state.taperSteps ?? []).some((step) => step.trackerId === id);
@@ -197,6 +219,7 @@ export function permanentlyDeleteTracker(
     trackers: state.trackers.filter((item) => item.id !== id),
     historicalEntries: (state.historicalEntries ?? []).filter((entry) => entry.trackerId !== id),
     waterLogs: (state.waterLogs ?? []).filter((log) => log.trackerId !== id),
+    goodHabitLogs: (state.goodHabitLogs ?? []).filter((log) => log.trackerId !== id),
     lapseEvents: (state.lapseEvents ?? []).filter((entry) => entry.trackerId !== id),
     taperSteps: (state.taperSteps ?? []).filter((step) => step.trackerId !== id),
     preferences: state.preferences ? {

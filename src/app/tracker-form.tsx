@@ -36,6 +36,7 @@ export default function TrackerFormScreen() {
   const existing = trackers.find((tracker) => tracker.id === id);
   useEffect(() => {
     if (existing?.habitTemplate === 'water') router.replace(`/water-form?id=${encodeURIComponent(existing.id)}` as Href);
+    else if (existing?.habitTemplate) router.replace(`/good-habit-form?type=${existing.habitTemplate}&id=${encodeURIComponent(existing.id)}` as Href);
     else if (!existing && mode === 'habit') router.replace('/good-habit-types' as Href);
   }, [existing, mode]);
   const editing = Boolean(existing);

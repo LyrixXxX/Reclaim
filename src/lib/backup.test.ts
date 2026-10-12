@@ -13,6 +13,14 @@ const state: TrackerState = {
 };
 
 describe('full Reclaim backups', () => {
+  it('round-trips template goals, checklist snapshots, and logs', () => {
+    const habit = { ...state.trackers[0], mode: 'habit' as const, habitTemplate: 'dental' as const, habitChecklistHistory: [{ effectiveDate: '2026-10-12', items: [{ id: 'brush', label: 'Brush' }] }] };
+    const goodHabitLogs = [{ id: 'log', trackerId: habit.id, eventDate: '2026-10-12', amount: 1, checklistItemId: 'brush', recordedAt: '2026-10-12T10:00:00Z' }];
+    const backup = createReclaimBackup({ ...state, trackers: [habit], goodHabitLogs });
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.goodHabitLogs).toEqual(goodHabitLogs);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, goodHabitLogs: [{ ...goodHabitLogs[0], amount: -1 }] } }))).toThrow(/invalid good habit logs/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...habit, habitChecklistHistory: [] }] } }))).toThrow(/invalid tracker/);
+  });
   it('preserves positive habit settings and rejects unknown log styles or reminder times', () => {
     const habit = { ...state.trackers[0], mode: 'habit' as const, habitLogStyle: 'done' as const, habitReminderTime: '09:00' };
     const backup = createReclaimBackup({ ...state, trackers: [habit] });

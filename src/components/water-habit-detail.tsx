@@ -8,6 +8,7 @@ import { WaterUnit, waterDisplayAmount, waterGoalOn, waterProgress, waterStreak,
 import { Tracker, WaterLog } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
+import { GoodHabitIcon } from './good-habit-icon';
 
 export function WaterHabitDetail({ tracker, logs }: { tracker: Tracker; logs: WaterLog[] }) {
   const { saveWaterDrink } = useTrackers();
@@ -26,7 +27,7 @@ export function WaterHabitDetail({ tracker, logs }: { tracker: Tracker; logs: Wa
   };
   const recentDays = Array.from({ length: 7 }, (_, index) => { const date = new Date(`${today}T12:00:00`); date.setDate(date.getDate() - index); return localDateKey(date); });
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content}>
-    <Text style={styles.icon}>💧</Text><Text style={styles.title}>{tracker.displayName || tracker.name}</Text>
+    <GoodHabitIcon type="water" size={86} style={{ alignSelf: 'center' }} /><Text style={styles.title}>{tracker.displayName || tracker.name}</Text>
     <Text style={styles.sub}>Today · {today}</Text>
     <View style={styles.card}>
       <Text style={styles.label}>TODAY&apos;S WATER</Text>
