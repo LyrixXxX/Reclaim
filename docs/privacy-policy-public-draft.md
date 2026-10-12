@@ -6,7 +6,7 @@ Effective date: [DATE]
 
 Operator: [PUBLIC DEVELOPER OR BUSINESS NAME]
 
-Contact: [RECLAIM SUPPORT EMAIL]
+Contact: Reclaim.LyrixStudios@gmail.com
 
 Reclaim is a personal habits, health, nutrition, CPAP, weight, and activity tracking app. It does not require a Reclaim account. Records you enter are stored on your device unless you choose a feature that sends information elsewhere.
 
@@ -28,7 +28,7 @@ The free version may show a Google-served, non-personalized banner on Home. Goog
 
 ## Sharing, retention, and your choices
 
-Reclaim does not sell your health or location records. Your records remain on your device until you delete them or clear app storage; copies in backups remain under your control. Third-party processors receive only the information needed for the optional features described above. To ask about this policy, contact [RECLAIM SUPPORT EMAIL]. [ADD APPLICABLE US STATE PRIVACY RIGHTS AND RESPONSE PROCESS AFTER LEGAL REVIEW.]
+Reclaim does not sell your health or location records. Your records remain on your device until you delete them or clear app storage; copies in backups remain under your control. Third-party processors receive only the information needed for the optional features described above. To ask about this policy, contact Reclaim.LyrixStudios@gmail.com. [ADD APPLICABLE US STATE PRIVACY RIGHTS AND RESPONSE PROCESS AFTER LEGAL REVIEW.]
 
 ## Third-party policies
 
