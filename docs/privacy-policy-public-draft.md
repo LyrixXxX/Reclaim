@@ -2,9 +2,9 @@
 
 **Do not publish this draft until the bracketed fields are completed and every statement is checked against the release build.** Host the final text as a public, non-editable web page (not a PDF) and use that URL in Google Play and Reclaim.
 
-Effective date: [DATE]
+Effective date: October 12, 2026
 
-Operator: [PUBLIC DEVELOPER OR BUSINESS NAME]
+Operator: Lyrix Studios
 
 Contact: Reclaim.LyrixStudios@gmail.com
 
