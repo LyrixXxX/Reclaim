@@ -65,13 +65,13 @@ const labHistorySchema = {
 const produceSchema = {
   type: 'object', additionalProperties: false, required: ['suggestions'], properties: {
     suggestions: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false,
-      required: ['nutritionEntryId', 'servings', 'explanation'], properties: {
-        nutritionEntryId: { type: 'string' }, servings: { type: 'number', exclusiveMinimum: 0, maximum: 20 }, explanation: { type: 'string' },
+      required: ['nutritionEntryId', 'servings', 'category', 'explanation'], properties: {
+        nutritionEntryId: { type: 'string' }, servings: { type: 'number', exclusiveMinimum: 0, maximum: 20 }, category: { type: 'string', enum: ['fruit', 'vegetable'] }, explanation: { type: 'string' },
       } } },
   },
 };
 
-const produceInstructions = `Estimate fruit and vegetable servings only for clearly identifiable produce in user-selected food entries. Return suggestions, not advice. Do not invent ingredients in mixed or ambiguous dishes. One serving is approximately one cup raw produce, half a cup cooked produce, or one medium whole fruit. Use the supplied quantity; omit entries whose amount cannot be reasonably estimated. Never diagnose or recommend a dietary target.`;
+const produceInstructions = `Estimate cup-equivalent fruit and vegetable servings only for clearly identifiable produce in user-selected food entries. Classify each as fruit or vegetable in ordinary food-use terms. Return suggestions, not advice. Do not invent ingredients in mixed or ambiguous dishes. USDA MyPlate examples include 1 cup fruit, 1 cup raw or cooked vegetables, or 2 cups raw leafy greens as one cup-equivalent; whole fruit equivalents vary by fruit and size. Use the supplied quantity; omit entries whose amount cannot be reasonably estimated. Never diagnose or recommend a dietary target.`;
 
 const instructions = `You extract nutrition facts for a personal food log. Return only the requested structured output.
 - When the user supplies one complete total nutrition summary with calories, protein, carbohydrates, fat, and fiber, return exactly one item for the whole named meal.

@@ -1,7 +1,7 @@
 import { NutritionEntry } from '@/models/tracker';
 import { requestPrivateAiRelay } from './nutrition-ai';
 
-export type ProduceSuggestion = { nutritionEntryId: string; servings: number; explanation: string };
+export type ProduceSuggestion = { nutritionEntryId: string; servings: number; category: 'fruit' | 'vegetable'; explanation: string };
 
 export async function suggestProduce(entries: NutritionEntry[]): Promise<ProduceSuggestion[]> {
   if (!entries.length) return [];
@@ -11,5 +11,5 @@ export async function suggestProduce(entries: NutritionEntry[]): Promise<Produce
   });
   const parsed = await response.json() as { suggestions?: ProduceSuggestion[] };
   if (!Array.isArray(parsed.suggestions)) throw new Error('The relay returned no usable produce suggestions.');
-  return parsed.suggestions.filter((item) => entries.some((entry) => entry.id === item.nutritionEntryId) && Number.isFinite(item.servings) && item.servings > 0 && item.servings <= 20);
+  return parsed.suggestions.filter((item) => entries.some((entry) => entry.id === item.nutritionEntryId) && Number.isFinite(item.servings) && item.servings > 0 && item.servings <= 20 && (item.category === 'fruit' || item.category === 'vegetable'));
 }

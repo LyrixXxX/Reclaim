@@ -9,7 +9,7 @@ import { StepResult } from './activity-steps';
 import { formatMiles } from './activity-units';
 import { routeCaloriesForDate } from './activity';
 import { waterDisplayAmount } from './water-habit';
-import { habitProgress, templateConfig } from './good-habit-templates';
+import { exerciseModeOn, habitProgress, templateConfig } from './good-habit-templates';
 
 export type DashboardContent = {
   value: string;
@@ -105,7 +105,8 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
     if (tracker.habitTemplate && templateConfig(tracker.habitTemplate)) {
       const config = templateConfig(tracker.habitTemplate)!;
       const progress = habitProgress(tracker, state.goodHabitLogs ?? [], state.activityRoutes ?? [], now);
-      return { label, value: `${Number(progress.amount.toFixed(1))} / ${progress.goal} ${config.unit} this ${config.period}` };
+        const unit = tracker.habitTemplate === 'exercise' ? exerciseModeOn(tracker, localDateKey(now)) === 'minutes' ? 'minutes' : 'workouts' : config.unit;
+        return { label, value: `${Number(progress.amount.toFixed(1))} / ${progress.goal} ${unit} this ${config.period}` };
     }
     return { label, value: tracker.mode === 'reduction' ? `${tracker.current ?? '—'} ${tracker.unit ?? ''}` : `${tracker.frequencyCount ?? 1} per ${tracker.frequencyPeriod ?? 'day'}${start ? ` · Started ${dashboardDate(start)}` : ''}` };
   }) };

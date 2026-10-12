@@ -35,6 +35,13 @@ function emptyState(): TrackerState {
 }
 
 describe('custom tracker management', () => {
+  it('stores exercise target mode and regimen and validates malformed rows', () => {
+    const base: TrackerDraft = { ...draft('habit'), habitTemplate: 'exercise', habitGoalValue: '3', exerciseGoalMode: 'times', exerciseRegimenRows: [{ id: 'push', label: 'Push', days: [0, 2] }] };
+    expect(validateTrackerDraft(base)).toEqual({});
+    expect(createTracker(emptyState(), base, 'exercise').tracker).toMatchObject({ exerciseGoalModes: [{ mode: 'times' }], exerciseRegimenHistory: [{ rows: [{ id: 'push', label: 'Push', days: [0, 2] }] }] });
+    expect(validateTrackerDraft({ ...base, exerciseRegimenRows: [{ id: 'bad', label: ' ', days: [7] }] }).exerciseRegimenRows).toBeTruthy();
+    expect(validateTrackerDraft({ ...base, habitGoalValue: '2.5' }).habitGoalValue).toMatch(/whole number/);
+  });
   it('accepts repeatable daily goals for legacy Done habits and validates reminder time', () => {
     expect(validateTrackerDraft({ ...draft('habit'), habitLogStyle: 'done', frequencyPeriod: 'day', frequencyCount: '2' })).toEqual({});
     expect(validateTrackerDraft({ ...draft('habit'), habitLogStyle: 'done', frequencyPeriod: 'week', frequencyCount: '3' })).toEqual({});

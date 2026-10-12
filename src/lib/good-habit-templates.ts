@@ -1,4 +1,4 @@
-import { ActivityRoute, GoodHabitLog, Tracker } from '@/models/tracker';
+import { ActivityRoute, GoodHabitLog, NutritionEntry, Tracker } from '@/models/tracker';
 import { localDateKey } from './progress';
 
 export type NewHabitTemplate = Exclude<NonNullable<Tracker['habitTemplate']>, 'water'>;
@@ -31,6 +31,26 @@ export function goalOn(tracker: Tracker, date: string) {
 export function checklistOn(tracker: Tracker, date: string) {
   return [...(tracker.habitChecklistHistory ?? [])].filter((item) => item.effectiveDate <= date).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.items ?? [];
 }
+export function exerciseModeOn(tracker: Tracker, date: string): 'times' | 'minutes' {
+  return [...(tracker.exerciseGoalModes ?? [])].filter((item) => item.effectiveDate <= date).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.mode ?? 'times';
+}
+export function exerciseRegimenOn(tracker: Tracker, date: string) {
+  return [...(tracker.exerciseRegimenHistory ?? [])].filter((item) => item.effectiveDate <= date).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.rows ?? [];
+}
+export function produceBreakdown(logs: GoodHabitLog[], trackerId: string, date: string) {
+  const day = logs.filter((item) => item.trackerId === trackerId && item.eventDate === date);
+  return { fruit: day.filter((item) => item.produceCategory === 'fruit').reduce((sum, item) => sum + item.amount, 0), vegetable: day.filter((item) => item.produceCategory === 'vegetable').reduce((sum, item) => sum + item.amount, 0), unclassified: day.filter((item) => !item.produceCategory).reduce((sum, item) => sum + item.amount, 0) };
+}
+export function produceLinkStale(log: GoodHabitLog, foods: NutritionEntry[]) {
+  if (!log.nutritionEntryId) return false;
+  const entry = foods.find((item) => item.id === log.nutritionEntryId);
+  return !entry || (log.nutritionEntryUpdatedAt !== undefined && entry.updatedAt !== log.nutritionEntryUpdatedAt);
+}
+function creditedAmount(tracker: Tracker, logs: GoodHabitLog[], date: string, end: string) {
+  const matching = logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= date && log.eventDate <= end);
+  if (tracker.habitTemplate === 'exercise') return matching.reduce((sum, log) => sum + (exerciseModeOn(tracker, end) === 'minutes' ? log.durationMinutes ?? 0 : 1), 0);
+  return matching.reduce((sum, log) => sum + log.amount, 0);
+}
 export function activeWalkMinutes(route: ActivityRoute) {
   return Math.max(0, (Date.parse(route.endedAt) - Date.parse(route.startedAt) - route.pausedMs) / 60000);
 }
@@ -48,7 +68,7 @@ export function habitProgress(tracker: Tracker, logs: GoodHabitLog[], routes: Ac
   const applicable = logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= start && log.eventDate <= date);
   const amount = config.checklist
     ? checklistOn(tracker, date).filter((item) => applicable.some((log) => log.eventDate === date && log.checklistItemId === item.id)).length
-    : applicable.reduce((sum, log) => sum + log.amount, 0) + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) : 0);
+    : creditedAmount(tracker, applicable, start, date) + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) : 0);
   return { date, amount, goal, percent: goal ? Math.min(100, Math.round(amount / goal * 100)) : 0 };
 }
 export function habitStreak(tracker: Tracker, logs: GoodHabitLog[], routes: ActivityRoute[], now = new Date()) {
@@ -67,7 +87,7 @@ export function habitStreak(tracker: Tracker, logs: GoodHabitLog[], routes: Acti
     const goal = config.checklist ? checklistOn(tracker, date).length : goalOn(tracker, config.period === 'week' ? localDateKey(periodEnd) : date) ?? 0;
     const amount = config.checklist
       ? checklistOn(tracker, date).filter((item) => logs.some((log) => log.trackerId === tracker.id && log.eventDate === date && log.checklistItemId === item.id)).length
-      : logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= date && log.eventDate <= localDateKey(periodEnd)).reduce((sum, log) => sum + log.amount, 0)
+      : creditedAmount(tracker, logs, date, localDateKey(periodEnd))
         + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) : 0);
     if (!goal || amount < goal) { if (index !== 0) break; }
     else streak += 1;
@@ -81,6 +101,10 @@ export function validHabitLog(log: GoodHabitLog) {
     && typeof log.amount === 'number' && Number.isFinite(log.amount) && log.amount > 0 && log.amount <= 10000
     && typeof log.recordedAt === 'string' && Number.isFinite(Date.parse(log.recordedAt))
     && (log.durationMinutes === undefined || (typeof log.durationMinutes === 'number' && Number.isFinite(log.durationMinutes) && log.durationMinutes > 0 && log.durationMinutes <= 1440))
+    && (log.produceCategory === undefined || log.produceCategory === 'fruit' || log.produceCategory === 'vegetable')
+    && (log.workoutRowId === undefined || typeof log.workoutRowId === 'string')
+    && (log.workoutLabel === undefined || typeof log.workoutLabel === 'string')
+    && (log.nutritionEntryUpdatedAt === undefined || typeof log.nutritionEntryUpdatedAt === 'string')
     && (log.note === undefined || typeof log.note === 'string')
     && (log.checklistItemId === undefined || typeof log.checklistItemId === 'string')
     && (log.nutritionEntryId === undefined || typeof log.nutritionEntryId === 'string')

@@ -1,7 +1,8 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GoodHabitIcon } from './good-habit-icon';
-import { habitProgress, habitStreak, templateConfig } from '@/lib/good-habit-templates';
+import { exerciseModeOn, habitProgress, habitStreak, templateConfig } from '@/lib/good-habit-templates';
+import { localDateKey } from '@/lib/progress';
 import { ActivityRoute, GoodHabitLog, Tracker } from '@/models/tracker';
 import { colors, layout, spacing } from '@/theme';
 
@@ -9,8 +10,9 @@ export function GoodHabitTemplateCard({ tracker, logs, routes }: { tracker: Trac
   const config = templateConfig(tracker.habitTemplate);
   if (!config || !tracker.habitTemplate) return null;
   const progress = habitProgress(tracker, logs, routes);
+  const unit = tracker.habitTemplate === 'exercise' ? exerciseModeOn(tracker, localDateKey()) === 'minutes' ? 'minutes' : 'workouts' : config.unit;
   return <Link href={{ pathname: '/tracker/[id]', params: { id: tracker.id } }} asChild><Pressable accessibilityRole="button" style={styles.card}>
-    <View style={styles.row}><GoodHabitIcon type={tracker.habitTemplate} size={58} /><View style={styles.copy}><Text style={styles.name}>{tracker.name}</Text><Text style={styles.meta}>{progress.amount % 1 ? progress.amount.toFixed(1) : progress.amount} / {progress.goal} {config.unit} · this {config.period}</Text></View><Text style={styles.chevron}>›</Text></View>
+    <View style={styles.row}><GoodHabitIcon type={tracker.habitTemplate} size={58} /><View style={styles.copy}><Text style={styles.name}>{tracker.name}</Text><Text style={styles.meta}>{progress.amount % 1 ? progress.amount.toFixed(1) : progress.amount} / {progress.goal} {unit} · this {config.period}</Text></View><Text style={styles.chevron}>›</Text></View>
     <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }} style={styles.track}><View style={[styles.fill, { width: `${progress.percent}%` }]} /></View><Text style={styles.meta}>{progress.percent}% · {habitStreak(tracker, logs, routes)} {config.period === 'week' ? 'weeks' : 'days'} consistent · Tap to review</Text>
   </Pressable></Link>;
 }

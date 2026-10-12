@@ -27,10 +27,10 @@ test('produce suggestions require selected entries and return structured estimat
     assert.equal(payload.store, false);
     assert.equal(payload.text.format.name, 'produce_suggestions');
     assert.match(payload.input[0].content[0].text, /Apple/);
-    return new Response(JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: [{ nutritionEntryId: 'apple', servings: 1, explanation: 'One whole apple.' }] }) }] }] }), { status: 200 });
+    return new Response(JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: [{ nutritionEntryId: 'apple', servings: 1, category: 'fruit', explanation: 'One whole apple.' }] }) }] }] }), { status: 200 });
   };
   const response = await handleRequest(new Request('https://relay.test/v1/suggest-produce', { method: 'POST', headers: auth, body: JSON.stringify({ entries: [{ id: 'apple', name: 'Apple', servingLabel: '1 medium apple', servings: 1 }] }) }), env);
-  assert.deepEqual((await response.json()).suggestions[0], { nutritionEntryId: 'apple', servings: 1, explanation: 'One whole apple.' });
+  assert.deepEqual((await response.json()).suggestions[0], { nutritionEntryId: 'apple', servings: 1, category: 'fruit', explanation: 'One whole apple.' });
 });
 
 test('validates empty food text before calling OpenAI', async () => {

@@ -21,6 +21,17 @@ describe('full Reclaim backups', () => {
     expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, goodHabitLogs: [{ ...goodHabitLogs[0], amount: -1 }] } }))).toThrow(/invalid good habit logs/);
     expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...habit, habitChecklistHistory: [] }] } }))).toThrow(/invalid tracker/);
   });
+  it('round-trips exercise regimen and produce links while rejecting malformed additions', () => {
+    const exercise = { ...state.trackers[0], mode: 'habit' as const, habitTemplate: 'exercise' as const, habitGoalHistory: [{ effectiveDate: '2026-10-12', value: 3 }], exerciseGoalModes: [{ effectiveDate: '2026-10-12', mode: 'times' as const }], exerciseRegimenHistory: [{ effectiveDate: '2026-10-12', rows: [{ id: 'push', label: 'Push', days: [0, 2] }] }] };
+    const produce = { ...state.trackers[0], id: 'produce', mode: 'habit' as const, habitTemplate: 'produce' as const, habitGoalHistory: [{ effectiveDate: '2026-10-12', value: 5 }], producePresets: [0.5, 1] };
+    const goodHabitLogs = [{ id: 'linked', trackerId: 'produce', eventDate: '2026-10-12', amount: 1, recordedAt: '2026-10-12T10:00:00Z', produceCategory: 'fruit' as const, nutritionEntryId: 'apple', nutritionEntryUpdatedAt: '2026-10-12T09:00:00Z', source: 'nutrition' as const }];
+    const backup = createReclaimBackup({ ...state, trackers: [exercise, produce], goodHabitLogs });
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.trackers).toEqual([exercise, produce]);
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.goodHabitLogs).toEqual(goodHabitLogs);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...exercise, exerciseGoalModes: [{ effectiveDate: '2026-10-12', mode: 'distance' }] }, produce] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [exercise, { ...produce, producePresets: [-1] }] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, goodHabitLogs: [{ ...goodHabitLogs[0], produceCategory: 'protein' }] } }))).toThrow(/invalid good habit logs/);
+  });
   it('preserves positive habit settings and rejects unknown log styles or reminder times', () => {
     const habit = { ...state.trackers[0], mode: 'habit' as const, habitLogStyle: 'done' as const, habitReminderTime: '09:00' };
     const backup = createReclaimBackup({ ...state, trackers: [habit] });

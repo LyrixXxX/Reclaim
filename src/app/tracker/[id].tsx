@@ -11,6 +11,8 @@ import { RollingRangeControls } from '@/components/rolling-range-controls';
 import { HabitDetail } from '@/components/habit-detail';
 import { WaterHabitDetail } from '@/components/water-habit-detail';
 import { GoodHabitTemplateDetail } from '@/components/good-habit-template-detail';
+import { ExerciseHabitDetail } from '@/components/exercise-habit-detail';
+import { ProduceHabitDetail } from '@/components/produce-habit-detail';
 import { HabitMilestoneShowcase } from '@/components/habit-milestone-showcase';
 import { HabitSavingsPanel } from '@/components/habit-savings-panel';
 import { TaperDetail } from '@/components/taper-detail';
@@ -89,6 +91,8 @@ export default function TrackerDetailScreen() {
 
   if (tracker.mode === 'habit') {
     if (tracker.habitTemplate === 'water') return <WaterHabitDetail tracker={tracker} logs={waterLogs.filter((log) => log.trackerId === tracker.id)} />;
+    if (tracker.habitTemplate === 'exercise') return <ExerciseHabitDetail tracker={tracker} logs={goodHabitLogs} />;
+    if (tracker.habitTemplate === 'produce') return <ProduceHabitDetail tracker={tracker} logs={goodHabitLogs} foods={nutritionEntries} />;
     if (tracker.habitTemplate) return <GoodHabitTemplateDetail tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} foods={nutritionEntries} />;
     return <HabitDetail tracker={tracker} entries={trackerEntries} saveEntry={saveHistoricalEntry} />;
   }

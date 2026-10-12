@@ -27,6 +27,9 @@ export type Tracker = {
   habitLogStyle?: 'done' | 'count';
   habitTemplate?: 'water' | 'walk' | 'sleep' | 'exercise' | 'produce' | 'reading' | 'mindfulness' | 'dental';
   habitGoalHistory?: { effectiveDate: string; value: number }[];
+  exerciseGoalModes?: { effectiveDate: string; mode: 'times' | 'minutes' }[];
+  exerciseRegimenHistory?: { effectiveDate: string; rows: { id: string; label: string; days: number[] }[] }[];
+  producePresets?: number[];
   habitChecklistHistory?: { effectiveDate: string; items: { id: string; label: string }[] }[];
   waterQuickAddOz?: number;
   waterDisplayUnit?: 'fl oz' | 'mL';
@@ -65,7 +68,7 @@ export type HistoricalEntry = {
 };
 
 export type WaterLog = { id: string; trackerId: TrackerId; eventDate: string; ounces: number; recordedAt: string };
-export type GoodHabitLog = { id: string; trackerId: TrackerId; eventDate: string; amount: number; recordedAt: string; note?: string; durationMinutes?: number; checklistItemId?: string; nutritionEntryId?: string; source?: 'manual' | 'nutrition' };
+export type GoodHabitLog = { id: string; trackerId: TrackerId; eventDate: string; amount: number; recordedAt: string; note?: string; durationMinutes?: number; checklistItemId?: string; nutritionEntryId?: string; nutritionEntryUpdatedAt?: string; workoutRowId?: string; workoutLabel?: string; produceCategory?: 'fruit' | 'vegetable'; source?: 'manual' | 'nutrition' };
 
 export type TaperStep = {
   id: string;
