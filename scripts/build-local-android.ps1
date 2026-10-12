@@ -87,6 +87,12 @@ if ($packageLockHash -ne $cachedPackageLockHash) {
 $nativeConfigMarker = Join-Path $buildRootFull '.reclaim-native-config.sha256'
 $appConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.json') -Algorithm SHA256).Hash
 $dynamicConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.config.js') -Algorithm SHA256).Hash
+# Local phone builds show Google's non-revenue sample banner by default.
+# An explicit 0 keeps ads off; live monetization always uses its own setup.
+if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED) -and $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -ne '1') {
+  $env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED = '1'
+  Write-Host 'Google test ads are enabled for this local build.'
+}
 $testAdsEnabled = $env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED -eq '1'
 if ($testAdsEnabled -and $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1') {
   throw 'Choose either Google test ads or live monetization; both flags cannot be enabled.'
@@ -189,13 +195,11 @@ if ([string]::IsNullOrWhiteSpace($stadiaKey) -or $stadiaKey -match '^\s*(<|PASTE
   throw 'Set EXPO_PUBLIC_STADIA_MAPS_KEY to your real Stadia Maps API key in this PowerShell window before building.'
 }
 Write-Host 'Checking Stadia Maps access (the key will not be printed)...'
-try {
-  $tileResponse = Invoke-WebRequest -Uri 'https://tiles.stadiamaps.com/tiles/outdoors/1/1/1.png' -Headers @{ Authorization = "Stadia-Auth $stadiaKey" } -Method Get -TimeoutSec 20 -UseBasicParsing
-  if ([int]$tileResponse.StatusCode -ne 200) { throw "HTTP $([int]$tileResponse.StatusCode)" }
-} catch {
-  $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { $null }
-  if ($statusCode -eq 401 -or $statusCode -eq 403) {
-    throw "Stadia Maps rejected this key (HTTP $statusCode). Check that it is an active Stadia Maps API key for the selected property. No APK was built."
+$nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
+$tileStatus = & $nodeExecutable --input-type=module -e "try { const response = await fetch('https://tiles.stadiamaps.com/tiles/outdoors/1/1/1.png', { headers: { Authorization: 'Stadia-Auth ' + process.env.EXPO_PUBLIC_STADIA_MAPS_KEY }, signal: AbortSignal.timeout(20000) }); await response.arrayBuffer(); console.log(response.status); if (!response.ok) process.exitCode = 1; } catch { process.exitCode = 2; }"
+if ($LASTEXITCODE -ne 0) {
+  if ($tileStatus -eq '401' -or $tileStatus -eq '403') {
+    throw "Stadia Maps rejected this key (HTTP $tileStatus). Check that it is an active Stadia Maps API key for the selected property. No APK was built."
   }
   throw 'Could not verify Stadia Maps access. Check the internet connection and key in this PowerShell window. No APK was built.'
 }
