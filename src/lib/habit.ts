@@ -12,13 +12,11 @@ export function habitCompletionSeries(
   const end = new Date(through.getFullYear(), through.getMonth(), through.getDate());
   const byDate = new Map(entries.map((entry) => [entry.eventDate, entry]));
   const points: RecoveryPoint[] = [];
-  let cumulative = 0;
   while (cursor <= end) {
     const date = localDateKey(cursor);
     const entry = byDate.get(date);
     const amount = entry?.outcome === 'stayed_on_plan' ? entry.value ?? 1 : 0;
-    cumulative += amount;
-    points.push({ date, cumulative, successful: amount > 0, outcome: entry?.outcome ?? 'no_data' });
+    points.push({ date, cumulative: amount, successful: amount > 0, outcome: entry?.outcome ?? 'no_data' });
     cursor.setDate(cursor.getDate() + 1);
   }
   return points;
@@ -44,7 +42,10 @@ export function habitConsistencyStreak(tracker: Tracker, entries: HistoricalEntr
       const date = new Date(`${entry.eventDate}T00:00:00`);
       return date >= cursor && date < next && entry.outcome === 'stayed_on_plan';
     }).reduce((sum, entry) => sum + (entry.value ?? 1), 0);
-    if (count < goal) break;
+    if (count < goal) {
+      if (i === 0) { cursor = previousPeriod(cursor, period); continue; }
+      break;
+    }
     streak += 1;
     cursor = previousPeriod(cursor, period);
   }
@@ -55,7 +56,7 @@ function periodStart(date: Date, period: 'day' | 'week' | 'month') {
   if (period === 'month') return new Date(date.getFullYear(), date.getMonth(), 1);
   if (period === 'week') {
     const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    start.setDate(start.getDate() - start.getDay());
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
     return start;
   }
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());

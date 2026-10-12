@@ -35,6 +35,12 @@ function emptyState(): TrackerState {
 }
 
 describe('custom tracker management', () => {
+  it('accepts repeatable daily goals for legacy Done habits and validates reminder time', () => {
+    expect(validateTrackerDraft({ ...draft('habit'), habitLogStyle: 'done', frequencyPeriod: 'day', frequencyCount: '2' })).toEqual({});
+    expect(validateTrackerDraft({ ...draft('habit'), habitLogStyle: 'done', frequencyPeriod: 'week', frequencyCount: '3' })).toEqual({});
+    expect(validateTrackerDraft({ ...draft('habit'), habitReminderTime: '9am' }).habitReminderTime).toMatch(/9:00 AM/);
+    expect(createTracker(emptyState(), { ...draft('habit'), habitReminderTime: '6:15 PM' }, 'reminder').tracker?.habitReminderTime).toBe('18:15');
+  });
   test.each([
     ['abstinence', 'quit-1'],
     ['reduction', 'reduce-1'],

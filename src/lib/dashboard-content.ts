@@ -8,6 +8,7 @@ import { currentStreakFromEntries } from './recovery';
 import { StepResult } from './activity-steps';
 import { formatMiles } from './activity-units';
 import { routeCaloriesForDate } from './activity';
+import { waterDisplayAmount } from './water-habit';
 
 export type DashboardContent = {
   value: string;
@@ -93,6 +94,12 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
       const streakStart = currentStreakFromEntries(start, (state.historicalEntries ?? []).filter((entry) => entry.trackerId === tracker.id), now);
       const elapsedMinutes = Math.floor(Math.max(0, now.getTime() - Date.parse(streakStart)) / 60_000);
       return { label, value: phase && !phase.exact ? `${phase.datePrecision === 'approximate' ? 'About ' : ''}${completedCalendarDays(streakStart, now)} days · ${formatTaperQuitStart(phase)}` : `${Math.floor(elapsedMinutes / 1440)}d ${Math.floor(elapsedMinutes % 1440 / 60)}h ${elapsedMinutes % 60}m · current streak` };
+    }
+    if (tracker.habitTemplate === 'water') {
+      const todayOz = (state.waterLogs ?? []).filter((log) => log.trackerId === tracker.id && log.eventDate === today).reduce((sum, log) => sum + log.ounces, 0);
+      const goal = [...(tracker.waterGoals ?? [])].filter((item) => item.effectiveDate <= today).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.ounces;
+      const unit = tracker.waterDisplayUnit ?? 'fl oz';
+      return { label, value: `${waterDisplayAmount(todayOz, unit)} / ${goal === undefined ? '—' : waterDisplayAmount(goal, unit)} ${unit} today` };
     }
     return { label, value: tracker.mode === 'reduction' ? `${tracker.current ?? '—'} ${tracker.unit ?? ''}` : `${tracker.frequencyCount ?? 1} per ${tracker.frequencyPeriod ?? 'day'}${start ? ` · Started ${dashboardDate(start)}` : ''}` };
   }) };

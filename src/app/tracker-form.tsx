@@ -1,9 +1,10 @@
 import { Href, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { localDateKey } from '@/lib/progress';
+import { formatClockTime } from '@/lib/clock-time';
 import { expenseDraft } from '@/lib/habit-savings';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import {
@@ -21,7 +22,7 @@ const ICONS = ['◇', '○', '↗', '★', '✓', '⌁', '△', '□'];
 const ACCENTS = [colors.marijuana, colors.porn, colors.nicotine, colors.caffeine, colors.accent, colors.success];
 
 export default function TrackerFormScreen() {
-  const { id, delete: deleteRequested } = useLocalSearchParams<{ id?: string; delete?: string }>();
+  const { id, delete: deleteRequested, mode } = useLocalSearchParams<{ id?: string; delete?: string; mode?: string }>();
   const {
     trackers,
     historicalEntries = [],
@@ -33,8 +34,13 @@ export default function TrackerFormScreen() {
     deleteTracker,
   } = useTrackers();
   const existing = trackers.find((tracker) => tracker.id === id);
+  useEffect(() => {
+    if (existing?.habitTemplate === 'water') router.replace(`/water-form?id=${encodeURIComponent(existing.id)}` as Href);
+    else if (!existing && mode === 'habit') router.replace('/good-habit-types' as Href);
+  }, [existing, mode]);
   const editing = Boolean(existing);
-  const [draft, setDraft] = useState<TrackerDraft>(() => draftFor(existing));
+  const [draft, setDraft] = useState<TrackerDraft>(() => ({ ...draftFor(existing), ...(!existing && mode === 'habit' ? { mode: 'habit' as const } : {}) }));
+  const [reminderPeriod, setReminderPeriod] = useState<'AM' | 'PM'>(() => existing?.habitReminderTime && Number(existing.habitReminderTime.slice(0, 2)) >= 12 ? 'PM' : 'AM');
   const [errors, setErrors] = useState<TrackerValidation>({});
   const [deleteOpen, setDeleteOpen] = useState(deleteRequested === '1');
   const [deleteText, setDeleteText] = useState('');
@@ -47,8 +53,14 @@ export default function TrackerFormScreen() {
     setDraft((previous) => ({ ...previous, [key]: value }));
     setErrors((previous) => ({ ...previous, [key]: undefined }));
   };
+  const reminderClock = (draft.habitReminderTime ?? '').replace(/\s*[AP]M$/i, '');
+  const updateReminderClock = (clock: string) => set('habitReminderTime', clock.trim() ? `${clock.trim()} ${reminderPeriod}` : '');
+  const updateReminderPeriod = (period: 'AM' | 'PM') => {
+    setReminderPeriod(period);
+    if (reminderClock.trim()) set('habitReminderTime', `${reminderClock.trim()} ${period}`);
+  };
 
-  const save = () => {
+  const save = async () => {
     const nextErrors = validateTrackerDraft(draft);
     if (existing && draft.savingsExpenses?.some((expense) => {
       const original = existing.savingsExpenses?.find((item) => item.id === expense.id)?.rates.at(-1);
@@ -56,14 +68,18 @@ export default function TrackerFormScreen() {
     })) nextErrors.savingsExpenses = 'A changed price cannot start before its previous rate.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+    let reminderWarning: string | undefined;
     if (existing) {
-      editExistingTracker(existing.id, draft);
+      try { await editExistingTracker(existing.id, draft); }
+      catch (error) { reminderWarning = error instanceof Error ? error.message : 'Could not schedule the reminder.'; }
       router.back();
     } else {
       const newId = generateTrackerId();
-      createCustomTracker(draft, newId);
+      try { await createCustomTracker(draft, newId); }
+      catch (error) { reminderWarning = error instanceof Error ? error.message : 'Could not schedule the reminder.'; }
       router.replace({ pathname: '/tracker/[id]', params: { id: newId } });
     }
+    if (reminderWarning) Alert.alert('Habit saved', reminderWarning);
   };
 
   const deleteAllowed = !hasHistory || deleteText === 'DELETE' || deleteText === existing?.name;
@@ -92,7 +108,6 @@ export default function TrackerFormScreen() {
               {([
                 ['abstinence', 'Quit / Abstinence', 'Time since stopping, recovery, and lapses'],
                 ['reduction', 'Reduce / Taper', 'Baseline, current amount, and reduction history'],
-                ['habit', 'Build a Habit', 'Frequency goals and cumulative completions'],
               ] as [TrackerMode, string, string][]).map(([mode, label, hint]) => (
                 <Pressable key={mode} accessibilityRole="radio" accessibilityState={{ checked: draft.mode === mode }} onPress={() => set('mode', mode)} style={[styles.typeButton, draft.mode === mode && styles.selected]}>
                   <View style={[styles.radio, draft.mode === mode && { borderColor: draft.color }]}>
@@ -141,10 +156,11 @@ export default function TrackerFormScreen() {
           </>
         )}
 
-        {draft.mode === 'habit' && (
+        {draft.mode === 'habit' && (<>
           <Field label="GOAL FREQUENCY" error={errors.frequencyCount || errors.frequencyPeriod}>
+            <Text style={timeStyles.help}>Enter how many times you want to complete this habit, then choose per day, week, or month. Each logged completion fills part of your goal bar; you can keep logging after reaching the goal.</Text>
             <View style={styles.frequencyRow}>
-              <TextInput accessibilityLabel="Frequency count" keyboardType="number-pad" value={draft.frequencyCount} onChangeText={(value) => set('frequencyCount', value)} placeholder="3" placeholderTextColor={colors.textDim} style={[styles.input, styles.countInput]} />
+              <TextInput accessibilityLabel="Number of times for goal" keyboardType="number-pad" value={draft.frequencyCount} onChangeText={(value) => set('frequencyCount', value)} placeholder="3" placeholderTextColor={colors.textDim} style={[styles.input, styles.countInput]} />
               {(['day', 'week', 'month'] as FrequencyPeriod[]).map((period) => (
                 <Pressable key={period} accessibilityRole="radio" accessibilityState={{ checked: draft.frequencyPeriod === period }} onPress={() => set('frequencyPeriod', period)} style={[styles.periodButton, draft.frequencyPeriod === period && styles.selected]}>
                   <Text style={[styles.periodText, draft.frequencyPeriod === period && styles.periodTextActive]}>/ {period}</Text>
@@ -152,7 +168,14 @@ export default function TrackerFormScreen() {
               ))}
             </View>
           </Field>
-        )}
+          <Field label="DAILY NUDGE · OPTIONAL" error={errors.habitReminderTime}>
+            <Text style={timeStyles.help}>A daily reminder at your chosen time, even after you reach your goal. Leave the time blank to turn it off.</Text>
+            <View style={timeStyles.row}>
+              <TextInput accessibilityLabel="Good habit reminder time" keyboardType="numbers-and-punctuation" value={reminderClock} onChangeText={updateReminderClock} placeholder="9:00" placeholderTextColor={colors.textDim} style={[styles.input, timeStyles.input]} />
+              {(['AM', 'PM'] as const).map((period) => <Pressable key={period} accessibilityRole="radio" accessibilityLabel={`Reminder ${period}`} accessibilityState={{ checked: reminderPeriod === period }} onPress={() => updateReminderPeriod(period)} style={[timeStyles.choice, reminderPeriod === period && timeStyles.choiceActive]}><Text style={[timeStyles.choiceText, reminderPeriod === period && timeStyles.choiceTextActive]}>{period}</Text></Pressable>)}
+            </View>
+          </Field>
+        </>)}
 
         {draft.mode !== 'habit' && <View style={styles.savingsSection}>
           <Text style={styles.savingsTitle}>ESTIMATED MONEY SAVED · OPTIONAL</Text>
@@ -246,11 +269,11 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function draftFor(tracker?: Tracker): TrackerDraft {
-  if (!tracker) return { name: '', displayName: '', mode: 'abstinence', startDate: localDateKey(), startTime: '', startPeriod: 'AM', icon: '◇', color: colors.marijuana, unit: '', baseline: '', current: '', target: '', frequencyCount: '1', frequencyPeriod: 'day', notes: '', savingsExpenses: [] };
+  if (!tracker) return { name: '', displayName: '', mode: 'abstinence', startDate: localDateKey(), startTime: '', startPeriod: 'AM', icon: '◇', color: colors.marijuana, unit: '', baseline: '', current: '', target: '', frequencyCount: '1', frequencyPeriod: 'day', habitLogStyle: 'count', habitReminderTime: '', notes: '', savingsExpenses: [] };
   const started = tracker.startedAt ? new Date(tracker.startedAt) : new Date();
   const hour = started.getHours();
   const time = tracker.startedAt ? `${hour % 12 || 12}:${String(started.getMinutes()).padStart(2, '0')}` : '';
-  return { name: tracker.name, displayName: tracker.displayName ?? '', mode: tracker.mode, startDate: localDateKey(started), startTime: time, startPeriod: hour >= 12 ? 'PM' : 'AM', icon: tracker.icon, color: tracker.color, unit: tracker.unit ?? '', baseline: tracker.baseline?.toString() ?? '', current: tracker.current?.toString() ?? '', target: tracker.target?.toString() ?? '', frequencyCount: tracker.frequencyCount?.toString() ?? '1', frequencyPeriod: tracker.frequencyPeriod ?? 'day', notes: tracker.notes ?? '', savingsExpenses: (tracker.savingsExpenses ?? []).filter((expense) => !expense.endedOn).map(expenseDraft) };
+  return { name: tracker.name, displayName: tracker.displayName ?? '', mode: tracker.mode, startDate: localDateKey(started), startTime: time, startPeriod: hour >= 12 ? 'PM' : 'AM', icon: tracker.icon, color: tracker.color, unit: tracker.unit ?? '', baseline: tracker.baseline?.toString() ?? '', current: tracker.current?.toString() ?? '', target: tracker.target?.toString() ?? '', frequencyCount: tracker.frequencyCount?.toString() ?? '1', frequencyPeriod: tracker.frequencyPeriod ?? 'day', habitLogStyle: tracker.habitLogStyle ?? 'count', habitReminderTime: tracker.habitReminderTime ? formatClockTime(tracker.habitReminderTime) : '', notes: tracker.notes ?? '', savingsExpenses: (tracker.savingsExpenses ?? []).filter((expense) => !expense.endedOn).map(expenseDraft) };
 }
 
 function calculationsWillChange(tracker: Tracker, draft: TrackerDraft) {

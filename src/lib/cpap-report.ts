@@ -82,7 +82,7 @@ export function buildCpapDoctorReportHtml({ readings, settings = [], range, peri
   <p class="subtitle">Machine-screen values recorded by the user and presented without diagnosis or interpretation.</p>
   <div class="meta">
     <div><strong>Period:</strong> ${escapeHtml(periodLabel)}<br />${escapeHtml(dateSpan)}</div>
-    <div><strong>Generated:</strong> ${escapeHtml(generatedAt.toLocaleString())}</div>
+    <div><strong>Generated:</strong> ${escapeHtml(generatedAt.toLocaleString(undefined, { hour12: true }))}</div>
   </div>
   ${summary ? `
     <h2>Period summary</h2>

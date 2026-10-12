@@ -9,6 +9,7 @@ import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { RecoveryChart } from '@/components/recovery-chart';
 import { RollingRangeControls } from '@/components/rolling-range-controls';
 import { HabitDetail } from '@/components/habit-detail';
+import { WaterHabitDetail } from '@/components/water-habit-detail';
 import { HabitMilestoneShowcase } from '@/components/habit-milestone-showcase';
 import { HabitSavingsPanel } from '@/components/habit-savings-panel';
 import { TaperDetail } from '@/components/taper-detail';
@@ -36,6 +37,7 @@ export default function TrackerDetailScreen() {
   const {
     trackers,
     historicalEntries = [],
+    waterLogs = [],
     taperSteps = [],
     addLapse,
     updateLapse,
@@ -82,6 +84,7 @@ export default function TrackerDetailScreen() {
   }
 
   if (tracker.mode === 'habit') {
+    if (tracker.habitTemplate === 'water') return <WaterHabitDetail tracker={tracker} logs={waterLogs.filter((log) => log.trackerId === tracker.id)} />;
     return <HabitDetail tracker={tracker} entries={trackerEntries} saveEntry={saveHistoricalEntry} />;
   }
 

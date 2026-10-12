@@ -29,7 +29,7 @@ export default function SavedRoutesScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.push(`/activity-map?routeId=${encodeURIComponent(route.id)}` as Href)}>
           <RoutePreview points={route.points} />
           <Text style={styles.name}>{routeDisplayName(route)}</Text>
-          <Text style={styles.date}>{new Date(route.startedAt).toLocaleString()}</Text>
+          <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
           <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} · {paceLabel}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
           <Text style={styles.open}>View on map ›</Text>

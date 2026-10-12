@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, AppSection, DashboardWidget, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
+import { ActivityRoute, AppSection, DashboardWidget, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { HealthReadingInput, healthReadingId, removeHealthReading, upsertHealthReading } from '@/lib/health';
@@ -35,6 +35,9 @@ import { swapHabitOrder } from '@/lib/habit-order';
 import { medicationEventId, medicationId, MedicationEventInput, MedicationInput, migrateMedicationState, removeMedication, removeMedicationEvent, upsertMedication, upsertMedicationEvent } from '@/lib/medications';
 import { addScheduledDoseBatch, upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { cancelMedicationNotifications, rescheduleMedication } from '@/lib/medication-notifications';
+import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
+import { logHabitCompletion } from '@/lib/habit-log';
+import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
 import { labResultId, LabResultInput, LabTrackerInput, labTrackerId, mergeLabResults, migrateLabState, removeLabResult, removeLabTracker, upsertLabResult, upsertLabTracker } from '@/lib/labs';
 import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertMealGroup, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 
@@ -55,8 +58,11 @@ type TrackerContextValue = TrackerState & {
   deleteHistoricalEntry: (entryId: string) => void;
   changeStartDate: (id: TrackerId, date: string) => void;
   deleteHistory: (id: TrackerId, confirmed: boolean) => void;
-  createCustomTracker: (draft: TrackerDraft, id: TrackerId) => void;
-  editExistingTracker: (id: TrackerId, draft: TrackerDraft) => void;
+  createCustomTracker: (draft: TrackerDraft, id: TrackerId) => Promise<void>;
+  editExistingTracker: (id: TrackerId, draft: TrackerDraft) => Promise<void>;
+  logGoodHabit: (id: TrackerId) => void;
+  saveWaterDrink: (log: WaterLog) => void;
+  deleteWaterDrink: (id: string) => void;
   setArchived: (id: TrackerId, archived: boolean) => void;
   deleteTracker: (id: TrackerId, confirmed: boolean, confirmationText?: string) => Promise<boolean>;
   addReductionStep: (trackerId: TrackerId, input: TaperStepInput, stepId: string) => void;
@@ -165,6 +171,14 @@ export function TrackerProvider({ children }: PropsWithChildren) {
             }));
             migratedState = { ...migratedState, medications };
           }
+          const habits = await Promise.all(migratedState.trackers.map(async (tracker) => {
+            if (!tracker.habitReminderTime || tracker.archived) return tracker;
+            try {
+              await cancelHabitReminder(tracker.habitNotificationId);
+              return { ...tracker, habitNotificationId: await scheduleHabitReminder(tracker) };
+            } catch { return { ...tracker, habitNotificationId: undefined }; }
+          }));
+          migratedState = { ...migratedState, trackers: habits };
           if (!active) return;
           setState(migratedState);
         } else {
@@ -236,12 +250,40 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       })),
     deleteHistory: (id, confirmed) =>
       setState((previous) => deleteTrackerHistory(previous, id, confirmed)),
-    createCustomTracker: (draft, id) =>
-      setState((previous) => migrateTaperState(createTracker(previous, draft, id).state)),
-    editExistingTracker: (id, draft) =>
-      setState((previous) => editTracker(previous, id, draft).state),
-    setArchived: (id, archived) =>
-      setState((previous) => setTrackerArchived(previous, id, archived)),
+    createCustomTracker: async (draft, id) => {
+      const result = createTracker(state, draft, id);
+      if (!result.tracker) return;
+      let tracker = result.tracker;
+      let reminderError: unknown;
+      try { tracker = { ...tracker, habitNotificationId: await scheduleHabitReminder(tracker) }; }
+      catch (error) { reminderError = error; tracker = { ...tracker, habitReminderTime: undefined }; }
+      setState((previous) => migrateTaperState({ ...previous, trackers: [...previous.trackers, tracker] }));
+      if (reminderError) throw reminderError;
+    },
+    editExistingTracker: async (id, draft) => {
+      const current = state.trackers.find((tracker) => tracker.id === id);
+      const result = editTracker(state, id, draft);
+      if (!current || !result.tracker) return;
+      let tracker = result.tracker;
+      let reminderError: unknown;
+      if (current.habitReminderTime !== tracker.habitReminderTime || (tracker.habitReminderTime && !current.habitNotificationId)) {
+        tracker = { ...tracker, habitNotificationId: undefined };
+        try { tracker = { ...tracker, habitNotificationId: await scheduleHabitReminder(tracker) }; }
+        catch (error) { reminderError = error; tracker = { ...tracker, habitReminderTime: undefined, habitNotificationId: undefined }; }
+        await cancelHabitReminder(current.habitNotificationId);
+      }
+      setState((previous) => ({ ...editTracker(previous, id, draft).state, trackers: previous.trackers.map((item) => item.id === id ? tracker : item) }));
+      if (reminderError) throw reminderError;
+    },
+    logGoodHabit: (id) => setState((previous) => logHabitCompletion(previous, id, localDateKey())),
+    saveWaterDrink: (log) => setState((previous) => saveWaterLog(previous, log)),
+    deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
+    setArchived: (id, archived) => {
+      const tracker = state.trackers.find((item) => item.id === id);
+      if (archived) void cancelHabitReminder(tracker?.habitNotificationId);
+      else if (tracker?.habitReminderTime) void scheduleHabitReminder({ ...tracker, archived: false }).then((habitNotificationId) => setState((previous) => ({ ...previous, trackers: previous.trackers.map((item) => item.id === id ? { ...item, habitNotificationId } : item) }))).catch(() => undefined);
+      setState((previous) => setTrackerArchived(previous, id, archived));
+    },
     deleteTracker: async (id, confirmed, confirmationText) => {
       const next = permanentlyDeleteTracker(state, id, confirmed, confirmationText);
       if (next === state) return false;
@@ -249,6 +291,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       try { await writer.save(snapshot); }
       catch (error) { writer.forgetFailedSnapshot(snapshot); throw error; }
       setState(next);
+      await cancelHabitReminder(state.trackers.find((item) => item.id === id)?.habitNotificationId);
       return true;
     },
     addReductionStep: (trackerId, input, stepId) =>
@@ -370,6 +413,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     saveStepGoal: (date, count) => setState((previous) => ({ ...previous, stepGoals: setDailyStepGoal(previous.stepGoals ?? [], date, count) })),
     getBackupState: () => JSON.parse(JSON.stringify(state)) as TrackerState,
     restoreBackupState: async (backupState) => {
+      for (const tracker of state.trackers) await cancelHabitReminder(tracker.habitNotificationId);
       for (const medication of state.medications ?? []) {
         await cancelMedicationNotifications(medication.notificationIds);
       }
@@ -378,7 +422,11 @@ export function TrackerProvider({ children }: PropsWithChildren) {
         ...medication,
         notificationIds: await rescheduleMedication({ ...medication, notificationIds: [] }).catch(() => []),
       })));
-      const restored = { ...migrated, medications };
+      const trackers = await Promise.all(migrated.trackers.map(async (tracker) => {
+        try { return { ...tracker, habitNotificationId: await scheduleHabitReminder({ ...tracker, habitNotificationId: undefined }) }; }
+        catch { return { ...tracker, habitNotificationId: undefined }; }
+      }));
+      const restored = { ...migrated, trackers, medications };
       await restoreStepHistory(restored.stepHistory ?? []);
       setState(restored);
       try {

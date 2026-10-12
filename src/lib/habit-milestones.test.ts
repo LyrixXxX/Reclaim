@@ -38,6 +38,6 @@ describe('habit milestones', () => {
     const positive = { ...tracker, mode: 'habit' as const, frequencyCount: 2, frequencyPeriod: 'week' as const };
     const entries = [entry('2026-01-06', 'stayed_on_plan', 2), entry('2026-01-13', 'stayed_on_plan', 2)];
     expect(habitMilestones(positive, entries, undefined, new Date(2026, 0, 9, 12)).find((award) => award.days === 7)?.dates).toEqual([]);
-    expect(habitMilestones(positive, entries, undefined, new Date(2026, 0, 18, 12)).find((award) => award.days === 7)?.dates).toEqual(['2026-01-10', '2026-01-17']);
+    expect(habitMilestones(positive, entries, undefined, new Date(2026, 0, 18, 12)).find((award) => award.days === 7)?.dates).toEqual(['2026-01-11', '2026-01-18']);
   });
 });

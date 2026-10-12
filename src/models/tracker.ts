@@ -24,6 +24,14 @@ export type Tracker = {
   target?: number;
   frequencyCount?: number;
   frequencyPeriod?: FrequencyPeriod;
+  habitLogStyle?: 'done' | 'count';
+  habitTemplate?: 'water';
+  waterQuickAddOz?: number;
+  waterDisplayUnit?: 'fl oz' | 'mL';
+  waterPresetOz?: number[];
+  waterGoals?: { effectiveDate: string; ounces: number }[];
+  habitReminderTime?: string;
+  habitNotificationId?: string;
   notes?: string;
   savingsExpenses?: SavingsExpense[];
   archived?: boolean;
@@ -53,6 +61,8 @@ export type HistoricalEntry = {
   note?: string;
   value?: number;
 };
+
+export type WaterLog = { id: string; trackerId: TrackerId; eventDate: string; ounces: number; recordedAt: string };
 
 export type TaperStep = {
   id: string;
@@ -382,6 +392,7 @@ export type TrackerState = {
   activityRoutes?: ActivityRoute[];
   stepHistory?: StepDay[];
   stepGoals?: StepGoal[];
+  waterLogs?: WaterLog[];
 };
 
 export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'bloodPressure' | 'medications' | 'labs';

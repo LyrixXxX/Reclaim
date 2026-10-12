@@ -13,6 +13,23 @@ const state: TrackerState = {
 };
 
 describe('full Reclaim backups', () => {
+  it('preserves positive habit settings and rejects unknown log styles or reminder times', () => {
+    const habit = { ...state.trackers[0], mode: 'habit' as const, habitLogStyle: 'done' as const, habitReminderTime: '09:00' };
+    const backup = createReclaimBackup({ ...state, trackers: [habit] });
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.trackers[0]).toEqual(habit);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...habit, habitLogStyle: 'toggle' }] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...habit, habitReminderTime: '9am' }] } }))).toThrow(/invalid tracker/);
+  });
+  it('round-trips water template settings and drink logs, rejecting malformed values', () => {
+    const water = { ...state.trackers[0], mode: 'habit' as const, habitTemplate: 'water' as const, waterQuickAddOz: 8, waterDisplayUnit: 'mL' as const, waterPresetOz: [8, 12, 16, 24], waterGoals: [{ effectiveDate: '2026-09-18', ounces: 64 }] };
+    const waterLogs = [{ id: 'drink', trackerId: water.id, eventDate: '2026-09-18', ounces: 12, recordedAt: '2026-09-18T12:00:00Z' }];
+    const backup = createReclaimBackup({ ...state, trackers: [water], waterLogs });
+    expect(parseReclaimBackup(JSON.stringify(backup)).state.waterLogs).toEqual(waterLogs);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...water, waterQuickAddOz: -1 }] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...water, waterDisplayUnit: 'cups' }] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...water, waterPresetOz: [0] }] } }))).toThrow(/invalid tracker/);
+    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, waterLogs: [{ ...waterLogs[0], ounces: 0 }] } }))).toThrow(/invalid water logs/);
+  });
   it('round-trips every stored data section without sharing object references', () => {
     const backup = createReclaimBackup(state, [{ ownerType: 'cpap', ownerId: 'cpap', extension: 'jpg', base64: 'abc' }], '2026-09-18T13:00:00Z');
     const parsed = parseReclaimBackup(JSON.stringify(backup));

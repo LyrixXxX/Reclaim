@@ -1,4 +1,5 @@
 import { TrackerState } from '@/models/tracker';
+import { validWaterDate } from '@/lib/water-habit';
 
 export const RECLAIM_BACKUP_FORMAT = 'reclaim-full-backup' as const;
 export const RECLAIM_BACKUP_VERSION = 2 as const;
@@ -24,7 +25,7 @@ const stateArrayKeys = [
   'healthReadings', 'cpapReadings', 'cpapTherapySettings', 'cpapUsageGoals', 'weightEntries', 'cpapEquipment',
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutritionMealGroups',
-  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals',
+  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs',
 ] as const;
 
 export function createReclaimBackup(
@@ -89,6 +90,17 @@ function validateState(value: Record<string, unknown>) {
     || typeof tracker.id !== 'string'
     || typeof tracker.name !== 'string'
     || !['abstinence', 'reduction', 'habit'].includes(String(tracker.mode))
+    || (tracker.habitLogStyle !== undefined && !['done', 'count'].includes(String(tracker.habitLogStyle)))
+    || (tracker.habitTemplate !== undefined && (tracker.habitTemplate !== 'water' || tracker.mode !== 'habit'))
+    || (tracker.habitTemplate === 'water' && (!Array.isArray(tracker.waterGoals) || !tracker.waterGoals.length || tracker.waterQuickAddOz === undefined))
+    || (tracker.waterQuickAddOz !== undefined && (typeof tracker.waterQuickAddOz !== 'number' || !Number.isFinite(tracker.waterQuickAddOz) || tracker.waterQuickAddOz <= 0 || tracker.waterQuickAddOz > 1000))
+    || (tracker.waterDisplayUnit !== undefined && tracker.waterDisplayUnit !== 'fl oz' && tracker.waterDisplayUnit !== 'mL')
+    || (tracker.waterPresetOz !== undefined && (!Array.isArray(tracker.waterPresetOz) || tracker.waterPresetOz.length > 8 || tracker.waterPresetOz.some((amount: unknown) => typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1000)))
+    || (tracker.waterGoals !== undefined && (!Array.isArray(tracker.waterGoals) || tracker.waterGoals.some((goal: unknown) => !isObject(goal)
+      || typeof goal.effectiveDate !== 'string' || !validWaterDate(goal.effectiveDate)
+      || typeof goal.ounces !== 'number' || !Number.isFinite(goal.ounces) || goal.ounces <= 0 || goal.ounces > 1000)))
+    || (tracker.habitReminderTime !== undefined && (typeof tracker.habitReminderTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(tracker.habitReminderTime)))
+    || (tracker.habitNotificationId !== undefined && typeof tracker.habitNotificationId !== 'string')
     || (tracker.savingsExpenses !== undefined && (!Array.isArray(tracker.savingsExpenses)
       || tracker.savingsExpenses.some((expense: unknown) => !isObject(expense)
         || typeof expense.id !== 'string' || typeof expense.label !== 'string'
@@ -166,6 +178,13 @@ function validateState(value: Record<string, unknown>) {
     || !Number.isFinite(Date.parse(`${goal.effectiveDate}T12:00:00`))
     || typeof goal.minutes !== 'number' || !Number.isInteger(goal.minutes) || goal.minutes < 1 || goal.minutes > 1440)) {
     throw new Error('This Reclaim backup contains invalid CPAP usage goals. Nothing was restored.');
+  }
+  if (Array.isArray(value.waterLogs) && value.waterLogs.some((log) => !isObject(log)
+    || typeof log.id !== 'string' || typeof log.trackerId !== 'string'
+    || typeof log.eventDate !== 'string' || !validWaterDate(log.eventDate)
+    || typeof log.recordedAt !== 'string' || !Number.isFinite(Date.parse(log.recordedAt))
+    || typeof log.ounces !== 'number' || !Number.isFinite(log.ounces) || log.ounces <= 0 || log.ounces > 1000)) {
+    throw new Error('This Reclaim backup contains invalid water logs. Nothing was restored.');
   }
 }
 

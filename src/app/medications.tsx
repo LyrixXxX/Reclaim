@@ -235,8 +235,8 @@ function DoseEventModal({ medication, event, events, onClose, onSave, onDelete }
 }
 
 function formatScheduledEvent(event: MedicationEvent) {
-  if (!event.scheduledFor) return `Recorded ${new Date(event.occurredAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
-  const recorded = new Date(event.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (!event.scheduledFor) return `Recorded ${new Date(event.occurredAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
+  const recorded = new Date(event.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
   return `${formatMedicationTime(event.scheduledFor.slice(11, 16))} scheduled · Recorded ${recorded}`;
 }
 

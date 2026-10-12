@@ -12,9 +12,10 @@ type Props = {
   points: RecoveryPoint[];
   color: string;
   valueLabel?: string;
+  emptyMessage?: string;
 };
 
-export function RecoveryChart({ points, color, valueLabel = 'successful days' }: Props) {
+export function RecoveryChart({ points, color, valueLabel = 'successful days', emptyMessage = 'Choose a start date to begin your recovery chart.' }: Props) {
   const [width, setWidth] = useState(300);
   const [selected, setSelected] = useState<RecoveryPoint | null>(null);
   const chartWidth = Math.max(1, width - PAD.left - PAD.right);
@@ -40,7 +41,7 @@ export function RecoveryChart({ points, color, valueLabel = 'successful days' }:
     return (
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>Progress starts here</Text>
-        <Text style={styles.emptyBody}>Choose a start date to begin your recovery chart.</Text>
+        <Text style={styles.emptyBody}>{emptyMessage}</Text>
       </View>
     );
   }

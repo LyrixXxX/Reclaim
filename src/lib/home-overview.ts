@@ -15,6 +15,14 @@ export function nutritionGoalReached(calories: number, budget: number, entryCoun
   return entryCount > 0 && Math.abs(calories - budget) <= 200;
 }
 
+export function nutritionGoalDetail(calories: number, budget: number, entryCount: number) {
+  if (!entryCount) return 'No food logged yet';
+  const difference = Math.round(Math.abs(calories - budget)).toLocaleString();
+  if (calories > budget) return `${difference} kcal over budget · ${nutritionGoalReached(calories, budget, entryCount) ? 'goal met' : 'goal not met'}`;
+  if (calories < budget - 200) return `${difference} kcal under budget · goal not met`;
+  return calories < budget ? `${difference} kcal under budget · goal met` : 'On budget · goal met';
+}
+
 export function homeOverview(state: TrackerState, steps: StepResult, now: Date) {
   const preferences = state.preferences ?? DEFAULT_PREFERENCES;
   const today = localDateKey(now);

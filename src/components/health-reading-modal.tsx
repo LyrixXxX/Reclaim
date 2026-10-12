@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { HealthReadingInput, localDateTimeParts, validateHealthReading } from '@/lib/health';
+import { formatClockTime, parseClockTime } from '@/lib/clock-time';
 import { HealthReading } from '@/models/tracker';
 import { colors, layout, spacing } from '@/theme';
 
@@ -12,11 +13,13 @@ export function HealthReadingModal({ visible, reading, onClose, onSave }: { visi
   const [diastolic, setDiastolic] = useState(reading?.diastolic.toString() ?? '');
   const [pulse, setPulse] = useState(reading?.pulse.toString() ?? '');
   const [date, setDate] = useState(parts.date);
-  const [time, setTime] = useState(parts.time);
+  const [time, setTime] = useState(formatClockTime(parts.time));
   const [note, setNote] = useState(reading?.note ?? '');
   const [error, setError] = useState('');
   const save = () => {
-    const input = { id: reading?.id, systolic: Number(systolic), diastolic: Number(diastolic), pulse: Number(pulse), measuredAt: `${date}T${time}:00`, note };
+    const clock = parseClockTime(time);
+    if (!clock) return setError('Enter a time like 9:30 AM or 6:15 PM.');
+    const input = { id: reading?.id, systolic: Number(systolic), diastolic: Number(diastolic), pulse: Number(pulse), measuredAt: `${date}T${clock}:00`, note };
     const nextError = validateHealthReading(input);
     if (nextError) return setError(nextError);
     onSave(input); onClose();
@@ -29,7 +32,7 @@ export function HealthReadingModal({ visible, reading, onClose, onSave }: { visi
         <View style={styles.bpRow}><NumberField label="SYSTOLIC" value={systolic} setValue={setSystolic} /><Text style={styles.slash}>/</Text><NumberField label="DIASTOLIC" value={diastolic} setValue={setDiastolic} /></View>
         <Text style={styles.unit}>mmHg</Text>
         <Text style={styles.label}>PULSE · BPM</Text><TextInput accessibilityLabel="Pulse" value={pulse} onChangeText={setPulse} keyboardType="number-pad" placeholder="65" placeholderTextColor={colors.textDim} style={styles.input} />
-        <View style={styles.dateRow}><View style={styles.flex}><Text style={styles.label}>DATE</Text><TextInput accessibilityLabel="Reading date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={styles.flex}><Text style={styles.label}>TIME</Text><TextInput accessibilityLabel="Reading time" value={time} onChangeText={setTime} placeholder="HH:MM" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
+        <View style={styles.dateRow}><View style={styles.flex}><Text style={styles.label}>DATE</Text><TextInput accessibilityLabel="Reading date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={styles.flex}><Text style={styles.label}>TIME</Text><TextInput accessibilityLabel="Reading time" value={time} onChangeText={setTime} autoCapitalize="characters" placeholder="9:30 AM" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
         <Text style={styles.label}>NOTE · OPTIONAL</Text><TextInput accessibilityLabel="Reading note" value={note} onChangeText={setNote} multiline placeholder="Context for this reading" placeholderTextColor={colors.textDim} style={[styles.input, styles.note]} />
         {error && <Text style={styles.error}>{error}</Text>}
         <View style={styles.actions}><Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable><Pressable onPress={save} style={styles.save}><Text style={styles.saveText}>Save reading</Text></Pressable></View>

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Href, Link, Redirect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,20 +8,31 @@ import { MainScreenHeader } from '@/components/main-screen-header';
 import { ReductionCard } from '@/components/reduction-card';
 import { TimerCard } from '@/components/timer-card';
 import { HabitCard } from '@/components/habit-card';
+import { WaterHabitCard } from '@/components/water-habit-card';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, type } from '@/theme';
 import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
 import { formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from '@/lib/taper-quit';
 import { estimateTrackerSavings, formatSavings } from '@/lib/habit-savings';
 import { useNow } from '@/hooks/use-now';
+import { localDateKey } from '@/lib/progress';
 
 export default function HabitsScreen() {
   const { deleted } = useLocalSearchParams<{ deleted?: string }>();
-  const { trackers, historicalEntries = [], taperSteps = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder } = useTrackers();
+  const { trackers, historicalEntries = [], waterLogs = [], taperSteps = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
   const active = trackers.filter((tracker) => !tracker.archived);
   const quitting = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'quitting');
   const reduction = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'reducing');
   const habits = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'building');
+  const [view, setView] = useState<'good' | 'quit' | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void AsyncStorage.getItem('reclaim-habits-view').then((saved) => {
+      if (mounted) setView(saved === 'good' || saved === 'quit' ? saved : habits.length && !quitting.length && !reduction.length ? 'good' : 'quit');
+    }).catch(() => { if (mounted) setView(habits.length && !quitting.length && !reduction.length ? 'good' : 'quit'); });
+    return () => { mounted = false; };
+  }, [habits.length, quitting.length, reduction.length]);
+  const selectView = (next: 'good' | 'quit') => { setView(next); void AsyncStorage.setItem('reclaim-habits-view', next).catch(() => undefined); };
   const [expandedTimers, setExpandedTimers] = useState<Record<string, boolean>>({});
   const [editingOrder, setEditingOrder] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
@@ -41,7 +53,7 @@ export default function HabitsScreen() {
     </View>;
   };
 
-  if (!hydrated) {
+  if (!hydrated || view === null) {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingMark}>R</Text>
@@ -65,7 +77,12 @@ export default function HabitsScreen() {
 
         {deleted && <Text style={styles.deletedNotice}>{deleted} was permanently deleted.</Text>}
 
-        <View style={styles.summaryCard}>
+        <View style={styles.tabRow}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'good' }} onPress={() => selectView('good')} style={[styles.tab, view === 'good' && styles.tabActive]}><Text style={[styles.tabText, view === 'good' && styles.tabTextActive]}>Good Habits</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'quit' }} onPress={() => selectView('quit')} style={[styles.tab, view === 'quit' && styles.tabActive]}><Text style={[styles.tabText, view === 'quit' && styles.tabTextActive]}>Quitting & Tapering</Text></Pressable>
+        </View>
+
+        {view === 'quit' && <View style={styles.summaryCard}>
           <Pressable accessibilityRole="button" accessibilityLabel="Habits overview" accessibilityState={{ expanded: summaryExpanded }} onPress={() => setSummaryExpanded((current) => !current)} style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Your progress</Text><Text style={styles.summaryChevron}>{summaryExpanded ? '⌃' : '⌄'}</Text>
           </Pressable>
@@ -74,15 +91,15 @@ export default function HabitsScreen() {
             <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total money saved</Text><Text style={styles.summaryValue}>{formatSavings(totalSavings)}</Text></View>
             <Text style={styles.summaryNote}>Combined across current quitting trackers. Time on simultaneous trackers is counted for each one; money is an estimate from saved expenses.</Text>
           </View>}
-        </View>
+        </View>}
 
         <View style={styles.managementRow}>
-          <Link href="/tracker-form" style={styles.addTracker}>+ Add tracker</Link>
+          <Link href={(view === 'good' ? '/good-habit-types' : '/tracker-form') as Href} style={styles.addTracker}>{view === 'good' ? '+ Add good habit' : '+ Add tracker'}</Link>
           <Link href="/manage" style={styles.manageTrackers}>Manage trackers</Link>
         </View>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: editingOrder }} onPress={() => setEditingOrder((editing) => !editing)} style={styles.editOrder}><Text style={styles.editOrderText}>{editingOrder ? 'Done editing order' : 'Edit order'}</Text></Pressable>
 
-        <View style={styles.sectionHeader}>
+        {view === 'quit' && <><View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Quitting</Text>
           <View style={styles.sectionControls}>
             <Text style={styles.sectionMeta}>{quitting.length} active</Text>
@@ -104,19 +121,24 @@ export default function HabitsScreen() {
           </View>
         </>}
 
-        {habits.length > 0 && (
+        </>}
+
+        {view === 'good' && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Building</Text>
+              <Text style={styles.sectionTitle}>Good Habits</Text>
               <Text style={styles.sectionMeta}>{habits.length} active</Text>
             </View>
             <View style={styles.cardStack}>
               {habits.map((tracker) => (
-                <View key={tracker.id}><HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} />{orderControls(habits, tracker.id)}</View>
+                <View key={tracker.id}>{tracker.habitTemplate === 'water'
+                  ? <WaterHabitCard tracker={tracker} logs={waterLogs} onLog={() => saveWaterDrink({ id: `water-${Date.now()}-${Math.random().toString(36).slice(2)}`, trackerId: tracker.id, eventDate: localDateKey(), ounces: tracker.waterQuickAddOz ?? 8, recordedAt: new Date().toISOString() })} />
+                  : <HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} onLog={() => logGoodHabit(tracker.id)} />}{orderControls(habits, tracker.id)}</View>
               ))}
             </View>
           </>
         )}
+        {view === 'good' && habits.length === 0 && <View style={styles.emptyCard}><Text style={styles.sectionTitle}>Build something good.</Text><Text style={styles.emptyText}>Choose a habit, set a flexible goal, and log it as you go.</Text></View>}
 
         <Text style={styles.disclaimer}>
           Reclaim is a private tracking tool, not medical advice. Saved records stay
@@ -181,6 +203,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   deletedNotice: { color: colors.success, backgroundColor: colors.accentSoft, borderRadius: 12, padding: 10, fontSize: 11, textAlign: 'center', marginTop: 8 },
+  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 18, marginTop: 8 },
+  tab: { flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8 },
+  tabActive: { backgroundColor: colors.accentSoft, borderColor: colors.habitsNav },
+  tabText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  tabTextActive: { color: colors.habitsNav, fontWeight: '800' },
+  emptyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: 22, marginTop: 20 },
+  emptyText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
   summaryCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, marginBottom: 18, overflow: 'hidden' },
   summaryHeader: { minHeight: 54, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryTitle: { color: colors.text, fontSize: 17, fontWeight: '800' },

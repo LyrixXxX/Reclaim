@@ -22,7 +22,7 @@ export default function HealthHistoryScreen() {
   return <View style={styles.screen}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <Text style={styles.intro}>All blood pressure and pulse readings, grouped by the day measured.</Text>
     <HistoryPages items={groups.flatMap(([, readings]) => readings)}>{(page) => groupReadings(page).map(([date, readings]) => <View key={date}><Text style={styles.date}>{formatDay(date)}</Text><View style={styles.card}>{readings.map((reading, index) => <View key={reading.id} style={[styles.row, index > 0 && styles.border]}>
-      <View style={styles.details}><Text style={styles.time}>{new Date(reading.measuredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</Text><Text style={styles.value}>Blood Pressure {reading.systolic}/{reading.diastolic}</Text><Text style={styles.pulse}>Pulse {reading.pulse}</Text>{reading.note && <Text style={styles.note}>{reading.note}</Text>}</View>
+      <View style={styles.details}><Text style={styles.time}>{new Date(reading.measuredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true })}</Text><Text style={styles.value}>Blood Pressure {reading.systolic}/{reading.diastolic}</Text><Text style={styles.pulse}>Pulse {reading.pulse}</Text>{reading.note && <Text style={styles.note}>{reading.note}</Text>}</View>
       <View style={styles.actions}><Pressable onPress={() => setEditing(reading)}><Text style={styles.edit}>Edit</Text></Pressable><Pressable onPress={() => confirmDelete(reading)}><Text style={styles.delete}>Delete</Text></Pressable></View>
     </View>)}</View></View>)}</HistoryPages>
     {!groups.length && <Text style={styles.empty}>No readings recorded yet.</Text>}

@@ -76,7 +76,7 @@ export default function SettingsScreen() {
       if (result.canceled) return;
       const backup = parseReclaimBackup(await new File(result.assets[0].uri).text());
       const summary = backupSummary(backup.state);
-      const exported = new Date(backup.exportedAt).toLocaleString();
+      const exported = new Date(backup.exportedAt).toLocaleString(undefined, { hour12: true });
       Alert.alert(
         'Restore this Reclaim backup?',
         `Created ${exported}\n\n${summary.trackers} trackers · ${summary.cpapReadings} CPAP nights · ${summary.weightEntries} weigh-ins · ${summary.healthRecords} health records · ${summary.nutritionEntries} food entries\n\nThis replaces the data in this copy of Reclaim. It does not change or delete data in the app that created the backup.`,

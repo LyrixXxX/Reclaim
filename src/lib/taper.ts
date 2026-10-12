@@ -326,7 +326,7 @@ export function formatStepStart(step: Pick<TaperStep, 'startedAt' | 'datePrecisi
   const dateLabel = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   if (step.datePrecision === 'approximate') return `Started approximately ${dateLabel}`;
   if (step.datePrecision === 'date_only') return `Started ${dateLabel} · Exact time unknown`;
-  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
   return `Started ${dateLabel} at ${time}`;
 }
 

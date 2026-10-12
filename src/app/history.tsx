@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { HistoryPages } from '@/components/history-pages';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 
@@ -22,6 +22,11 @@ const OUTCOMES: { value: DayOutcome; label: string; hint: string }[] = [
   { value: 'partial', label: 'Partial reduction / exceeded target', hint: 'A mixed day' },
   { value: 'no_data', label: 'No data / unsure', hint: 'Neither success nor lapse' },
   { value: 'note_only', label: 'Add note only', hint: 'Keep the inferred outcome' },
+];
+const HABIT_OUTCOMES: { value: DayOutcome; label: string; hint: string }[] = [
+  { value: 'stayed_on_plan', label: 'Completed', hint: 'Log progress for this date' },
+  { value: 'no_data', label: 'No completion recorded', hint: 'Do not count this day' },
+  { value: 'note_only', label: 'Note only', hint: 'Keep context without a completion' },
 ];
 
 const STATE_COLORS: Record<DayOutcome, string> = {
@@ -57,6 +62,8 @@ export default function HistoryScreen() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const tracker = trackers.find((item) => item.id === trackerId)!;
+  const positive = tracker.mode === 'habit';
+  const labelFor = (entry: HistoricalEntry) => positive ? entry.outcome === 'stayed_on_plan' ? `${entry.value ?? 1} completion${(entry.value ?? 1) === 1 ? '' : 's'}` : entry.outcome === 'no_data' ? 'No completion recorded' : entry.outcome === 'note_only' ? 'Note only' : outcomeLabel(entry.outcome) : outcomeLabel(entry.outcome);
   const quitPhase = taperQuitPhase(tracker, taperSteps);
   const entries = useMemo(
     () => historicalEntries
@@ -68,7 +75,7 @@ export default function HistoryScreen() {
     () => new Map(entries.map((entry) => [entry.eventDate, entry])),
     [entries],
   );
-  const days = calendarDays(month);
+  const days = calendarDays(month, positive);
   const todayKey = localDateKey();
   const completeness = historyCompleteness(quitPhase?.startedAt ?? tracker.startedAt, entries);
 
@@ -139,7 +146,7 @@ export default function HistoryScreen() {
             </Pressable>
           </View>
           <View style={styles.weekRow}>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+            {(positive ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S']).map((day, index) => (
               <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
             ))}
           </View>
@@ -154,7 +161,7 @@ export default function HistoryScreen() {
                 <Pressable
                   key={key}
                   accessibilityRole="button"
-                  accessibilityLabel={`${formatLongDate(key)}, ${entry ? outcomeLabel(entry.outcome) : future ? 'Future date' : todayPending ? 'Today pending' : 'Unrecorded'}`}
+                  accessibilityLabel={`${formatLongDate(key)}, ${entry ? labelFor(entry) : future ? 'Future date' : todayPending ? 'Today pending' : 'Unrecorded'}`}
                   disabled={future}
                   onPress={() => openDate(key)}
                   style={[styles.dayCell, todayPending && styles.todayCell, future && styles.futureCell]}>
@@ -173,14 +180,19 @@ export default function HistoryScreen() {
           </View>
 
           <View style={styles.legend}>
-            {[
+            {(positive ? [
+              ['Completed', colors.success, false],
+              ['No completion', colors.textDim, true],
+              ['Unrecorded', colors.border, true],
+              ['Today pending', colors.accent, true],
+            ] : [
               ['Stayed on plan', colors.success, false],
               ['Lapse', colors.textMuted, false],
               ['Partial reduction', colors.nicotine, false],
               ['No data', colors.textDim, true],
               ['Unrecorded', colors.border, true],
               ['Today pending', colors.accent, true],
-            ].map(([label, color, hollow]) => (
+            ]).map(([label, color, hollow]) => (
               <View key={String(label)} style={styles.legendItem}>
                 <View style={[styles.legendDot, {
                   backgroundColor: hollow ? 'transparent' : String(color),
@@ -204,7 +216,7 @@ export default function HistoryScreen() {
               style={styles.entryRow}>
               <View style={[styles.entryMark, { borderColor: STATE_COLORS[entry.outcome] }]} />
               <View style={styles.entryCopy}>
-                <Text style={styles.entryTitle}>{outcomeLabel(entry.outcome)}</Text>
+                <Text style={styles.entryTitle}>{labelFor(entry)}</Text>
                 <Text style={styles.entryMeta}>
                   {formatLongDate(entry.eventDate)}
                   {isBackfilled(entry) ? ` · Recorded ${formatRecorded(entry.recordedAt)}` : ''}
@@ -225,13 +237,13 @@ export default function HistoryScreen() {
             <View style={styles.modalCard}>
               <Text style={styles.panelEyebrow}>{editing ? 'EDIT DAY' : 'BACKFILL DAY'}</Text>
               <Text style={styles.modalTitle}>{selectedDate ? formatLongDate(selectedDate) : ''}</Text>
-              <Text style={styles.modalBody}>Choose the outcome that best reflects the day. No judgment, just useful history.</Text>
+              <Text style={styles.modalBody}>{positive ? 'Correct or backfill this day’s habit progress.' : 'Choose the outcome that best reflects the day. No judgment, just useful history.'}</Text>
               {editing && isBackfilled(editing) && (
                 <Text style={styles.recordedText}>Recorded {formatRecorded(editing.recordedAt)}</Text>
               )}
 
               <View style={styles.outcomeList}>
-                {OUTCOMES.map((item) => (
+                {(positive ? HABIT_OUTCOMES : OUTCOMES).map((item) => (
                   <Pressable
                     key={item.value}
                     accessibilityRole="radio"
@@ -248,6 +260,8 @@ export default function HistoryScreen() {
                   </Pressable>
                 ))}
               </View>
+
+              {positive && outcome === 'stayed_on_plan' && <><Text style={styles.noteLabel}>COMPLETIONS</Text><TextInput accessibilityLabel="Habit completions" keyboardType="number-pad" value={amount} onChangeText={setAmount} placeholder="1" placeholderTextColor={colors.textDim} style={styles.amountInput} /></>}
 
               <Text style={styles.noteLabel}>NOTE · OPTIONAL</Text>
               <TextInput
@@ -275,13 +289,15 @@ export default function HistoryScreen() {
                   accessibilityRole="button"
                   onPress={() => {
                     if (!selectedDate) return;
+                    const habitCount = amount.trim() ? Number(amount) : 1;
+                    if (positive && outcome === 'stayed_on_plan' && (!Number.isInteger(habitCount) || habitCount < 1)) { Alert.alert('Enter a valid count', 'Completions must be a whole number of at least one.'); return; }
                     saveHistoricalEntry({
                       id: editing?.id,
                       trackerId,
                       eventDate: selectedDate,
                       outcome,
                       note,
-                      value: amount.trim() && Number.isFinite(Number(amount)) ? Number(amount) : undefined,
+                      value: positive ? outcome === 'stayed_on_plan' ? habitCount : 0 : amount.trim() && Number.isFinite(Number(amount)) ? Number(amount) : undefined,
                     });
                     closeEditor();
                   }}
@@ -327,8 +343,8 @@ export default function HistoryScreen() {
   );
 }
 
-function calendarDays(month: Date) {
-  const leading = month.getDay();
+function calendarDays(month: Date, mondayFirst = false) {
+  const leading = mondayFirst ? (month.getDay() + 6) % 7 : month.getDay();
   const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   return [
     ...Array.from({ length: leading }, () => null),

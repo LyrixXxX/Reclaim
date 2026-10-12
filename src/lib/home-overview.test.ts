@@ -1,5 +1,5 @@
 import { Medication, TrackerState } from '@/models/tracker';
-import { homeOverview, nutritionGoalReached } from './home-overview';
+import { homeOverview, nutritionGoalDetail, nutritionGoalReached } from './home-overview';
 import { DEFAULT_PREFERENCES } from './preferences';
 
 const base: TrackerState = { trackers: [], checkIns: [], preferences: { ...DEFAULT_PREFERENCES, visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, activity: true } } };
@@ -16,6 +16,13 @@ test('nutrition goal accepts a logged total within 200 kcal of the target, inclu
   expect(nutritionGoalReached(2600, 2400, 1)).toBe(true);
   expect(nutritionGoalReached(2600.1, 2400, 1)).toBe(false);
   expect(nutritionGoalReached(2400, 2400, 0)).toBe(false);
+});
+
+test('Home explains when nutrition is over budget and whether the goal still counts', () => {
+  expect(nutritionGoalDetail(3435, 2400, 5)).toBe('1,035 kcal over budget · goal not met');
+  expect(nutritionGoalDetail(2500, 2400, 5)).toBe('100 kcal over budget · goal met');
+  expect(nutritionGoalDetail(2100, 2400, 5)).toBe('300 kcal under budget · goal not met');
+  expect(nutritionGoalDetail(0, 2400, 0)).toBe('No food logged yet');
 });
 
 test('counts configured nutrition, medication and step targets while only completing reached targets', () => {

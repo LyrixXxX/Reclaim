@@ -49,7 +49,7 @@ function nextPeriod(start: string, period: 'day' | 'week' | 'month') {
 
 function firstPeriodStart(start: string, period: 'day' | 'week' | 'month') {
   const date = parseDay(start);
-  if (period === 'week') date.setDate(date.getDate() - date.getDay());
+  if (period === 'week') date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
   if (period === 'month') date.setDate(1);
   return localDateKey(date);
 }
