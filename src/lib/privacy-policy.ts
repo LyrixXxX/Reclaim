@@ -15,10 +15,10 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'Advertising and purchases',
-    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure a Home-screen ad. Reclaim does not send your habit, health, nutrition, step, or route records as ad-targeting information. Google Play handles Remove Ads payments; Reclaim sends the purchase token to its verification service to confirm entitlement. Ads and purchases remain unavailable until a public privacy policy and store setup are configured.',
+    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure a Home-screen ad. Test ads may appear during testing and earn no revenue. Reclaim does not send your habit, health, nutrition, step, or route records as ad-targeting information. If Remove Ads is offered, Google Play handles payment and a Lyrix Studios service verifies the purchase token.',
   },
   {
     title: 'Your choices',
-    body: 'You can export your records, delete individual records in Reclaim, or remove local data by clearing the app’s storage. Backups you saved elsewhere remain under your control. The public privacy policy and a support contact will be available before a Google Play release.',
+    body: 'You can export your records, delete individual records in Reclaim, or remove local data by clearing the app’s storage. Backups you saved elsewhere remain under your control. For privacy questions, contact Reclaim.LyrixStudios@gmail.com.',
   },
 ] as const;

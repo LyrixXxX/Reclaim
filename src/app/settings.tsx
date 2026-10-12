@@ -110,7 +110,7 @@ export default function SettingsScreen() {
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Home Weight card</Text><Text style={styles.backupText}>Goals already link to their sections. Choose whether the extra Weight card appears below them and how much detail it shows.</Text><Link href={'/dashboard-edit' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Customize Weight card</Text></Pressable></Link></View>
     <Text style={styles.section}>Privacy & app lock</Text>
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Privacy & data</Text><Text style={styles.backupText}>See what Reclaim stores on this device and when information leaves it.</Text><Link href={'/privacy' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Read privacy information</Text></Pressable></Link></View>
-    {!!process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL?.startsWith('https://') && <Pressable onPress={() => { void Linking.openURL(process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL!); }} style={styles.secondary}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>}
+    <Pressable onPress={() => { void Linking.openURL(process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.tsak35.chatgpt.site'); }} style={styles.secondary}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
     <AppLockSettings />
     <Text style={styles.section}>Ads & support</Text>
     <View style={styles.backupCard}>

@@ -4,8 +4,8 @@ import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from '@/lib/privacy-policy';
 import { colors, layout, spacing } from '@/theme';
 
 export function PrivacyContent() {
-  const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL;
-  const supportEmail = process.env.EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL;
+  const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.tsak35.chatgpt.site';
+  const supportEmail = process.env.EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL || 'Reclaim.LyrixStudios@gmail.com';
   return <View style={styles.content}>
     <Text style={styles.title}>Privacy & data</Text>
     <Text style={styles.intro}>A plain-language summary of how Reclaim handles your information.</Text>
@@ -13,7 +13,7 @@ export function PrivacyContent() {
       <Text style={styles.heading}>{section.title}</Text><Text style={styles.body}>{section.body}</Text>
     </View>)}
     {!!publicUrl?.startsWith('https://') && <Pressable accessibilityRole="link" onPress={() => { void Linking.openURL(publicUrl); }} style={styles.card}><Text style={styles.heading}>Open the full public privacy policy ↗</Text></Pressable>}
-    <Text style={styles.footer}>Updated {PRIVACY_UPDATED}. {supportEmail ? `Privacy questions: ${supportEmail}` : 'A public policy link and contact address are required before release on Google Play.'}</Text>
+    <Text style={styles.footer}>Updated {PRIVACY_UPDATED}. Privacy questions: {supportEmail}</Text>
   </View>;
 }
 
