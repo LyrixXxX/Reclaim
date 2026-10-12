@@ -1,3 +1,5 @@
+import { verifyPlayIntegrity } from './play-integrity.mjs';
+
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
 const MODEL_DEFAULT = 'gpt-6-astra';
 
@@ -98,27 +100,47 @@ const labInstructions = `You transcribe historical numeric results for one user-
 
 export default { fetch: (request, env) => handleRequest(request, env) };
 
-export async function handleRequest(request, env) {
+export async function handleRequest(request, env, fetcher = fetch) {
   const requestId = crypto.randomUUID();
   const headers = { 'Content-Type': 'application/json', 'X-Request-Id': requestId, 'Cache-Control': 'no-store' };
   try {
     if (request.method === 'OPTIONS') return json({ error: 'Browser access is not enabled.' }, 405, headers);
-    const token = bearerToken(request.headers.get('Authorization'));
-    if (!token || !env.RECLAIM_ACCESS_TOKEN || !(await safeEqual(token, env.RECLAIM_ACCESS_TOKEN))) return json({ error: 'Not authorized.' }, 401, headers);
     const url = new URL(request.url);
-    if (request.method === 'GET' && url.pathname === '/v1/health') return json({ ok: true, model: env.OPENAI_MODEL || MODEL_DEFAULT }, 200, headers);
+    const legacyToken = bearerToken(request.headers.get('Authorization'));
+    // Do not allow the old shared-token route once Play verification is configured.
+    const legacyAuthorized = !env.GOOGLE_SERVICE_ACCOUNT_JSON && !!legacyToken && !!env.RECLAIM_ACCESS_TOKEN && await safeEqual(legacyToken, env.RECLAIM_ACCESS_TOKEN);
+    if (request.method === 'GET' && url.pathname === '/v1/health') return legacyAuthorized ? json({ ok: true, model: env.OPENAI_MODEL || MODEL_DEFAULT }, 200, headers) : json({ error: 'Not authorized.' }, 401, headers);
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404, headers);
     const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
     if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce') return json({ error: 'Not found.' }, 404, headers);
 
-    const safetyIdentifier = `reclaim-${(await sha256(token)).slice(0, 32)}`;
+    const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const safetyIdentifier = `reclaim-${(await sha256(clientIp)).slice(0, 32)}`;
     if (env.RATE_LIMITER) {
       const outcome = await env.RATE_LIMITER.limit({ key: safetyIdentifier });
       if (!outcome.success) return json({ error: 'The private parser is temporarily rate-limited. Try again shortly.' }, 429, headers);
     }
 
-    const body = await request.json();
+    const rawBody = await readLimitedBody(request, MAX_BODY_BYTES);
+    if (rawBody === undefined) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
+    if (env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      const integrityToken = request.headers.get('X-Play-Integrity');
+      if (!integrityToken) return json({ error: 'A Google Play install is required for Private AI.' }, 401, headers);
+      let valid = false;
+      try { valid = await verifyPlayIntegrity(integrityToken, url.pathname, rawBody, env.GOOGLE_SERVICE_ACCOUNT_JSON, fetcher); }
+      catch { return json({ error: 'Private AI verification is temporarily unavailable.' }, 503, headers); }
+      if (!valid) return json({ error: 'Google Play could not verify this app install.' }, 403, headers);
+    } else if (!legacyAuthorized) {
+      return json({ error: 'Not authorized.' }, 401, headers);
+    }
+    if (env.GLOBAL_RATE_LIMITER) {
+      const outcome = await env.GLOBAL_RATE_LIMITER.limit({ key: 'all-ai-requests' });
+      if (!outcome.success) return json({ error: 'Private AI is at capacity. Try again later.' }, 429, headers);
+    }
+    let body;
+    try { body = JSON.parse(rawBody); }
+    catch { return json({ error: 'Invalid request JSON.' }, 400, headers); }
     let content;
     let responseInstructions = instructions;
     let responseSchema = nutritionSchema;
@@ -152,7 +174,7 @@ export async function handleRequest(request, env) {
     }
 
     if (!env.OPENAI_API_KEY) return json({ error: 'The private parser is not configured yet.' }, 503, headers);
-    const upstream = await fetch('https://api.openai.com/v1/responses', {
+    const upstream = await fetcher('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json', 'X-Client-Request-Id': requestId },
       body: JSON.stringify({
@@ -175,6 +197,24 @@ export async function handleRequest(request, env) {
   } catch (error) {
     return json({ error: error instanceof SyntaxError ? 'The private parser returned invalid structured data.' : 'The private parser encountered an unexpected error.' }, 500, headers);
   }
+}
+
+async function readLimitedBody(request, limit) {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const parts = [];
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > limit) { await reader.cancel(); return undefined; }
+    parts.push(value);
+  }
+  const joined = new Uint8Array(bytes);
+  let position = 0;
+  for (const part of parts) { joined.set(part, position); position += part.byteLength; }
+  return new TextDecoder().decode(joined);
 }
 
 function extractOutputText(response) {

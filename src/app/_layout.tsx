@@ -86,7 +86,6 @@ function AppShell() {
           <Stack.Screen name="nutrition-food-form" options={{ title: 'Saved food' }} />
           <Stack.Screen name="nutrition-meal-form" options={{ title: 'Saved meal' }} />
           <Stack.Screen name="nutrition-settings" options={{ title: 'Nutrition setup' }} />
-          <Stack.Screen name="nutrition-ai-settings" options={{ title: 'Private AI' }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
           <Stack.Screen name="medications" options={{ headerShown: false }} />

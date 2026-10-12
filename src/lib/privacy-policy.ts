@@ -11,7 +11,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'When information leaves your device',
-    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, selected Nutrition entries for produce-serving suggestions, or laboratory-report text to a configured Private AI relay, that content is sent to the relay and its AI provider. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
+    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, selected Nutrition entries for produce-serving suggestions, or laboratory-report text for Private AI, that content is sent through Lyrix Studios\' relay to OpenAI. No AI account or connection setup is required. The relay verifies the app through Google Play and applies usage limits. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
   },
   {
     title: 'Advertising and purchases',
