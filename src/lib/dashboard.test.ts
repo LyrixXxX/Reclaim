@@ -32,18 +32,18 @@ describe('customizable dashboard', () => {
     expect(restored.preferences?.dashboard).toEqual(layout);
   });
   test('invalid and duplicate IDs cannot duplicate widgets; missing widgets stay hidden', () => {
-    const rows = normalizeDashboard([{ id: 'labs', visible: true, selectedIds: ['a', 'a', 3] }, { id: 'labs' }, { id: 'unknown' }, null]);
+    const rows = normalizeDashboard([{ id: 'labs', visible: true }, { id: 'nutrition', visible: true, selectedIds: ['a', 'a', 3] }, { id: 'nutrition' }, { id: 'unknown' }, null]);
     expect(rows).toHaveLength(DASHBOARD_WIDGETS.length);
-    expect(rows[0]).toEqual({ id: 'labs', visible: true, expanded: true, selectedIds: ['a'] });
+    expect(rows[0]).toEqual({ id: 'nutrition', visible: true, expanded: true, selectedIds: ['a'] });
     expect(rows.slice(1).every((item) => !item.visible)).toBe(true);
   });
   test('retired Quick Actions disappears from older layouts without changing remaining order', () => {
-    const legacy = [{ id: 'weight' as const, visible: true, expanded: false }, { id: 'quickActions' as const, visible: true, expanded: true }, { id: 'cpap' as const, visible: true, expanded: true }];
+    const legacy = [{ id: 'weight' as const, visible: true, expanded: false }, { id: 'quickActions' as const, visible: true, expanded: true }, { id: 'cpap' as const, visible: true, expanded: true }, { id: 'nutrition' as const, visible: true, expanded: true }];
     expect(normalizeDashboard(legacy).slice(0, 2))
-      .toEqual([{ id: 'weight', visible: true, expanded: false }, { id: 'cpap', visible: true, expanded: true }]);
+      .toEqual([{ id: 'weight', visible: true, expanded: false }, { id: 'nutrition', visible: true, expanded: true }]);
     const saved = { ...createSeedState(), preferences: { ...DEFAULT_PREFERENCES, dashboard: legacy } };
     const restored = migratePreferences(parseReclaimBackup(JSON.stringify(createReclaimBackup(saved))).state);
-    expect(restored.preferences?.dashboard?.slice(0, 2)).toEqual([{ id: 'weight', visible: true, expanded: false }, { id: 'cpap', visible: true, expanded: true }]);
+    expect(restored.preferences?.dashboard?.slice(0, 2)).toEqual([{ id: 'weight', visible: true, expanded: false }, { id: 'nutrition', visible: true, expanded: true }]);
     expect(restored.trackers).toEqual(saved.trackers);
   });
   test('dragging and arrow moves clamp at list boundaries without mutating a draft', () => {
@@ -73,13 +73,13 @@ describe('customizable dashboard', () => {
     for (const id of ['labs', 'medications', 'bloodPressure'] as const) expect(dashboardWidgetAllowed(id, hidden.preferences!)).toBe(false);
     expect(hidden.preferences?.dashboard).toEqual(defaultDashboard());
     const restored = setSectionVisible(hidden, 'health', true);
-    expect(dashboardWidgetAllowed('medications', restored.preferences!)).toBe(true);
+    expect(dashboardWidgetAllowed('medications', restored.preferences!)).toBe(false);
   });
   test('hidden health modules and Habits stay hidden independently', () => {
     const state = setHealthModuleVisible(setSectionVisible(migratePreferences(empty), 'goals', false), 'labs', false);
     expect(dashboardWidgetAllowed('labs', state.preferences!)).toBe(false);
     expect(dashboardWidgetAllowed('habits', state.preferences!)).toBe(false);
-    expect(dashboardWidgetAllowed('medications', state.preferences!)).toBe(true);
+    expect(dashboardWidgetAllowed('medications', state.preferences!)).toBe(false);
   });
   test('does not show an empty quick-action widget when all modules are hidden', () => {
     const preferences = { visibleSections: { goals: false, health: true, cpap: false, weight: false, nutrition: false, activity: false }, visibleHealthModules: { labs: false, bloodPressure: false, medications: false } };

@@ -3,14 +3,12 @@ import { defaultDashboard, normalizeDashboard } from './dashboard';
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   dashboard: defaultDashboard(),
-  visibleSections: { goals: true, health: true, cpap: true, weight: true, nutrition: true, activity: false },
-  visibleHealthModules: { bloodPressure: true, medications: true, labs: true },
+  visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false },
+  visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
   includeRouteCaloriesInNutrition: false,
 };
 
 export function hiddenHabitsDestination(sections: AppPreferences['visibleSections']) {
-  if (sections.health) return '/health' as const;
-  if (sections.cpap) return '/cpap' as const;
   if (sections.weight) return '/weight' as const;
   if (sections.nutrition) return '/nutrition' as const;
   if (sections.activity) return '/activity' as const;
@@ -22,8 +20,8 @@ export function migratePreferences(state: TrackerState): TrackerState {
     ...state,
     preferences: {
       dashboard: normalizeDashboard(state.preferences?.dashboard),
-      visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(state.preferences?.visibleSections ?? {}) },
-      visibleHealthModules: { ...DEFAULT_PREFERENCES.visibleHealthModules, ...(state.preferences?.visibleHealthModules ?? {}) },
+      visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(state.preferences?.visibleSections ?? {}), health: false, cpap: false },
+      visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
       includeRouteCaloriesInNutrition: state.preferences?.includeRouteCaloriesInNutrition ?? false,
     },
   };

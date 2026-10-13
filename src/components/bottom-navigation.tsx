@@ -31,8 +31,6 @@ export function BottomNavigation() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moduleScroll} contentContainerStyle={styles.moduleContent} onContentSizeChange={setContentWidth} onScroll={setOffset} scrollEventThrottle={32}>
           <Tab href="/" label="Home" icon="home" color={colors.accent} active={path === '/'} />
           {preferences.visibleSections.goals && <Tab href="/habits" label="Habits" icon="habits" color={colors.habitsNav} active={path === '/habits'} />}
-          {preferences.visibleSections.health && <Tab href="/health" label="Health" icon="health" color={colors.healthNav} active={path.startsWith('/health') || path === '/medications'} />}
-          {preferences.visibleSections.cpap && <Tab href="/cpap" label="CPAP" icon="cpap" color={colors.cpapNav} active={path.startsWith('/cpap')} />}
           {preferences.visibleSections.weight && <Tab href="/weight" label="Weight" icon="weight" color={colors.weightNav} active={path.startsWith('/weight')} />}
           {preferences.visibleSections.nutrition && <Tab href="/nutrition" label="Nutrition" icon="nutrition" color={colors.nutritionNav} active={path.startsWith('/nutrition')} />}
           {preferences.visibleSections.activity && <Tab href="/activity" label="Activity" icon="activity" color={colors.activityNav} active={path === '/activity' || path === '/activity-map'} />}
@@ -56,9 +54,9 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-type NavIconName = 'home' | 'habits' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'settings';
+type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'settings';
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/health' | '/cpap' | '/weight' | '/nutrition' | '/activity' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
+function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
     <NavIcon name={icon} active={active} />
     <Text style={[styles.label, active && { color }]}>{label}</Text>
@@ -67,7 +65,7 @@ function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/h
 
 function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
   const centers: Record<NavIconName, [number, number]> = {
-    home: [267, 198], habits: [680, 198], health: [1096, 198], cpap: [1508, 198],
+    home: [267, 198], habits: [680, 198],
     weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], settings: [1508, 623],
   };
   const scale = 34 / 326;

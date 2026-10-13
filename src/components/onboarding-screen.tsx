@@ -19,12 +19,9 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
   const [busy, setBusy] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [error, setError] = useState('');
-  const healthChoices = ONBOARDING_AREAS.slice(5).filter((item) => selected.includes(item.id));
   const tabs = [
     'Home',
     ...(selected.includes('habits') ? ['Habits'] : []),
-    ...(healthChoices.length ? ['Health'] : []),
-    ...(selected.includes('cpap') ? ['CPAP'] : []),
     ...(selected.includes('weight') ? ['Weight'] : []),
     ...(selected.includes('nutrition') ? ['Nutrition'] : []),
     ...(selected.includes('activity') ? ['Activity'] : []),
@@ -61,10 +58,8 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
         <Text style={styles.title}>What would you like to track?</Text>
         <Text style={styles.body}>Select any combination, or leave everything off for now.</Text>
         <Text style={styles.group}>EVERYDAY TRACKING</Text>
-        {ONBOARDING_AREAS.slice(0, 5).map((item) => <Choice key={item.id} {...item} checked={selected.includes(item.id)} onPress={() => toggle(item.id)} />)}
-        <Text style={styles.group}>HEALTH</Text>
-        {ONBOARDING_AREAS.slice(5).map((item) => <Choice key={item.id} {...item} checked={selected.includes(item.id)} onPress={() => toggle(item.id)} />)}
-        <Text style={styles.help}>Home and Settings are always available. Selecting a Health item adds the Health tab.</Text>
+        {ONBOARDING_AREAS.map((item) => <Choice key={item.id} {...item} checked={selected.includes(item.id)} onPress={() => toggle(item.id)} />)}
+        <Text style={styles.help}>Home and Settings are always available.</Text>
         <Pressable accessibilityRole="button" onPress={() => setStep('review')} style={styles.primary}><Text style={styles.primaryText}>Review my setup</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => setStep('welcome')} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
       </>}
@@ -74,7 +69,6 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
         <View style={styles.reviewCard}>
           <Text style={styles.infoTitle}>Bottom tabs</Text>
           <Text style={styles.reviewText}>{tabs.join(' · ')}</Text>
-          {healthChoices.length > 0 && <><Text style={[styles.infoTitle, styles.reviewHeading]}>Inside Health</Text><Text style={styles.reviewText}>{healthChoices.map((item) => item.label).join(' · ')}</Text></>}
         </View>
         <Text style={styles.help}>Your choices only control what appears. You can turn areas on or off later without deleting saved history.</Text>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

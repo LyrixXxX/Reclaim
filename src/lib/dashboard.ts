@@ -2,11 +2,7 @@ import { AppPreferences, DashboardWidget, DashboardWidgetId, TrackerState } from
 
 export const DASHBOARD_WIDGETS: { id: DashboardWidgetId; title: string; description: string }[] = [
   { id: 'nutrition', title: 'Nutrition', description: 'Today’s calories, macros, and fiber.' },
-  { id: 'medications', title: 'Doses', description: 'Today’s medication and supplement doses and schedule.' },
-  { id: 'cpap', title: 'CPAP', description: 'Latest recorded night and recent therapy time.' },
   { id: 'weight', title: 'Weight', description: 'Latest weigh-in and recent recorded trend.' },
-  { id: 'bloodPressure', title: 'Blood pressure', description: 'Latest blood pressure and pulse.' },
-  { id: 'labs', title: 'Laboratory results', description: 'Latest results for your selected labs.' },
   { id: 'habits', title: 'Habits', description: 'Your selected active habits.' },
   { id: 'activity', title: 'Activity', description: 'Daily steps and saved routes.' },
 ];
@@ -37,10 +33,9 @@ export function moveDashboardWidget(widgets: DashboardWidget[], id: DashboardWid
 }
 
 export function dashboardWidgetAllowed(id: DashboardWidgetId, preferences: AppPreferences) {
-  const { visibleSections: sections, visibleHealthModules: modules } = preferences;
-  if (id === 'quickActions') return false;
+  const { visibleSections: sections } = preferences;
+  if (id === 'quickActions' || id === 'cpap' || id === 'bloodPressure' || id === 'labs' || id === 'medications') return false;
   if (id === 'habits') return sections.goals;
-  if (id === 'bloodPressure' || id === 'labs' || id === 'medications') return sections.health && modules[id];
   return sections[id];
 }
 

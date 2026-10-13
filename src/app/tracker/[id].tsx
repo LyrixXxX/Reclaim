@@ -127,7 +127,7 @@ export default function TrackerDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.abstinenceContent} showsVerticalScrollIndicator={false}>
-        <TrackerHero tracker={tracker} subtitle={quitPhase ? 'The taper is preserved. Recovery begins with the zero-dose step, and a difficult day never erases earlier progress.' : 'Recovery is cumulative. A difficult day never erases earlier progress.'} />
+        <TrackerHero tracker={tracker} subtitle={quitPhase ? 'Your reduction history is preserved. Your new streak begins at the zero-amount step, and a difficult day never erases earlier progress.' : 'Progress is cumulative. A difficult day never erases earlier progress.'} />
         <Link href={{ pathname: '/tracker-form', params: { id: tracker.id } }} style={styles.editTrackerLink}>Edit tracker</Link>
 
         <View style={styles.timerPanel}>

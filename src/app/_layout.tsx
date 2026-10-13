@@ -32,14 +32,12 @@ function AppShell() {
   const pathname = usePathname();
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/health', '/medications', '/cpap', '/weight', '/nutrition', '/activity', '/activity-map', '/settings'];
+  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/activity-map', '/settings'];
   const showBottomNavigation = mainTabs.includes(pathname);
   useEffect(() => {
     Promise.all([ImagePicker.getPendingResultAsync(), consumePendingCaptureTarget()]).then(([result, target]) => {
       if (result && 'canceled' in result && !result.canceled && result.assets[0]) {
         if (target === 'nutrition') router.replace({ pathname: '/nutrition-log', params: { mode: 'label', recoveredPhotoUri: result.assets[0].uri } });
-        else if (target?.startsWith('labs')) router.replace({ pathname: '/labs', params: { recoveredPhotoUri: result.assets[0].uri, recoveredLabTrackerId: target.includes(':') ? target.slice(target.indexOf(':') + 1) : undefined } });
-        else router.replace({ pathname: '/cpap', params: { recoveredPhotoUri: result.assets[0].uri } });
       }
     }).catch(() => undefined);
   }, []);
@@ -67,14 +65,6 @@ function AppShell() {
           <Stack.Screen name="water-form" options={{ title: 'Water habit setup' }} />
           <Stack.Screen name="water-history" options={{ title: 'Water history' }} />
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
-          <Stack.Screen name="health" options={{ headerShown: false }} />
-          <Stack.Screen name="health-history" options={{ title: 'Reading history' }} />
-          <Stack.Screen name="doctor-summary" options={{ title: 'Doctor summary' }} />
-          <Stack.Screen name="cpap" options={{ headerShown: false }} />
-          <Stack.Screen name="cpap-history" options={{ title: 'CPAP history' }} />
-          <Stack.Screen name="cpap-care" options={{ title: 'CPAP care' }} />
-          <Stack.Screen name="cpap-doctor-summary" options={{ title: 'CPAP summary' }} />
-          <Stack.Screen name="cpap-settings" options={{ title: 'Therapy settings' }} />
           <Stack.Screen name="weight" options={{ headerShown: false }} />
           <Stack.Screen name="nutrition" options={{ headerShown: false }} />
           <Stack.Screen name="activity" options={{ headerShown: false }} />
@@ -89,9 +79,6 @@ function AppShell() {
           <Stack.Screen name="nutrition-settings" options={{ title: 'Nutrition setup' }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
-          <Stack.Screen name="medications" options={{ headerShown: false }} />
-          <Stack.Screen name="medication-reminder-settings" options={{ title: 'Reminder settings' }} />
-          <Stack.Screen name="labs" options={{ title: 'Laboratory results' }} />
         </Stack>
         <LocalSaveStatus errorsOnly />
         {['/', '/nutrition', '/activity'].includes(pathname) && !privateContent && <HomeAdBanner />}

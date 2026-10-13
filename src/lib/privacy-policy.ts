@@ -3,7 +3,7 @@ export const PRIVACY_UPDATED = 'October 13, 2026';
 export const PRIVACY_SECTIONS = [
   {
     title: 'What stays on your device',
-    body: 'Habit trackers, health readings, CPAP history, weight, meals, steps, and saved routes are stored on your device. Reclaim does not require an account. App-lock PIN verification stays in secure device storage and is not included in backups.',
+    body: 'Habit trackers, weight, meals, steps, and saved routes are stored on your device. Records from older Reclaim versions remain locally and in your backups, but are not displayed or updated in this wellness edition. Reclaim does not require an account. App-lock PIN verification stays in secure device storage and is not included in backups.',
   },
   {
     title: 'Permissions and location',
@@ -11,14 +11,14 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'When information leaves your device',
-    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, selected Nutrition entries for produce-serving suggestions, or laboratory-report text for Private AI, that content is sent through Lyrix Studios\' relay to OpenAI. No AI account or connection setup is required. The relay verifies the app through Google Play and applies usage limits. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
+    body: 'If you choose to export a backup, you choose where its file is shared. If you submit food descriptions, label photos, or selected Nutrition entries for produce-serving suggestions to Private AI, that content is sent through Lyrix Studios\' relay to OpenAI. No AI account or connection setup is required. The relay verifies the app through Google Play and applies usage limits. Map viewing and offline downloads request tiles from Stadia Maps; tile requests can reveal an approximate viewed area and your network address to the map provider.',
   },
   {
     title: 'Advertising and purchases',
-    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure banners on Home, Activity, and Nutrition, plus occasional ads after saving a current CPAP night or meal. Test ads may appear during testing and earn no revenue. Reclaim does not send your habit, health, nutrition, step, or route records as ad-targeting information. If Remove Ads is offered, Google Play handles payment and a Lyrix Studios service verifies the purchase token.',
+    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure banners on Home, Activity, and Nutrition, plus occasional ads after saving a current meal. Test ads may appear during testing and earn no revenue. Reclaim does not send your habit, nutrition, step, or route records as ad-targeting information. If Remove Ads is offered, Google Play handles payment and a Lyrix Studios service verifies the purchase token.',
   },
   {
     title: 'Your choices',
-    body: 'You can export your records, delete individual records in Reclaim, or remove local data by clearing the app’s storage. Backups you saved elsewhere remain under your control. For privacy questions, contact Reclaim.LyrixStudios@gmail.com.',
+    body: 'You can export your records, edit or delete wellness records in Reclaim, or remove all local data by clearing the app’s storage. Older records retained from previous versions cannot be edited in this edition. Backups you saved elsewhere remain under your control. For privacy questions, contact Reclaim.LyrixStudios@gmail.com.',
   },
 ] as const;

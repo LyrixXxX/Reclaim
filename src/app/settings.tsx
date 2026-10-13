@@ -15,30 +15,22 @@ import { readTodaySteps, stopStepTracking, StepResult } from '@/lib/activity-ste
 import { createPortableBackup, restorePortableBackup } from '@/lib/backup-files';
 import { DEFAULT_PREFERENCES } from '@/lib/preferences';
 import { MONETIZATION_ENABLED, TEST_ADS_ENABLED } from '@/lib/monetization';
-import { AppSection, HealthModule } from '@/models/tracker';
+import { AppSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useMonetization } from '@/state/monetization-context';
 import { colors, layout, spacing } from '@/theme';
 
 const sections: { id: AppSection; label: string; description: string }[] = [
   { id: 'goals', label: 'Habits', description: 'Habits you are quitting, reducing, or building.' },
-  { id: 'health', label: 'Health', description: 'Vitals, medications, laboratory results, and doctor summaries.' },
-  { id: 'cpap', label: 'CPAP', description: 'Nightly machine readings, trends, and equipment care.' },
   { id: 'weight', label: 'Weight', description: 'Weight history, trends, and goals.' },
   { id: 'nutrition', label: 'Nutrition', description: 'Daily macros, fiber, saved foods, and nutrition trends.' },
   { id: 'activity', label: 'Activity + Map', description: 'Daily steps and GPS-recorded walks, hikes, or runs.' },
-];
-const modules: { id: HealthModule; label: string }[] = [
-  { id: 'bloodPressure', label: 'Blood pressure & pulse' },
-  { id: 'medications', label: 'Medications & Supplements' },
-  { id: 'labs', label: 'Laboratory results' },
 ];
 
 export default function SettingsScreen() {
   const {
     preferences = DEFAULT_PREFERENCES,
     setSectionVisibility,
-    setHealthModuleVisibility,
     setRouteCaloriesInNutrition,
     getBackupState,
     restoreBackupState,
@@ -115,7 +107,7 @@ export default function SettingsScreen() {
     <Text style={styles.section}>Ads & support</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>{monetization.adFree ? 'Ads removed' : 'Keep Reclaim free'}</Text>
-      <Text style={styles.backupText}>{TEST_ADS_ENABLED ? 'Google test banners appear on Home, Activity, and Nutrition. A test ad may also appear after saving a current meal or CPAP night. They earn no revenue; purchases are off in this build.' : monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : 'Banners and occasional post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
+      <Text style={styles.backupText}>{TEST_ADS_ENABLED ? 'Google test banners appear on Home, Activity, and Nutrition. A test ad may also appear after saving a current meal. They earn no revenue; purchases are off in this build.' : monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : 'Banners and occasional post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
       {!!monetization.error && <Text accessibilityRole="alert" style={styles.privacy}>{monetization.error}</Text>}
       {MONETIZATION_ENABLED && !monetization.adFree && <Pressable disabled={!monetization.connected || !monetization.price || monetization.busy} onPress={() => { void monetization.buy().catch(() => Alert.alert('Purchase unavailable', 'Please try again through Google Play.')); }} style={[styles.primary, (!monetization.connected || !monetization.price || monetization.busy) && styles.disabled]}><Text style={styles.primaryText}>Remove ads permanently{monetization.price ? ` · ${monetization.price}` : ''}</Text></Pressable>}
       {MONETIZATION_ENABLED && <Pressable disabled={monetization.busy} onPress={() => { void monetization.restore().then((result) => Alert.alert(result === 'restored' ? 'Ads removed' : result === 'none' ? 'No purchase found' : 'Could not check purchases', result === 'restored' ? 'Your Remove Ads purchase is active on this Play account.' : result === 'none' ? 'No completed Remove Ads purchase was found on this Play account.' : 'Connect to Google Play and try again.')); }} style={styles.secondary}><Text style={styles.secondaryText}>Restore purchase</Text></Pressable>}
@@ -127,18 +119,17 @@ export default function SettingsScreen() {
     {stepStatus.status === 'available' && <View style={styles.backupCard}><Text style={styles.backupTitle}>Step tracking</Text><Text style={styles.backupText}>Your phone is counting steps in the background.</Text><Pressable accessibilityRole="button" onPress={() => Alert.alert('Turn off step tracking?', 'Your daily steps will stop updating until you enable tracking again in Activity.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Turn off', style: 'destructive', onPress: () => { void stopStepTracking().then(() => readTodaySteps().then(setStepStatus)).catch(() => Alert.alert('Could not stop tracking', 'Please try again.')); } }])} style={styles.secondary}><Text style={styles.secondaryText}>Turn off step tracking</Text></Pressable></View>}
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Offline map areas</Text><Text style={styles.backupText}>Optional downloads for trips without mobile data. Previously viewed areas are not guaranteed to work offline.</Text><Link href={'/activity-map-settings' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Manage offline maps</Text></Pressable></Link></View>
     <Text style={styles.section}>Private AI</Text>
-    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food and lab assistance</Text><Text style={styles.backupText}>No connection setup is needed. Only the content you choose to analyze is sent through the Lyrix Studios relay to OpenAI. Your saved records remain on this device. Private AI requires a Google Play-installed copy of Reclaim; manual tracking always works.</Text></View>
+    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food assistance</Text><Text style={styles.backupText}>No connection setup is needed. Only the food content you choose to analyze is sent through the Lyrix Studios relay to OpenAI. Your saved records remain on this device. Private AI requires a Google Play-installed copy of Reclaim; manual tracking always works.</Text></View>
     <Text style={styles.section}>Backup & transfer</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>Your Reclaim data</Text>
-      <Text style={styles.backupText}>Export trackers, health records, CPAP, weight, nutrition, and activity routes, plus settings and saved source photos. The backup stays local until you choose where to save it. Downloaded map tiles are not included.</Text>
+      <Text style={styles.backupText}>Export your local records and settings, including data retained from older Reclaim versions. The backup stays local until you choose where to save it. Downloaded map tiles are not included.</Text>
       <Pressable disabled={backupBusy} style={[styles.primary, backupBusy && styles.disabled]} onPress={() => { void exportBackup(); }}><Text style={styles.primaryText}>{backupBusy ? 'Working…' : 'Export Reclaim backup'}</Text></Pressable>
       <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
       <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
     </View>
     <Text style={styles.section}>Bottom navigation</Text><View style={styles.card}>{sections.map((item) => <SettingRow key={item.id} label={item.label} description={item.description} value={preferences.visibleSections[item.id]} onChange={(value) => setSectionVisibility(item.id, value)} />)}</View>
-    <Text style={styles.section}>Health modules</Text><View style={styles.card}>{modules.map((item) => <SettingRow key={item.id} label={item.label} description="Show this collapsible module on the Health screen." value={preferences.visibleHealthModules[item.id]} onChange={(value) => setHealthModuleVisibility(item.id, value)} />)}</View>
-    <View style={styles.notice}><Text style={styles.noticeTitle}>Your history stays intact</Text><Text style={styles.noticeText}>Visibility controls never delete readings, medications, photos, lab results, nutrition logs, charts, or tracker history.</Text></View>
+    <View style={styles.notice}><Text style={styles.noticeTitle}>Older records stay intact</Text><Text style={styles.noticeText}>If you updated from a full-featured version, its records remain in local storage and backups. This wellness edition does not display or update them.</Text></View>
   </ScrollView></SafeAreaView>;
 }
 

@@ -7,11 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, AppSection, DashboardWidget, GoodHabitLog, HealthModule, HistoricalEntry, LabTracker, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
+import { ActivityRoute, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
 import { saveDashboardLayout } from '@/lib/dashboard';
-import { HealthReadingInput, healthReadingId, removeHealthReading, upsertHealthReading } from '@/lib/health';
-import { CpapReadingInput, CpapTherapySettingsInput, cpapReadingId, cpapSettingsId, migrateCpapState, removeCpapReading, removeCpapTherapySettings, setCpapUsageGoal, upsertCpapReading, upsertCpapTherapySettings } from '@/lib/cpap';
 import { localDateKey } from '@/lib/progress';
 import { deleteTrackerHistory } from '@/lib/recovery';
 import {
@@ -28,18 +26,14 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { completeMaintenance, createCpapCareState, installCpapMask, updateMaintenanceInterval } from '@/lib/cpap-maintenance';
-import { DEFAULT_PREFERENCES, migratePreferences, setHealthModuleVisible, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, migratePreferences, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
-import { medicationEventId, medicationId, MedicationEventInput, MedicationInput, migrateMedicationState, removeMedication, removeMedicationEvent, upsertMedication, upsertMedicationEvent } from '@/lib/medications';
-import { addScheduledDoseBatch, upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
-import { cancelMedicationNotifications, rescheduleMedication } from '@/lib/medication-notifications';
+import { cancelMedicationNotifications } from '@/lib/medication-notifications';
 import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
 import { logHabitCompletion } from '@/lib/habit-log';
 import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
 import { validHabitLog } from '@/lib/good-habit-templates';
-import { labResultId, LabResultInput, LabTrackerInput, labTrackerId, mergeLabResults, migrateLabState, removeLabResult, removeLabTracker, upsertLabResult, upsertLabTracker } from '@/lib/labs';
 import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertMealGroup, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 
 type TrackerContextValue = TrackerState & {
@@ -72,36 +66,12 @@ type TrackerContextValue = TrackerState & {
   editReductionStep: (stepId: string, input: TaperStepInput) => void;
   insertHistoricalReductionStep: (trackerId: TrackerId, input: TaperStepInput, stepId: string) => void;
   deleteReductionStep: (stepId: string, confirmed: boolean) => void;
-  saveHealthReading: (input: HealthReadingInput) => void;
-  deleteHealthReading: (id: string, confirmed: boolean) => void;
-  saveCpapReading: (input: CpapReadingInput) => void;
-  deleteCpapReading: (id: string, confirmed: boolean) => void;
-  saveCpapUsageGoal: (minutes: number) => void;
-  saveCpapTherapySettings: (input: CpapTherapySettingsInput) => void;
-  deleteCpapTherapySettings: (id: string, confirmed: boolean) => void;
   importWeightHistory: (file: WeightExport) => { added: number; duplicates: number };
   saveWeightEntry: (entry: Omit<WeightEntry, 'id' | 'recordedAt'>) => void;
   saveWeightTdeeProfile: (profile: WeightTdeeProfile) => void;
   deleteWeightEntry: (date: string, confirmed: boolean) => void;
-  completeCpapMaintenance: (itemId: string, completedAt?: string) => void;
-  setCpapMaintenanceInterval: (itemId: string, intervalDays: number) => void;
-  installCpapMask: (equipmentId: string, installedAt?: string) => void;
   setSectionVisibility: (section: AppSection, visible: boolean) => void;
-  setHealthModuleVisibility: (module: HealthModule, visible: boolean) => void;
   setRouteCaloriesInNutrition: (enabled: boolean) => void;
-  saveMedication: (input: MedicationInput) => Promise<void>;
-  deleteMedication: (id: string, confirmed: boolean) => Promise<void>;
-  saveMedicationLog: (event: MedicationEventInput) => string | undefined;
-  saveMedicationLogs: (events: MedicationEventInput[]) => string[];
-  deleteMedicationLog: (id: string) => void;
-  deleteMedicationLogs: (ids: string[]) => void;
-  saveSupplementStack: (stack: SupplementStack) => string | undefined;
-  deleteSupplementStack: (id: string) => void;
-  saveLabResult: (input: LabResultInput) => void;
-  saveLabResults: (inputs: LabResultInput[]) => { added: number; duplicates: number };
-  deleteLabResult: (id: string, confirmed: boolean) => void;
-  saveLabTracker: (input: LabTrackerInput) => LabTracker;
-  deleteLabTracker: (id: string, confirmed: boolean) => void;
   saveNutritionGoal: (input: Omit<NutritionGoalProfile, 'id' | 'recordedAt'>, id?: string) => void;
   deleteNutritionGoal: (id: string, confirmed: boolean) => void;
   saveNutritionEntry: (input: NutritionEntryInput, id?: string) => void;
@@ -151,8 +121,6 @@ export function TrackerProvider({ children }: PropsWithChildren) {
             note: event.note,
           }));
           const existing = parsed.historicalEntries ?? [];
-          const requiresMedicationScheduleMigration = (parsed.medicationScheduleVersion ?? 0) < 1;
-          const requiresMedicationReminderMigration = (parsed.medicationReminderVersion ?? 0) < 1;
           let migratedState = migrateStoredState({
             ...parsed,
             historicalEntries: [
@@ -163,17 +131,13 @@ export function TrackerProvider({ children }: PropsWithChildren) {
             ],
             lapseEvents: [],
           });
-          if (requiresMedicationScheduleMigration || requiresMedicationReminderMigration) {
-            const medications = await Promise.all((migratedState.medications ?? []).map(async (medication) => {
-              if (!requiresMedicationReminderMigration && !medication.name.trim().toLocaleLowerCase().includes('metoprolol')) return medication;
-              try {
-                return { ...medication, notificationIds: await rescheduleMedication(medication) };
-              } catch {
-                return medication;
-              }
-            }));
-            migratedState = { ...migratedState, medications };
-          }
+          // Older installations may have scheduled dose reminders. The wellness edition
+          // preserves their records but must not continue issuing medical reminders.
+          const medications = await Promise.all((migratedState.medications ?? []).map(async (medication) => {
+            await cancelMedicationNotifications(medication.notificationIds).catch(() => undefined);
+            return { ...medication, notificationIds: [] };
+          }));
+          migratedState = { ...migratedState, medications };
           const habits = await Promise.all(migratedState.trackers.map(async (tracker) => {
             if (!tracker.habitReminderTime || tracker.archived) return tracker;
             try {
@@ -313,18 +277,6 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       setState((previous) => insertHistoricalTaperStep(previous, trackerId, input, stepId).state),
     deleteReductionStep: (stepId, confirmed) =>
       setState((previous) => deleteTaperStep(previous, stepId, confirmed).state),
-    saveHealthReading: (input) => setState((previous) => ({
-      ...previous,
-      healthReadings: upsertHealthReading(previous.healthReadings ?? [], input, healthReadingId()),
-    })),
-    deleteHealthReading: (id, confirmed) => {
-      setState((previous) => ({ ...previous, healthReadings: removeHealthReading(previous.healthReadings ?? [], id, confirmed) }));
-    },
-    saveCpapReading: (input) => setState((previous) => ({ ...previous, cpapReadings: upsertCpapReading(previous.cpapReadings ?? [], input, cpapReadingId()) })),
-    deleteCpapReading: (id, confirmed) => setState((previous) => ({ ...previous, cpapReadings: removeCpapReading(previous.cpapReadings ?? [], id, confirmed) })),
-    saveCpapUsageGoal: (minutes) => setState((previous) => ({ ...previous, cpapUsageGoals: setCpapUsageGoal(previous.cpapUsageGoals ?? [], previous.cpapReadings ?? [], minutes, new Date()) })),
-    saveCpapTherapySettings: (input) => setState((previous) => ({ ...previous, cpapTherapySettings: upsertCpapTherapySettings(previous.cpapTherapySettings ?? [], input, cpapSettingsId()) })),
-    deleteCpapTherapySettings: (id, confirmed) => setState((previous) => ({ ...previous, cpapTherapySettings: removeCpapTherapySettings(previous.cpapTherapySettings ?? [], id, confirmed) })),
     importWeightHistory: (file) => {
       const result = mergeWeightImport(state.weightEntries ?? [], file);
       setState((previous) => ({ ...previous, weightEntries: mergeWeightImport(previous.weightEntries ?? [], file).entries }));
@@ -335,70 +287,8 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteWeightEntry: (date, confirmed) => {
       if (confirmed) setState((previous) => ({ ...previous, weightEntries: (previous.weightEntries ?? []).filter((entry) => entry.date !== date) }));
     },
-    completeCpapMaintenance: (itemId, completedAt) => setState((previous) => completeMaintenance(previous, itemId, completedAt)),
-    setCpapMaintenanceInterval: (itemId, intervalDays) => setState((previous) => updateMaintenanceInterval(previous, itemId, intervalDays)),
-    installCpapMask: (equipmentId, installedAt) => setState((previous) => installCpapMask(previous, equipmentId, installedAt)),
     setSectionVisibility: (section, visible) => setState((previous) => setSectionVisible(previous, section, visible)),
-    setHealthModuleVisibility: (module, visible) => setState((previous) => setHealthModuleVisible(previous, module, visible)),
     setRouteCaloriesInNutrition: (enabled) => setState((previous) => setRouteCaloriesInNutrition(previous, enabled)),
-    saveMedication: async (input) => {
-      const id = input.id ?? medicationId();
-      const current = (state.medications ?? []).find((item) => item.id === id);
-      const provisional = upsertMedication(state.medications ?? [], { ...input, id, notificationIds: current?.notificationIds ?? [] }, id).find((item) => item.id === id)!;
-      const notificationIds = await rescheduleMedication(provisional);
-      setState((previous) => ({ ...previous, medications: upsertMedication(previous.medications ?? [], { ...input, id, notificationIds }, id) }));
-    },
-    deleteMedication: async (id, confirmed) => {
-      if (!confirmed) return;
-      const item = (state.medications ?? []).find((medication) => medication.id === id);
-      if (item) await cancelMedicationNotifications(item.notificationIds);
-      setState((previous) => ({ ...previous, medications: removeMedication(previous.medications ?? [], id, true), medicationEvents: (previous.medicationEvents ?? []).filter((event) => event.medicationId !== id), supplementStacks: (previous.supplementStacks ?? []).map((stack) => ({ ...stack, members: stack.members.filter((member) => member.medicationId !== id) })) }));
-    },
-    saveMedicationLog: (event) => {
-      const duplicate = !event.id && Boolean(event.scheduledFor) && (state.medicationEvents ?? []).some((item) =>
-        item.medicationId === event.medicationId && item.scheduledFor === event.scheduledFor);
-      if (duplicate) return undefined;
-      const id = event.id ?? medicationEventId();
-      setState((previous) => ({ ...previous, medicationEvents: upsertMedicationEvent(previous.medicationEvents ?? [], event, id) }));
-      return id;
-    },
-    saveMedicationLogs: (events) => {
-      const ids = events.map(() => medicationEventId());
-      const preview = addScheduledDoseBatch(state.medicationEvents ?? [], events, ids);
-      if (!preview.addedIds.length) return [];
-      setState((previous) => ({ ...previous, medicationEvents: addScheduledDoseBatch(previous.medicationEvents ?? [], events, ids).events }));
-      return preview.addedIds;
-    },
-    deleteMedicationLog: (id) => setState((previous) => ({ ...previous, medicationEvents: removeMedicationEvent(previous.medicationEvents ?? [], id) })),
-    deleteMedicationLogs: (ids) => setState((previous) => ({ ...previous, medicationEvents: (previous.medicationEvents ?? []).filter((event) => !ids.includes(event.id)) })),
-    saveSupplementStack: (stack) => {
-      const error = validateSupplementStack(stack, state.supplementStacks ?? [], state.medications ?? []);
-      if (error) return error;
-      setState((previous) => ({ ...previous, supplementStacks: upsertSupplementStack(previous.supplementStacks ?? [], stack) }));
-      return undefined;
-    },
-    deleteSupplementStack: (id) => setState((previous) => ({ ...previous, supplementStacks: (previous.supplementStacks ?? []).filter((stack) => stack.id !== id) })),
-    saveLabResult: (input) => setState((previous) => ({ ...previous, labResults: upsertLabResult(previous.labResults ?? [], input, labResultId()) })),
-    saveLabResults: (inputs) => {
-      const result = mergeLabResults(state.labResults ?? [], inputs);
-      setState((previous) => ({ ...previous, labResults: mergeLabResults(previous.labResults ?? [], inputs).results }));
-      return { added: result.added, duplicates: result.duplicates };
-    },
-    deleteLabResult: (id, confirmed) => setState((previous) => ({ ...previous, labResults: removeLabResult(previous.labResults ?? [], id, confirmed) })),
-    saveLabTracker: (input) => {
-      const id = input.id ?? labTrackerId();
-      const tracker = upsertLabTracker(state.labTrackers ?? [], input, id).find((item) => item.id === id)!;
-      setState((previous) => {
-        const previousTracker = (previous.labTrackers ?? []).find((item) => item.id === id);
-        const labTrackers = upsertLabTracker(previous.labTrackers ?? [], input, id);
-        const labResults = previousTracker && previousTracker.name !== tracker.name
-          ? (previous.labResults ?? []).map((item) => item.labTrackerId === id ? { ...item, marker: tracker.name } : item)
-          : previous.labResults;
-        return { ...previous, labTrackers, labResults };
-      });
-      return tracker;
-    },
-    deleteLabTracker: (id, confirmed) => setState((previous) => removeLabTracker(previous, id, confirmed)),
     saveNutritionGoal: (input, id) => setState((previous) => ({ ...previous, nutritionGoals: upsertNutritionGoal(previous.nutritionGoals ?? [], input, id) })),
     deleteNutritionGoal: (id, confirmed) => setState((previous) => ({ ...previous, nutritionGoals: removeNutritionGoal(previous.nutritionGoals ?? [], id, confirmed) })),
     saveNutritionEntry: (input, id) => setState((previous) => ({ ...previous, nutritionEntries: upsertNutritionEntry(previous.nutritionEntries ?? [], input, id) })),
@@ -429,10 +319,10 @@ export function TrackerProvider({ children }: PropsWithChildren) {
         await cancelMedicationNotifications(medication.notificationIds);
       }
       const migrated = migrateStoredState(backupState);
-      const medications = await Promise.all((migrated.medications ?? []).map(async (medication) => ({
-        ...medication,
-        notificationIds: await rescheduleMedication({ ...medication, notificationIds: [] }).catch(() => []),
-      })));
+      for (const medication of migrated.medications ?? []) {
+        await cancelMedicationNotifications(medication.notificationIds).catch(() => undefined);
+      }
+      const medications = (migrated.medications ?? []).map((medication) => ({ ...medication, notificationIds: [] }));
       const trackers = await Promise.all(migrated.trackers.map(async (tracker) => {
         try { return { ...tracker, habitNotificationId: await scheduleHabitReminder({ ...tracker, habitNotificationId: undefined }) }; }
         catch { return { ...tracker, habitNotificationId: undefined }; }
@@ -467,7 +357,8 @@ const storageStyles = StyleSheet.create({
 });
 
 function migrateStoredState(parsed: TrackerState): TrackerState {
-  return migrateLabState(migrateMedicationState(migratePreferences(migrateNutritionState(createCpapCareState(migrateCpapState(migrateTaperState(parsed)))))));
+  // Keep older medical records untouched for future full-edition restores.
+  return migratePreferences(migrateNutritionState(migrateTaperState(parsed)));
 }
 
 export function useTrackers() {

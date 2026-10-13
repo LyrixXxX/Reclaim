@@ -4,12 +4,8 @@ import { AppPreferences, DashboardWidgetId, OnboardingArea, TrackerState } from 
 export const ONBOARDING_AREAS: { id: OnboardingArea; label: string; description: string }[] = [
   { id: 'habits', label: 'Habits', description: 'Track habits you are quitting, reducing, or building.' },
   { id: 'nutrition', label: 'Nutrition', description: 'Log food, macros, and fiber.' },
-  { id: 'cpap', label: 'CPAP', description: 'Record therapy nights and equipment care.' },
   { id: 'weight', label: 'Weight', description: 'Follow weigh-ins and long-term trends.' },
   { id: 'activity', label: 'Activity + Map', description: 'See daily steps and record walks, hikes, or runs.' },
-  { id: 'bloodPressure', label: 'Blood pressure', description: 'Record blood pressure and pulse.' },
-  { id: 'medications', label: 'Medications & Supplements', description: 'Keep a shared list, reminders, and dose history.' },
-  { id: 'labs', label: 'Laboratory results', description: 'Chart results for the labs you choose.' },
 ];
 
 export function createFreshState(): TrackerState {
@@ -28,12 +24,11 @@ export function normalizeOnboardingSelections(value: unknown): OnboardingArea[] 
 export function completeOnboarding(state: TrackerState): TrackerState {
   const selections = normalizeOnboardingSelections(state.onboardingSelections);
   const has = (area: OnboardingArea) => selections.includes(area);
-  const health = has('bloodPressure') || has('medications') || has('labs');
   const visibleSections: AppPreferences['visibleSections'] = {
-    goals: has('habits'), health, cpap: has('cpap'), weight: has('weight'), nutrition: has('nutrition'), activity: has('activity'),
+    goals: has('habits'), health: false, cpap: false, weight: has('weight'), nutrition: has('nutrition'), activity: has('activity'),
   };
   const visibleHealthModules: AppPreferences['visibleHealthModules'] = {
-    bloodPressure: has('bloodPressure'), medications: has('medications'), labs: has('labs'),
+    bloodPressure: false, medications: false, labs: false,
   };
   const selectedWidgets = selections.map((id): DashboardWidgetId => id === 'habits' ? 'habits' : id);
   const widgetOrder: DashboardWidgetId[] = [

@@ -16,7 +16,7 @@ import { DashboardWidget, DashboardWidgetId, StepDay } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout } from '@/theme';
 
-const destinations: Record<DashboardWidgetId, string> = { nutrition: '/nutrition', medications: '/medications', cpap: '/cpap', weight: '/weight', bloodPressure: '/health', labs: '/labs', habits: '/habits', activity: '/activity', quickActions: '/' };
+const destinations: Record<DashboardWidgetId, string> = { nutrition: '/nutrition', medications: '/', cpap: '/', weight: '/weight', bloodPressure: '/', labs: '/', habits: '/habits', activity: '/activity', quickActions: '/' };
 const accents: Record<DashboardWidgetId, string> = { nutrition: colors.nutritionNav, medications: colors.healthNav, cpap: colors.weightNav, weight: colors.activityNav, bloodPressure: colors.healthNav, labs: colors.healthNav, habits: colors.habitsNav, activity: colors.activityNav, quickActions: colors.accent };
 
 export default function DashboardScreen() {
@@ -37,12 +37,10 @@ export default function DashboardScreen() {
   }, [preferences.visibleSections.activity]));
   const overview = homeOverview(state, steps, now);
   const week = activityRange(stepDays, state.stepGoals ?? [], '7D', 0, now);
-  const hasProgress = Boolean(overview.stepProgress || overview.cpap || overview.nutrition || overview.medications);
+  const hasProgress = Boolean(overview.stepProgress || overview.nutrition);
   const ringSegments = [
     { name: 'Steps', color: colors.activityNav, progress: overview.stepProgress ? (overview.stepProgress.count ?? 0) / overview.stepProgress.target : 0 },
-    { name: 'CPAP', color: colors.cpapNav, progress: overview.cpap?.target && overview.cpap.usedMinutes !== null ? overview.cpap.usedMinutes / overview.cpap.target : 0 },
     { name: 'Nutrition', color: colors.nutritionNav, progress: overview.nutrition ? overview.nutrition.calories / Math.max(1, overview.nutrition.budget) : 0 },
-    { name: 'Doses', color: colors.healthNav, progress: overview.medications ? overview.medications.taken / overview.medications.total : 0 },
   ];
   const ringSize = 168;
   const ringCenter = ringSize / 2;
@@ -57,20 +55,18 @@ export default function DashboardScreen() {
       <View style={styles.progressBody}>
         {overview.goalCount > 0 && <View style={styles.goalRing}><Svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`} accessibilityLabel={ringSegments.map((segment) => `${segment.name} ${Math.round(Math.min(1, Math.max(0, segment.progress)) * 100)}%`).join(', ')}>{ringSegments.map((segment, index) => {
           const circumference = 2 * Math.PI * ringRadius;
-          const arc = circumference / 4 - 8;
-          const rotation = -90 + index * 90;
+          const arc = circumference / ringSegments.length - 8;
+          const rotation = -90 + index * (360 / ringSegments.length);
           return <Circle key={segment.name} cx={ringCenter} cy={ringCenter} r={ringRadius} fill="none" stroke={colors.border} strokeWidth={13} strokeLinecap="round" strokeDasharray={`${arc} ${circumference - arc}`} rotation={rotation} origin={`${ringCenter}, ${ringCenter}`} />;
         })}{ringSegments.map((segment, index) => {
           const circumference = 2 * Math.PI * ringRadius;
-          const arc = circumference / 4 - 8;
+          const arc = circumference / ringSegments.length - 8;
           const filled = arc * Math.min(1, Math.max(0, segment.progress));
-          return filled > 0 ? <Circle key={segment.name} cx={ringCenter} cy={ringCenter} r={ringRadius} fill="none" stroke={segment.color} strokeWidth={13} strokeLinecap="round" strokeDasharray={`${filled} ${circumference - filled}`} rotation={-90 + index * 90} origin={`${ringCenter}, ${ringCenter}`} /> : null;
+          return filled > 0 ? <Circle key={segment.name} cx={ringCenter} cy={ringCenter} r={ringRadius} fill="none" stroke={segment.color} strokeWidth={13} strokeLinecap="round" strokeDasharray={`${filled} ${circumference - filled}`} rotation={-90 + index * (360 / ringSegments.length)} origin={`${ringCenter}, ${ringCenter}`} /> : null;
         })}</Svg><View style={styles.goalRingLabel}><Text style={styles.goalRingValue}>{overview.reachedCount}/{overview.goalCount}</Text><Text style={styles.goalRingCaption}>goals</Text></View></View>}
         <View style={styles.progressTiles}>
           {overview.stepProgress && <ProgressTile title="Steps" value={overview.stepProgress.count === null ? 'Awaiting steps' : overview.stepProgress.count.toLocaleString()} detail={`Goal ${overview.stepProgress.target.toLocaleString()} steps`} progress={(overview.stepProgress.count ?? 0) / overview.stepProgress.target} color={colors.activityNav} href="/activity" />}
-          {overview.cpap && <ProgressTile title="CPAP" value={overview.cpap.usedMinutes === null ? overview.cpap.target === null ? 'Starts next night' : 'Awaiting reading' : `${Math.floor(overview.cpap.usedMinutes / 60)}h ${overview.cpap.usedMinutes % 60}m`} detail={overview.cpap.target === null ? 'Goal applies to upcoming nights' : `Last night · goal ${Math.floor(overview.cpap.target / 60)}h ${overview.cpap.target % 60}m`} progress={overview.cpap.target && overview.cpap.usedMinutes !== null ? overview.cpap.usedMinutes / overview.cpap.target : 0} color={colors.cpapNav} href="/cpap" />}
           {overview.nutrition && <ProgressTile title="Nutrition" value={`${Math.round(overview.nutrition.calories).toLocaleString()} kcal`} detail={nutritionGoalDetail(overview.nutrition.calories, overview.nutrition.budget, overview.nutrition.entryCount)} progress={overview.nutrition.calories / Math.max(1, overview.nutrition.budget)} color={colors.nutritionNav} valueColor={overview.nutrition.entryCount ? overview.nutrition.calories > overview.nutrition.budget + 200 ? colors.danger : colors.success : colors.text} href="/nutrition" />}
-          {overview.medications && <ProgressTile title="Doses" value={`${overview.medications.taken} of ${overview.medications.total}`} detail={overview.medications.skipped ? `${overview.medications.skipped} skipped` : 'scheduled doses taken'} progress={overview.medications.taken / overview.medications.total} color={colors.healthNav} href="/medications" />}
         </View>
       </View>
     </View>}
@@ -93,7 +89,7 @@ function DashboardCard({ widget, content, overview, week, width }: { widget: Das
   const title = DASHBOARD_WIDGETS.find((item) => item.id === widget.id)?.title ?? widget.id;
   const progress = widget.id === 'nutrition' && overview.nutrition ? overview.nutrition.calories / Math.max(1, overview.nutrition.budget)
     : widget.id === 'activity' && overview.stepProgress ? (overview.stepProgress.count ?? 0) / overview.stepProgress.target
-      : widget.id === 'medications' && overview.medications ? overview.medications.taken / overview.medications.total : null;
+      : null;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={() => router.push(destinations[widget.id] as Href)} style={[styles.dashboardCard, { width, borderColor: `${color}77`, borderLeftColor: color, backgroundColor: `${color}0C` }]}>
     <View style={styles.cardHeader}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={[styles.cardTitle, { color }]} numberOfLines={2}>{title}</Text></View><Text style={[styles.arrow, { color }]}>›</Text></View>
     <Text style={[styles.cardValue, content.calorieStatus && { color: content.calorieStatus === 'over' ? colors.danger : colors.success }]} numberOfLines={2} adjustsFontSizeToFit>{content.value}</Text>

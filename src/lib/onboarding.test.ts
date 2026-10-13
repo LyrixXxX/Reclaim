@@ -26,23 +26,23 @@ describe('first-run setup', () => {
   });
 
   test('one choice enables only its tab and widget', () => {
-    const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['cpap'] });
-    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: true, weight: false, nutrition: false, activity: false });
-    expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => [widget.id, widget.expanded])).toEqual([['cpap', false]]);
+    const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['weight'] });
+    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false });
+    expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => [widget.id, widget.expanded])).toEqual([['weight', false]]);
   });
 
-  test('Health-only selections create one Health tab with selected modules', () => {
+  test('older medical selections are ignored in the wellness edition', () => {
     const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['labs', 'medications'] });
-    expect(next.preferences!.visibleSections.health).toBe(true);
-    expect(next.preferences!.visibleHealthModules).toEqual({ bloodPressure: false, medications: true, labs: true });
-    expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => widget.id)).toEqual(['medications', 'labs']);
+    expect(next.preferences!.visibleSections.health).toBe(false);
+    expect(next.preferences!.visibleHealthModules).toEqual({ bloodPressure: false, medications: false, labs: false });
+    expect(next.preferences!.dashboard?.filter((widget) => widget.visible)).toEqual([]);
   });
 
   test('all selections use questionnaire order and stay compact', () => {
     const reversed = ['labs', 'medications', 'bloodPressure', 'weight', 'cpap', 'nutrition', 'habits'] as const;
     const next = completeOnboarding({ ...createFreshState(), onboardingSelections: [...reversed] });
     expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => widget.id)).toEqual([
-      'habits', 'nutrition', 'cpap', 'weight', 'bloodPressure', 'medications', 'labs',
+      'habits', 'nutrition', 'weight',
     ]);
     expect(next.preferences!.dashboard?.every((widget) => !widget.expanded)).toBe(true);
   });
@@ -55,7 +55,7 @@ describe('first-run setup', () => {
     const older = migratePreferences(createSeedState());
     expect(needsOnboarding(older)).toBe(false);
     expect(older.trackers).toHaveLength(createSeedState().trackers.length);
-    expect(older.preferences?.visibleSections.cpap).toBe(true);
+    expect(older.preferences?.visibleSections.cpap).toBe(false);
     const backup = parseReclaimBackup(JSON.stringify(createReclaimBackup(older)));
     expect(needsOnboarding(migratePreferences(backup.state))).toBe(false);
   });

@@ -145,7 +145,7 @@ export default function TrackerFormScreen() {
         {draft.mode === 'reduction' && (
           <>
             <Field label="MEASUREMENT UNIT" error={errors.unit}>
-              <TextInput accessibilityLabel="Measurement unit" value={draft.unit} onChangeText={(value) => set('unit', value)} placeholder="mg/day, drinks, minutes…" placeholderTextColor={colors.textDim} style={styles.input} />
+              <TextInput accessibilityLabel="Measurement unit" value={draft.unit} onChangeText={(value) => set('unit', value)} placeholder="drinks, minutes, times…" placeholderTextColor={colors.textDim} style={styles.input} />
             </Field>
             <View style={styles.twoColumn}>
               <View style={styles.flexField}><Field label="BASELINE" error={errors.baseline}><TextInput accessibilityLabel="Baseline amount" keyboardType="decimal-pad" value={draft.baseline} onChangeText={(value) => set('baseline', value)} placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} /></Field></View>
