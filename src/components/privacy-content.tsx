@@ -4,7 +4,7 @@ import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from '@/lib/privacy-policy';
 import { colors, layout, spacing } from '@/theme';
 
 export function PrivacyContent() {
-  const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.tsak35.chatgpt.site';
+  const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/';
   const supportEmail = process.env.EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL || 'Reclaim.LyrixStudios@gmail.com';
   return <View style={styles.content}>
     <Text style={styles.title}>Privacy & data</Text>

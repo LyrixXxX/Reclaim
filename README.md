@@ -1,6 +1,6 @@
 # Reclaim
 
-Public privacy policy: https://reclaim-privacy-policy.tsak35.chatgpt.site/ (source: `docs/privacy/index.html`).
+Public privacy policy: https://reclaim-privacy-policy.pages.dev/ (source: `docs/privacy/index.html`).
 
 A private, dark-mode personal health dashboard built with Expo Router and
 TypeScript. Reclaim stores tracker, health, CPAP, weight, medication,

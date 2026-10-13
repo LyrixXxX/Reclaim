@@ -61,7 +61,7 @@ export function AdsProvider({ children }: { children: ReactNode }) {
     return () => { unsubs.forEach((unsubscribe) => unsubscribe()); if (adRef.current === ad) adRef.current = null; setLoaded(false); };
   }, [allowed, initialized, historyReady]);
 
-  const completionAdReady = allowed && initialized && historyReady && loaded && !!adRef.current && canShowCompletionAd(history);
+  const completionAdReady = allowed && initialized && historyReady && loaded && canShowCompletionAd(history);
   const showCompletionAd = useCallback(async () => {
     const ad = adRef.current;
     if (!allowed || !initialized || !historyReady || !loaded || !ad || showingRef.current || !canShowCompletionAd(historyRef.current)) return;
