@@ -15,7 +15,7 @@ type Props = {
 
 export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<'welcome' | 'choices' | 'review'>(selected.length ? 'choices' : 'welcome');
+  const [step, setStep] = useState<'welcome' | 'choices' | 'review' | 'guide'>(selected.length ? 'choices' : 'welcome');
   const [busy, setBusy] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]} showsVerticalScrollIndicator={false}>
       <View style={styles.brand}><Image source={require('../../assets/images/reclaim-icon.png')} style={styles.icon} /><Text style={styles.brandName}>RECLAIM</Text></View>
-      <Text style={styles.step}>{step === 'welcome' ? 'WELCOME' : step === 'choices' ? 'YOUR CHOICES' : 'READY TO BEGIN'}</Text>
+      <Text style={styles.step}>{step === 'welcome' ? 'WELCOME' : step === 'choices' ? 'YOUR CHOICES' : step === 'review' ? 'YOUR SETUP' : 'FIRST STEPS'}</Text>
       {step === 'welcome' && <>
         <Text style={styles.title}>Make Reclaim yours.</Text>
         <Text style={styles.body}>Choose what you want to track. Your selections set up the bottom tabs and Home screen. You can change what appears later in Settings.</Text>
@@ -78,8 +78,18 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
         </View>
         <Text style={styles.help}>Your choices only control what appears. You can turn areas on or off later without deleting saved history.</Text>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => { void finish(); }} style={[styles.primary, busy && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Saving setup…' : 'Finish setup'}</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => setStep('guide')} style={styles.primary}><Text style={styles.primaryText}>Continue to first steps</Text></Pressable>
         <Pressable accessibilityRole="button" disabled={busy} onPress={() => setStep('choices')} style={styles.secondary}><Text style={styles.secondaryText}>Change choices</Text></Pressable>
+      </>}
+      {step === 'guide' && <>
+        <Text style={styles.title}>Start with one thing.</Text>
+        <Text style={styles.body}>Your tabs are ready. Nothing is logged automatically just because you selected an area; open a tab to set a goal or add your first record.</Text>
+        {selected.includes('nutrition') && <View style={styles.info}><Text style={styles.infoTitle}>Nutrition: set your targets first</Text><Text style={styles.infoText}>Open Nutrition → Goals & Meals to enter your own carb, protein, fat, and fiber targets. Your calorie and macro rings appear after targets are set and food is logged. You can still log food before setting goals.</Text></View>}
+        {selected.includes('habits') && <View style={styles.info}><Text style={styles.infoTitle}>Habits: choose what to track</Text><Text style={styles.infoText}>Open Habits to add a good habit or a quitting and tapering tracker. Each one has its own goal and logging controls.</Text></View>}
+        <View style={styles.info}><Text style={styles.infoTitle}>You can change this later</Text><Text style={styles.infoText}>Use Settings to show or hide areas. Your saved records are not deleted when a tab is hidden.</Text></View>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => { void finish(); }} style={[styles.primary, busy && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Saving setup…' : 'Open Reclaim'}</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => setStep('review')} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
       </>}
     </ScrollView>
     <Modal visible={privacyOpen} animationType="slide" onRequestClose={() => setPrivacyOpen(false)}><SafeAreaView style={styles.safe} edges={['top', 'bottom']}><ScrollView><PrivacyContent /></ScrollView><Pressable accessibilityRole="button" onPress={() => setPrivacyOpen(false)} style={styles.privacyClose}><Text style={styles.primaryText}>Close</Text></Pressable></SafeAreaView></Modal>
