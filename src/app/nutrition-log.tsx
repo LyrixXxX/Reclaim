@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { NutritionMealConfirmation } from '@/components/nutrition-meal-confirmation';
+import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
+import { useAds } from '@/state/ads-context';
 import { formatClockTime, localClockTime, parseClockTime } from '@/lib/clock-time';
 import { requireNutritionMeal } from '@/lib/nutrition-meal-selection';
 import { extractServingWeightGrams, macroCalories, NutritionLogBatch, nutritionId, parseExplicitNutritionSummaries, prepareNutritionLogBatch, scaleNutrients, servingsForWeight } from '@/lib/nutrition';
@@ -25,6 +27,8 @@ type Draft = {
 };
 
 export default function NutritionLogScreen() {
+  const { completionAdReady, showCompletionAd } = useAds();
+  const [savedConfirmation, setSavedConfirmation] = useState(false);
   const params = useLocalSearchParams<{ mode?: Mode; date?: string; id?: string; foodId?: string; mealId?: string; recoveredPhotoUri?: string; captureOnOpen?: string }>();
   const { nutritionEntries = [], nutritionMealGroups = [], savedFoods = [], savedMeals = [], saveNutritionLogBatch, deleteNutritionEntry } = useTrackers();
   const entry = nutritionEntries.find((item) => item.id === params.id); const savedFood = savedFoods.find((item) => item.id === params.foodId); const savedMeal = savedMeals.find((item) => item.id === params.mealId);
@@ -152,7 +156,8 @@ export default function NutritionLogScreen() {
       saveNutritionLogBatch(batch);
       committed = true;
       setConfirmMeal(false);
-      router.replace('/nutrition');
+      if (!entry && eventDate === today()) setTimeout(() => setSavedConfirmation(true), 300);
+      else router.replace('/nutrition');
     } catch (error) {
       if (mounted.current) Alert.alert('Check food details', message(error));
     } finally {
@@ -179,6 +184,7 @@ export default function NutritionLogScreen() {
     <Pressable disabled={busy} onPress={() => { void save(); }} style={[styles.save, busy && styles.disabled]}><Text style={styles.saveText}>{entry ? 'Save changes' : `Save ${drafts.length || ''} food${drafts.length === 1 ? '' : 's'}`}</Text></Pressable><Pressable onPress={() => router.back()} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable>{entry && <Pressable onPress={remove} style={styles.delete}><Text style={styles.deleteText}>Delete this food entry</Text></Pressable>}
   </KeyboardSafeScrollView>
     <NutritionMealConfirmation visible={confirmMeal} groups={activeGroups} selectedId={mealGroupId} eventDate={eventDate} busy={busy} onSelect={setMealGroupId} onBack={() => { if (!saving.current) setConfirmMeal(false); }} onConfirm={() => { void save(true); }} />
+    <SavedAdConfirmation visible={savedConfirmation} adReady={completionAdReady} onContinue={() => { setSavedConfirmation(false); void showCompletionAd().finally(() => router.replace('/nutrition')); }} />
   </SafeAreaView>;
 }
 

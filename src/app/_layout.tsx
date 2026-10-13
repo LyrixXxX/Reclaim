@@ -12,6 +12,7 @@ import { HomeAdBanner } from '@/components/home-ad-banner';
 import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
 import { MonetizationProvider } from '@/state/monetization-context';
+import { AdsProvider } from '@/state/ads-context';
 import { colors } from '@/theme';
 import { consumePendingCaptureTarget } from '@/lib/pending-capture';
 import '@/lib/activity-recording';
@@ -24,7 +25,7 @@ void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => SplashScreen.se
 const handoffStartup = createStartupHandoff(() => SplashScreen.hide());
 
 export default function RootLayout() {
-  return <View style={styles.shell} onLayout={handoffStartup}><StatusBar style="light" /><AppLockProvider><MonetizationProvider><TrackerProvider><AppShell /></TrackerProvider></MonetizationProvider></AppLockProvider></View>;
+  return <View style={styles.shell} onLayout={handoffStartup}><StatusBar style="light" /><AppLockProvider><MonetizationProvider><AdsProvider><TrackerProvider><AppShell /></TrackerProvider></AdsProvider></MonetizationProvider></AppLockProvider></View>;
 }
 
 function AppShell() {
@@ -93,7 +94,7 @@ function AppShell() {
           <Stack.Screen name="labs" options={{ title: 'Laboratory results' }} />
         </Stack>
         <LocalSaveStatus errorsOnly />
-        {pathname === '/' && !privateContent && <HomeAdBanner />}
+        {['/', '/nutrition', '/activity'].includes(pathname) && !privateContent && <HomeAdBanner />}
         {showBottomNavigation && <BottomNavigation />}
       </View>
       {(!ready || locked) && <AppLockScreen loading={!ready} />}

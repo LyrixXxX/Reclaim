@@ -12,6 +12,8 @@ export const MONETIZATION_ENABLED = mode === 'live'
   && Boolean(process.env.EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL)
   && Boolean(process.env.EXPO_PUBLIC_ADMOB_BANNER_ID)
   && !process.env.EXPO_PUBLIC_ADMOB_BANNER_ID?.startsWith('ca-app-pub-3940256099942544')
+  && Boolean(process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID)
+  && !process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID?.startsWith('ca-app-pub-3940256099942544')
   && Boolean(process.env.EXPO_PUBLIC_ADMOB_APP_ID)
   && !process.env.EXPO_PUBLIC_ADMOB_APP_ID?.startsWith('ca-app-pub-3940256099942544')
   && Boolean(process.env.EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL?.startsWith('https://'));

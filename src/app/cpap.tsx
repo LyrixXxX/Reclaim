@@ -5,10 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CpapChart } from '@/components/cpap-chart';
 import { CpapPressureChart } from '@/components/cpap-pressure-chart';
 import { CpapReadingModal } from '@/components/cpap-reading-modal';
+import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { CpapUsageStreakCard } from '@/components/cpap-usage-streak-card';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { RollingRangeControls } from '@/components/rolling-range-controls';
-import { cpapGoalProgress, cpapSummary, cpapUsageStreakStats } from '@/lib/cpap';
+import { cpapGoalProgress, cpapSummary, cpapUsageStreakStats, lastCompletedSleepDate, type CpapReadingInput } from '@/lib/cpap';
+import { localDateKey } from '@/lib/progress';
+import { useAds } from '@/state/ads-context';
 import { cpapPeriodBounds, cpapPeriodReadings, rollingCpapPeriod } from '@/lib/cpap-calendar';
 import { RollingRange } from '@/lib/rolling-range';
 import { useNow } from '@/hooks/use-now';
@@ -18,6 +21,8 @@ import { colors, layout, spacing, type } from '@/theme';
 
 export default function CpapScreen() {
   const { recoveredPhotoUri, add } = useLocalSearchParams<{ recoveredPhotoUri?: string; add?: string }>();
+  const { completionAdReady, showCompletionAd } = useAds();
+  const [savedConfirmation, setSavedConfirmation] = useState(false);
   const { cpapReadings = [], cpapTherapySettings = [], cpapUsageGoals = [], saveCpapReading, deleteCpapReading, saveCpapUsageGoal } = useTrackers(); const [range, setRange] = useState<RollingRange>('7D'); const [offset, setOffset] = useState(0); const [editing, setEditing] = useState<CpapReading | null | undefined>(recoveredPhotoUri ? null : undefined); const [captureOnOpen, setCaptureOnOpen] = useState(false); const [showDetailedTrends, setShowDetailedTrends] = useState(false);
   const [editingGoal, setEditingGoal] = useState(false); const [goalHours, setGoalHours] = useState('4'); const [goalMinutes, setGoalMinutes] = useState('0');
   const openedAt = useNow(60000);
@@ -37,6 +42,12 @@ export default function CpapScreen() {
     saveCpapUsageGoal(hours * 60 + minutes); setEditingGoal(false);
   };
   const remove = (item: CpapReading) => Alert.alert('Delete CPAP night?', 'This removes the saved values and photo reference for this night only.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteCpapReading(item.id, true) }]);
+  const saveWithConfirmation = (input: CpapReadingInput) => {
+    const now = new Date();
+    const newRecentNight = !input.id && (input.sleepDate === localDateKey(now) || input.sleepDate === lastCompletedSleepDate(now));
+    saveCpapReading(input);
+    if (newRecentNight) setTimeout(() => setSavedConfirmation(true), 300);
+  };
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <MainScreenHeader eyebrow="CPAP THERAPY" subtitle="Capture your machine summary, confirm the extracted values, and keep clear trends for your next visit." accent={colors.cpapNav} />
     <Pressable accessibilityRole="button" onPress={() => { setCaptureOnOpen(true); setEditing(null); }} style={styles.add}><Text style={styles.addText}>+ Scan CPAP Screen</Text></Pressable>
@@ -58,7 +69,7 @@ export default function CpapScreen() {
     {showDetailedTrends && <View style={styles.chartCard}><CpapChart readings={visible} metric="cai" period={period} label="CAI" color={colors.caffeine} suffix="" /><CpapPressureChart readings={visible} settings={cpapTherapySettings} period={period} /><CpapChart readings={visible} metric="p95Leak" period={period} label="95% leak · L/min" color={colors.nicotine} suffix="" /></View>}
     <View style={styles.sectionHeader}><Text style={styles.section}>Latest 7 nights</Text><Link href="/cpap-history" asChild><Pressable><Text style={styles.historyLink}>View all history</Text></Pressable></Link></View>{recentHistory.map((item) => <View key={item.id} style={styles.row}><View style={styles.rowBody}><Text style={styles.rowDate}>{formatDate(item.sleepDate)}</Text><Text style={styles.rowValue}>{formatMinutes(item.usedMinutes)} · AHI {item.ahi}</Text><Text style={styles.rowMeta}>Pressure {item.averagePressure} avg / {item.p95Pressure} P95 cmH₂O · Leak {item.averageLeak} avg / {item.p95Leak} P95 L/min</Text>{item.note && <Text style={styles.rowNote}>{item.note}</Text>}</View><View><Pressable onPress={() => setEditing(item)}><Text style={styles.edit}>Edit</Text></Pressable><Pressable onPress={() => remove(item)}><Text style={styles.delete}>Delete</Text></Pressable></View></View>)}
     <Text style={styles.disclaimer}>For personal recordkeeping only. Reclaim does not diagnose or interpret CPAP results.</Text>
-  </ScrollView><CpapReadingModal key={editing === undefined ? 'closed' : editing?.id ?? recoveredPhotoUri ?? 'new'} visible={editing !== undefined} reading={editing} readings={cpapReadings} initialPhotoUri={recoveredPhotoUri} captureOnOpen={captureOnOpen} onClose={() => { setEditing(undefined); if (recoveredPhotoUri) router.setParams({ recoveredPhotoUri: '' }); }} onSave={saveCpapReading} /></SafeAreaView>;
+  </ScrollView><CpapReadingModal key={editing === undefined ? 'closed' : editing?.id ?? recoveredPhotoUri ?? 'new'} visible={editing !== undefined} reading={editing} readings={cpapReadings} initialPhotoUri={recoveredPhotoUri} captureOnOpen={captureOnOpen} onClose={() => { setEditing(undefined); if (recoveredPhotoUri) router.setParams({ recoveredPhotoUri: '' }); }} onSave={saveWithConfirmation} /><SavedAdConfirmation visible={savedConfirmation} adReady={completionAdReady} onContinue={() => { setSavedConfirmation(false); void showCompletionAd(); }} /></SafeAreaView>;
 }
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
 function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }

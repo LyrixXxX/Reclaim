@@ -1,4 +1,4 @@
-export const PRIVACY_UPDATED = 'October 12, 2026';
+export const PRIVACY_UPDATED = 'October 13, 2026';
 
 export const PRIVACY_SECTIONS = [
   {
@@ -15,7 +15,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'Advertising and purchases',
-    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure a Home-screen ad. Test ads may appear during testing and earn no revenue. Reclaim does not send your habit, health, nutrition, step, or route records as ad-targeting information. If Remove Ads is offered, Google Play handles payment and a Lyrix Studios service verifies the purchase token.',
+    body: 'When ads are enabled, Google may process device and ad-delivery information to show and measure banners on Home, Activity, and Nutrition, plus occasional ads after saving a current CPAP night or meal. Test ads may appear during testing and earn no revenue. Reclaim does not send your habit, health, nutrition, step, or route records as ad-targeting information. If Remove Ads is offered, Google Play handles payment and a Lyrix Studios service verifies the purchase token.',
   },
   {
     title: 'Your choices',

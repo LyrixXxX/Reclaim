@@ -104,11 +104,14 @@ if ($env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1' -and ([string]::IsNull
   throw 'Live monetization requires your own AdMob app ID. Google test IDs cannot be used for release.'
 }
 if ($env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1') {
-  if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_ADMOB_BANNER_ID) -or [string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL) -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL).StartsWith('https://') -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL).StartsWith('https://')) {
-    throw 'Live monetization requires an AdMob banner ID, support email, public HTTPS privacy URL, and HTTPS purchase verifier URL.'
+  if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_ADMOB_BANNER_ID) -or [string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID) -or [string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL) -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL).StartsWith('https://') -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL).StartsWith('https://')) {
+    throw 'Live monetization requires AdMob banner/interstitial IDs, support email, public HTTPS privacy URL, and HTTPS purchase verifier URL.'
   }
   if (([string]$env:EXPO_PUBLIC_ADMOB_BANNER_ID).StartsWith('ca-app-pub-3940256099942544')) {
     throw 'Live monetization cannot use a Google test banner ID.'
+  }
+  if (([string]$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID).StartsWith('ca-app-pub-3940256099942544')) {
+    throw 'Live monetization cannot use a Google test interstitial ID.'
   }
 }
 # The Android ads Gradle project reads app.json directly, independently of
@@ -226,6 +229,7 @@ $monetizationValues = @(
   [string]$env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL,
   [string]$env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL,
   [string]$env:EXPO_PUBLIC_ADMOB_BANNER_ID,
+  [string]$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID,
   [string]$env:EXPO_PUBLIC_ADMOB_APP_ID,
   [string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL
 ) -join '|'
