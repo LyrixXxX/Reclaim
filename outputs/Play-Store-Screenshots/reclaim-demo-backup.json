@@ -6,6 +6,11 @@
   "state": {
     "onboardingStatus": "complete",
     "onboardingSelections": ["habits", "nutrition", "cpap", "weight", "activity", "bloodPressure", "medications", "labs"],
+    "preferences": {
+      "visibleSections": { "goals": true, "health": true, "cpap": true, "weight": true, "nutrition": true, "activity": true },
+      "visibleHealthModules": { "bloodPressure": true, "medications": true, "labs": true },
+      "includeRouteCaloriesInNutrition": false
+    },
     "checkIns": [],
     "historicalEntries": [],
     "trackers": [
@@ -84,6 +89,32 @@
       { "date": "2026-10-07", "count": 5937, "incomplete": false },
       { "date": "2026-10-06", "count": 8031, "incomplete": false }
     ],
-    "activityRoutes": []
+    "activityRoutes": [
+      {
+        "id": "demo-national-mall-walk",
+        "kind": "walk",
+        "name": "National Mall walk (demo)",
+        "notes": "Fictional sample route for Reclaim screenshots.",
+        "startedAt": "2026-10-12T16:10:00.000-05:00",
+        "endedAt": "2026-10-12T16:46:00.000-05:00",
+        "pausedMs": 0,
+        "distanceMeters": 2780,
+        "estimatedCalories": 175,
+        "points": [
+          { "latitude": 38.8893, "longitude": -77.0501, "timestamp": 1791839400000 },
+          { "latitude": 38.8894, "longitude": -77.0475, "timestamp": 1791839580000 },
+          { "latitude": 38.88945, "longitude": -77.045, "timestamp": 1791839760000 },
+          { "latitude": 38.88945, "longitude": -77.042, "timestamp": 1791839940000 },
+          { "latitude": 38.8895, "longitude": -77.039, "timestamp": 1791840120000 },
+          { "latitude": 38.8895, "longitude": -77.036, "timestamp": 1791840300000 },
+          { "latitude": 38.8895, "longitude": -77.0353, "timestamp": 1791840480000 },
+          { "latitude": 38.8887, "longitude": -77.036, "timestamp": 1791840660000 },
+          { "latitude": 38.8886, "longitude": -77.04, "timestamp": 1791840840000 },
+          { "latitude": 38.8886, "longitude": -77.044, "timestamp": 1791841020000 },
+          { "latitude": 38.8887, "longitude": -77.048, "timestamp": 1791841200000 },
+          { "latitude": 38.8893, "longitude": -77.0501, "timestamp": 1791841380000 }
+        ]
+      }
+    ]
   }
 }
