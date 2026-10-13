@@ -74,3 +74,24 @@ npm run verify
 
 This runs Expo ESLint, strict TypeScript checking, the Jest test suite, and the
 Nutrition AI relay tests.
+
+## Google Play internal test
+
+From PowerShell in this folder, set `EXPO_PUBLIC_STADIA_MAPS_KEY` in that same
+terminal as for the phone builds, then run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-android.ps1 -PlayBundle
+```
+
+The script builds and verifies a signed `dist\Reclaim-android-release.aab` on
+your PC. Upload that **AAB**, not the APK, in Play Console under **Test and
+release → Testing → Internal testing → Create new release**. Add your Google
+account to the internal testers list, roll out the release, and install it using
+the tester opt-in link. The existing command without `-PlayBundle` still builds
+an APK for direct phone installs. Increase Android `versionCode` for every
+subsequent Play upload.
+
+A Play-installed copy may use a different signing certificate from a sideloaded
+APK and therefore may not install over it. Use a spare phone for the first Play
+test, or export a Reclaim backup before replacing an existing installation.

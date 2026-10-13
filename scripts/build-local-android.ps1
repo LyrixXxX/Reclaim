@@ -1,6 +1,7 @@
 param(
   [string]$BuildRoot = 'C:\ReclaimBuild',
-  [switch]$SyncOnly
+  [switch]$SyncOnly,
+  [switch]$PlayBundle
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,7 @@ $markerPath = Join-Path $buildRootFull '.reclaim-local-build'
 $credentialsPath = Join-Path $sourceRoot 'credentials.json'
 $outputDirectory = Join-Path $sourceRoot 'dist'
 $outputApk = Join-Path $outputDirectory 'Reclaim-android-release.apk'
+$outputBundle = Join-Path $outputDirectory 'Reclaim-android-release.aab'
 
 if (-not $SyncOnly) {
   try {
@@ -136,7 +138,7 @@ if ($nativeConfigHash -ne $cachedNativeConfigHash) {
 $androidManifestPath = Join-Path $buildRootFull 'android\app\src\main\AndroidManifest.xml'
 if (-not (Test-Path -LiteralPath $androidManifestPath) -or
     -not (Select-String -LiteralPath $androidManifestPath -Pattern '<uses-permission\s+android:name="android.permission.RECEIVE_BOOT_COMPLETED"' -Quiet)) {
-  throw 'Android manifest is missing RECEIVE_BOOT_COMPLETED. Refusing to build an APK that crashes when a route starts.'
+  throw 'Android manifest is missing RECEIVE_BOOT_COMPLETED. Refusing to build a release that crashes when a route starts.'
 }
 
 # The source checkout contains an older generated android/gradle.properties.
@@ -199,9 +201,9 @@ $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
 $tileStatus = & $nodeExecutable --input-type=module -e "try { const response = await fetch('https://tiles.stadiamaps.com/tiles/outdoors/1/1/1.png', { headers: { Authorization: 'Stadia-Auth ' + process.env.EXPO_PUBLIC_STADIA_MAPS_KEY }, signal: AbortSignal.timeout(20000) }); await response.arrayBuffer(); console.log(response.status); if (!response.ok) process.exitCode = 1; } catch { process.exitCode = 2; }"
 if ($LASTEXITCODE -ne 0) {
   if ($tileStatus -eq '401' -or $tileStatus -eq '403') {
-    throw "Stadia Maps rejected this key (HTTP $tileStatus). Check that it is an active Stadia Maps API key for the selected property. No APK was built."
+    throw "Stadia Maps rejected this key (HTTP $tileStatus). Check that it is an active Stadia Maps API key for the selected property. No Android release was built."
   }
-  throw 'Could not verify Stadia Maps access. Check the internet connection and key in this PowerShell window. No APK was built.'
+  throw 'Could not verify Stadia Maps access. Check the internet connection and key in this PowerShell window. No Android release was built.'
 }
 Write-Host 'Stadia Maps access verified.'
 $keyBytes = [Text.Encoding]::UTF8.GetBytes($stadiaKey)
@@ -307,8 +309,10 @@ try {
   & $gradle :app:generateAutolinkingNewArchitectureFiles --no-daemon --no-parallel --max-workers=1 --stacktrace
   if ($LASTEXITCODE -ne 0) { throw "Autolinking generation failed with exit code $LASTEXITCODE." }
 
-  Write-Host 'Building the signed Android release APK...'
-  & $gradle assembleRelease --no-daemon --no-parallel --max-workers=1 --stacktrace
+  $releaseTask = if ($PlayBundle) { 'bundleRelease' } else { 'assembleRelease' }
+  $releaseKind = if ($PlayBundle) { 'App Bundle for Google Play' } else { 'APK' }
+  Write-Host "Building the signed Android release $releaseKind..."
+  & $gradle $releaseTask --no-daemon --no-parallel --max-workers=1 --stacktrace
   if ($LASTEXITCODE -ne 0) { throw "Android build failed with exit code $LASTEXITCODE." }
 } finally {
   Pop-Location
@@ -317,28 +321,45 @@ try {
   else { $env:JAVA_TOOL_OPTIONS = $previousJavaToolOptions }
 }
 
-$builtApk = Join-Path $buildRootFull 'android\app\build\outputs\apk\release\app-release.apk'
-if (-not (Test-Path -LiteralPath $builtApk)) { throw 'Gradle completed but the APK was not found.' }
-$aapt = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0\aapt.exe'
-if (-not (Test-Path -LiteralPath $aapt)) { throw 'Android aapt was not found for APK permission verification.' }
-$apkPermissions = & $aapt dump permissions $builtApk
-if ($LASTEXITCODE -ne 0 -or -not ($apkPermissions -match 'android.permission.RECEIVE_BOOT_COMPLETED')) {
-  throw 'The built APK is missing RECEIVE_BOOT_COMPLETED. Refusing to publish the crashing APK.'
-}
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-Copy-Item -LiteralPath $builtApk -Destination $outputApk -Force
-
-$apksigner = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0\apksigner.bat'
-if (-not (Test-Path -LiteralPath $apksigner)) { throw 'Android apksigner was not found.' }
-& $apksigner verify --verbose $outputApk | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'The APK was created but its Android signature could not be verified.' }
+if ($PlayBundle) {
+  $builtBundle = Join-Path $buildRootFull 'android\app\build\outputs\bundle\release\app-release.aab'
+  if (-not (Test-Path -LiteralPath $builtBundle)) { throw 'Gradle completed but the App Bundle was not found.' }
+  $jarsigner = Join-Path $env:JAVA_HOME 'bin\jarsigner.exe'
+  if (-not (Test-Path -LiteralPath $jarsigner)) { throw 'Java jarsigner was not found for App Bundle signature verification.' }
+  $signatureResult = & $jarsigner -verify $builtBundle 2>&1
+  if ($LASTEXITCODE -ne 0 -or -not (($signatureResult -join "`n") -match 'jar verified\.')) {
+    throw 'The App Bundle was created but its upload signature could not be verified.'
+  }
+  Copy-Item -LiteralPath $builtBundle -Destination $outputBundle -Force
+  $outputArtifact = $outputBundle
+} else {
+  $builtApk = Join-Path $buildRootFull 'android\app\build\outputs\apk\release\app-release.apk'
+  if (-not (Test-Path -LiteralPath $builtApk)) { throw 'Gradle completed but the APK was not found.' }
+  $aapt = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0\aapt.exe'
+  if (-not (Test-Path -LiteralPath $aapt)) { throw 'Android aapt was not found for APK permission verification.' }
+  $apkPermissions = & $aapt dump permissions $builtApk
+  if ($LASTEXITCODE -ne 0 -or -not ($apkPermissions -match 'android.permission.RECEIVE_BOOT_COMPLETED')) {
+    throw 'The built APK is missing RECEIVE_BOOT_COMPLETED. Refusing to publish the crashing APK.'
+  }
+  Copy-Item -LiteralPath $builtApk -Destination $outputApk -Force
+  $apksigner = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0\apksigner.bat'
+  if (-not (Test-Path -LiteralPath $apksigner)) { throw 'Android apksigner was not found.' }
+  & $apksigner verify --verbose $outputApk | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'The APK was created but its Android signature could not be verified.' }
+  $outputArtifact = $outputApk
+}
 Set-Content -LiteralPath $stadiaMarker -Value $stadiaKeyHash
 Set-Content -LiteralPath $monetizationMarker -Value $monetizationHash
 
-$sizeMb = [Math]::Round((Get-Item -LiteralPath $outputApk).Length / 1MB, 1)
+$sizeMb = [Math]::Round((Get-Item -LiteralPath $outputArtifact).Length / 1MB, 1)
 Write-Host ''
 Write-Host 'Reclaim Android build completed successfully.' -ForegroundColor Green
-Write-Host "APK: $outputApk"
+Write-Host "$($releaseKind): $outputArtifact"
 Write-Host "Size: $sizeMb MB"
 Write-Host 'Signature: verified'
-Write-Host 'Install this over the existing app. Do not uninstall Reclaim first.'
+if ($PlayBundle) {
+  Write-Host 'Upload this .aab file to Google Play Console > Test and release > Testing > Internal testing.'
+} else {
+  Write-Host 'Install this APK over the existing app. Do not uninstall Reclaim first.'
+}
