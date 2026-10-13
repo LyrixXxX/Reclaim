@@ -27,6 +27,7 @@ export default function ActivityMapScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [active, setActive] = useState<ActiveRoute | null>(null);
   const [recording, setRecording] = useState(false);
+  const [mapPermissionRefresh, setMapPermissionRefresh] = useState(0);
   const [key, setKey] = useState('');
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [mapError, setMapError] = useState('');
@@ -40,6 +41,8 @@ export default function ActivityMapScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [weightPrompt, setWeightPrompt] = useState(false);
+  const [locationDisclosure, setLocationDisclosure] = useState(false);
+  const [routeWeightKg, setRouteWeightKg] = useState<number | undefined>();
   const [weightDraft, setWeightDraft] = useState('');
   const [weightUnit, setWeightUnit] = useState<'lb' | 'kg'>('lb');
   const [busy, setBusy] = useState(false);
@@ -51,6 +54,7 @@ export default function ActivityMapScreen() {
     setRecording(await isRouteRecording().catch(() => false));
   }, []);
   useFocusEffect(useCallback(() => {
+    if (mapPermissionRefresh > 0) setLocationMessage('Finding your location…');
     void getMapKey().then((value) => { if (!cancelled) { setKey(value); if (!value) setMapLoading(false); } }).catch(() => { if (!cancelled) { setMapError('Map configuration could not be read.'); setMapLoading(false); } });
     void refresh();
     const timer = setInterval(() => { void refresh(); }, 5000);
@@ -58,9 +62,9 @@ export default function ActivityMapScreen() {
     let locationSubscription: Location.LocationSubscription | undefined;
     let cancelled = false;
     void (async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
+      const permission = await Location.getForegroundPermissionsAsync();
       if (cancelled) return;
-      if (!permission.granted) { setLocationMessage('Allow location to center the map on you.'); return; }
+      if (!permission.granted) { setLocationMessage('Start a route or tap Re-Center to allow location.'); return; }
       const initial = await Location.getLastKnownPositionAsync().catch(() => null);
       if (initial && !cancelled) {
         const coordinate: [number, number] = [initial.coords.longitude, initial.coords.latitude];
@@ -79,7 +83,7 @@ export default function ActivityMapScreen() {
     })().catch(() => { if (!cancelled) setLocationMessage('Could not get your location. Tap Re-Center to try again.'); });
     const subscription = AppState.addEventListener('change', (status) => { if (status === 'active') void refresh(); });
     return () => { cancelled = true; clearInterval(timer); clearInterval(clockTimer); subscription.remove(); locationSubscription?.remove(); };
-  }, [refresh]));
+  }, [refresh, mapPermissionRefresh]));
   const withBusy = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -90,14 +94,21 @@ export default function ActivityMapScreen() {
   const begin = () => {
     const localDate = localDateKey(new Date());
     const savedWeight = latestRouteWeightKg(weightEntries, localDate);
-    if (savedWeight) void withBusy(async () => { setSelected(null); await startRoute(kind, savedWeight); });
-    else setWeightPrompt(true);
+    if (savedWeight) {
+      setRouteWeightKg(savedWeight);
+      setLocationDisclosure(true);
+    } else setWeightPrompt(true);
   };
   const beginWithEnteredWeight = () => {
     const value = Number(weightDraft);
     if (!Number.isFinite(value) || value <= 0 || value > (weightUnit === 'lb' ? 1400 : 635)) { Alert.alert('Enter a valid weight', 'Weight is used only for this route’s calorie estimate.'); return; }
     setWeightPrompt(false);
-    void withBusy(async () => { setSelected(null); await startRoute(kind, weightUnit === 'lb' ? value * 0.45359237 : value); });
+    setRouteWeightKg(weightUnit === 'lb' ? value * 0.45359237 : value);
+    setLocationDisclosure(true);
+  };
+  const beginAfterDisclosure = () => {
+    setLocationDisclosure(false);
+    void withBusy(async () => { setSelected(null); await startRoute(kind, routeWeightKg); setMapPermissionRefresh((value) => value + 1); });
   };
   const finish = () => Alert.alert('Finish route?', 'This stops GPS recording and opens the route summary.', [
     { text: 'Keep recording', style: 'cancel' },
@@ -189,6 +200,7 @@ export default function ActivityMapScreen() {
     </View>}
     {active && <View style={styles.card}><Text style={styles.cardTitle}>Current activity</Text><StatusRow label="Activity type" value={active.kind.charAt(0).toUpperCase() + active.kind.slice(1)} /><StatusRow label="GPS" value={gpsStatus} /><StatusRow label="Distance" value={formatMiles(activeDistance)} /><StatusRow label="Active time" value={formatClock(activeDuration)} /><StatusRow label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /></View>}
     <Modal visible={weightPrompt} transparent animationType="fade" onRequestClose={() => setWeightPrompt(false)}><View style={styles.modalShade}><View style={styles.card}><Text style={styles.cardTitle}>Weight for this route</Text><Text style={styles.body}>No saved weight is available. Enter one for an approximate calorie estimate. This will not add a Weight entry.</Text><TextInput accessibilityLabel="Route weight" keyboardType="decimal-pad" value={weightDraft} onChangeText={setWeightDraft} placeholder="Weight" placeholderTextColor={colors.textDim} style={styles.input} /><View style={styles.row}>{(['lb', 'kg'] as const).map((unit) => <Pressable key={unit} onPress={() => setWeightUnit(unit)} style={[styles.smallButton, weightUnit === unit && styles.selected]}><Text style={styles.buttonText}>{unit}</Text></Pressable>)}</View><Button label="Start Route" onPress={beginWithEnteredWeight} /><Button label="Cancel" onPress={() => setWeightPrompt(false)} secondary /></View></View></Modal>
+    <Modal visible={locationDisclosure} transparent animationType="fade" onRequestClose={() => setLocationDisclosure(false)}><View style={styles.modalShade}><View style={styles.card}><Text style={styles.cardTitle}>Location while recording a route</Text><Text style={styles.body}>Reclaim collects location data to record the walk, hike, or run you choose to start, even when the app is in the background or the screen is locked. This draws your route and calculates distance and pace. Recording stops when you pause or finish. Saved route points stay on your device unless you export them; they are not used for ads.</Text><Button label="Continue to location permissions" onPress={beginAfterDisclosure} /><Button label="Not now" onPress={() => setLocationDisclosure(false)} secondary /></View></View></Modal>
     {selectedRoute && <View style={styles.card}>
       <Text style={styles.cardTitle}>{selectedRoute.name || selectedRoute.kind}</Text>
       <Text style={styles.body}>{selectedRoute.kind === 'route' ? 'Route' : selectedRoute.kind.charAt(0).toUpperCase() + selectedRoute.kind.slice(1)} · {new Date(selectedRoute.startedAt).toLocaleDateString()}</Text>
