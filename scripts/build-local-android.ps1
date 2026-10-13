@@ -135,6 +135,23 @@ if ($nativeConfigHash -ne $cachedNativeConfigHash) {
   Set-Content -LiteralPath $nativeConfigMarker -Value $nativeConfigHash
 }
 
+# Incremental Expo prebuild can retain an older generated build.gradle. Play
+# requires a strictly increasing version code for every uploaded bundle.
+$releaseConfig = Get-Content -Raw -LiteralPath (Join-Path $buildRootFull 'app.json') | ConvertFrom-Json
+$releaseVersionCode = [int]$releaseConfig.expo.android.versionCode
+$releaseVersionName = [string]$releaseConfig.expo.version
+if ($releaseVersionCode -lt 1 -or $releaseVersionName -notmatch '^\d+\.\d+\.\d+$') {
+  throw 'app.json must contain a positive Android versionCode and a numeric version name.'
+}
+$gradleFile = Join-Path $buildRootFull 'android\app\build.gradle'
+$gradleRelease = Get-Content -Raw -LiteralPath $gradleFile
+if ($gradleRelease -notmatch '(?m)^[ \t]*versionCode[ \t]+\d+[ \t]*$' -or $gradleRelease -notmatch '(?m)^[ \t]*versionName[ \t]+"[^"]+"[ \t]*$') {
+  throw 'Generated Android build.gradle has no recognizable release version fields.'
+}
+$gradleRelease = $gradleRelease -replace '(?m)^([ \t]*versionCode[ \t]+)\d+[ \t]*$', ('${1}' + $releaseVersionCode)
+$gradleRelease = $gradleRelease -replace '(?m)^([ \t]*versionName[ \t]+)"[^"]+"[ \t]*$', ('${1}"' + $releaseVersionName + '"')
+Set-Content -LiteralPath $gradleFile -Value $gradleRelease
+
 # Expo's incremental prebuild can leave an older checked-in manifest intact.
 # Route recording schedules a persistent Android job; without this permission
 # the phone force-closes Reclaim on the first location update.
