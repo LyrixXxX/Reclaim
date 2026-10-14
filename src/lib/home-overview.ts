@@ -1,7 +1,7 @@
 import { TrackerState } from '@/models/tracker';
 import { StepResult } from './activity-steps';
 import { goalForDate as stepGoalForDate } from './activity-step-history';
-import { routeCaloriesForDate } from './activity';
+import { exerciseCaloriesForDate } from './workouts';
 import { goalForDate as nutritionGoalForDate, macroCalories, nutritionTotals } from './nutrition';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
@@ -32,7 +32,7 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date) 
     ? nutritionGoalForDate(state.nutritionGoals ?? [], today) : undefined;
   const nutrition = nutritionGoal ? {
     ...nutritionTotals(state.nutritionEntries ?? [], today),
-    budget: macroCalories(nutritionGoal) + routeCaloriesForDate(state.activityRoutes ?? [], today, preferences.includeRouteCaloriesInNutrition ?? false),
+    budget: macroCalories(nutritionGoal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total,
   } : null;
   const nutritionReached = Boolean(nutrition && nutritionGoalReached(nutrition.calories, nutrition.budget, nutrition.entryCount));
 

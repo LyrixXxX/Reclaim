@@ -32,7 +32,7 @@ function AppShell() {
   const pathname = usePathname();
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/activity-map', '/settings'];
+  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/activity-map', '/workouts', '/settings'];
   const showBottomNavigation = mainTabs.includes(pathname);
   useEffect(() => {
     Promise.all([ImagePicker.getPendingResultAsync(), consumePendingCaptureTarget()]).then(([result, target]) => {
@@ -68,6 +68,14 @@ function AppShell() {
           <Stack.Screen name="weight" options={{ headerShown: false }} />
           <Stack.Screen name="nutrition" options={{ headerShown: false }} />
           <Stack.Screen name="activity" options={{ headerShown: false }} />
+          <Stack.Screen name="workouts" options={{ headerShown: false }} />
+          <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
+          <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
+          <Stack.Screen name="workout-routines" options={{ title: 'Routines' }} />
+          <Stack.Screen name="workout-history" options={{ title: 'Workout history' }} />
+          <Stack.Screen name="workout-progress" options={{ title: 'Strength progress' }} />
+          <Stack.Screen name="workout-exercise-progress" options={{ title: 'Exercise progress' }} />
+          <Stack.Screen name="workout-settings" options={{ title: 'Workout settings' }} />
           <Stack.Screen name="activity-map" options={{ headerShown: false }} />
           <Stack.Screen name="activity-routes" options={{ title: 'Saved routes' }} />
           <Stack.Screen name="activity-map-settings" options={{ title: 'Offline maps' }} />

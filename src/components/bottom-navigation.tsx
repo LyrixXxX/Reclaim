@@ -33,6 +33,7 @@ export function BottomNavigation() {
           {preferences.visibleSections.goals && <Tab href="/habits" label="Habits" icon="habits" color={colors.habitsNav} active={path === '/habits'} />}
           {preferences.visibleSections.weight && <Tab href="/weight" label="Weight" icon="weight" color={colors.weightNav} active={path.startsWith('/weight')} />}
           {preferences.visibleSections.nutrition && <Tab href="/nutrition" label="Nutrition" icon="nutrition" color={colors.nutritionNav} active={path.startsWith('/nutrition')} />}
+          {preferences.visibleSections.workouts && <Tab href="/workouts" label="Workouts" icon="workouts" color={colors.workoutsNav} active={path.startsWith('/workout')} />}
           {preferences.visibleSections.activity && <Tab href="/activity" label="Activity" icon="activity" color={colors.activityNav} active={path === '/activity' || path === '/activity-map'} />}
         </ScrollView>
         {overflow.canScrollLeft && <ScrollCue side="left" />}
@@ -54,9 +55,9 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'settings';
+type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'workouts' | 'settings';
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
+function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/workouts' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
     <NavIcon name={icon} active={active} />
     <Text style={[styles.label, active && { color }]}>{label}</Text>
@@ -64,9 +65,10 @@ function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/w
 }
 
 function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
+  if (name === 'workouts') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Svg width="34" height="34" viewBox="0 0 34 34"><Path d="M3 12v10m4-14v18m4-13v8m12-8v8m4-13v18m4-14v10M11 17h12" stroke={colors.workoutsNav} strokeWidth="3" strokeLinecap="round" /></Svg></View>;
   const centers: Record<NavIconName, [number, number]> = {
     home: [267, 198], habits: [680, 198],
-    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], settings: [1508, 623],
+    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], workouts: [1096, 623], settings: [1508, 623],
   };
   const scale = 34 / 326;
   const [centerX, centerY] = centers[name];

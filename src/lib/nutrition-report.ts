@@ -1,5 +1,5 @@
-import { ActivityRoute, NutritionEntry, NutritionGoalProfile, NutritionMealGroup, NutritionNutrients } from '@/models/tracker';
-import { routeCaloriesForDate } from './activity';
+import { ActivityRoute, NutritionEntry, NutritionGoalProfile, NutritionMealGroup, NutritionNutrients, WorkoutSession } from '@/models/tracker';
+import { exerciseCaloriesForDate } from './workouts';
 import { goalForDate, metricValue, NutritionMetric, nutritionEntryCalories, nutritionTotals } from './nutrition';
 import { rollingBounds } from './rolling-range';
 
@@ -44,7 +44,7 @@ export function reportValue(totals: ReportTotals | null, metric: NutritionMetric
   return metricValue({ ...totals, entryCount: 0 }, metric);
 }
 
-export function buildNutritionReport(entries: NutritionEntry[], goals: NutritionGoalProfile[], groups: NutritionMealGroup[], range: ReportRange, offset: number, now = new Date(), routes: ActivityRoute[] = [], includeRoutes = false) {
+export function buildNutritionReport(entries: NutritionEntry[], goals: NutritionGoalProfile[], groups: NutritionMealGroup[], range: ReportRange, offset: number, now = new Date(), routes: ActivityRoute[] = [], includeRoutes = false, workouts: WorkoutSession[] = [], includeWorkouts = false) {
   const today = reportDateKey(now);
   const firstDate = [...entries].sort((a, b) => a.eventDate.localeCompare(b.eventDate))[0]?.eventDate;
   const period = reportPeriod(range, offset, now, firstDate);
@@ -54,7 +54,7 @@ export function buildNutritionReport(entries: NutritionEntry[], goals: Nutrition
   const summarize = (dates: string[], includeToday = false): ReportSummary => {
     const eligible = dates.filter((key) => key < today || (includeToday && key === today));
     const logged = eligible.filter((key) => byDate.has(key));
-    return { loggedDays: logged.length, elapsedDays: eligible.length, average: average(logged.map((key) => nutritionTotals(byDate.get(key)!))), goals: average(logged.flatMap((key) => { const goal = goalForDate(goals, key); return goal ? [{ ...goalTotals(goal), calories: goalTotals(goal).calories + routeCaloriesForDate(routes, key, includeRoutes) }] : []; })) };
+    return { loggedDays: logged.length, elapsedDays: eligible.length, average: average(logged.map((key) => nutritionTotals(byDate.get(key)!))), goals: average(logged.flatMap((key) => { const goal = goalForDate(goals, key); return goal ? [{ ...goalTotals(goal), calories: goalTotals(goal).calories + exerciseCaloriesForDate(routes, workouts, key, includeRoutes, includeWorkouts).total }] : []; })) };
   };
   const summary = summarize(period.dates);
   const previousDates = range === 'all' ? [] : offset === 0 ? previousPeriod.dates.slice(0, summary.elapsedDays) : previousPeriod.dates;
@@ -69,7 +69,7 @@ export function buildNutritionReport(entries: NutritionEntry[], goals: Nutrition
     const meals: Record<string, number> = {};
     for (const key of eligible) for (const entry of byDate.get(key) ?? []) meals[entry.mealGroupId] = (meals[entry.mealGroupId] ?? 0) + nutritionEntryCalories(entry) / summary.loggedDays;
     const dayGoal = dates[0] <= today ? goalForDate(goals, dates[0]) : undefined;
-    return { ...summary, goals: bucketSize > 1 ? summary.goals : dayGoal ? { ...goalTotals(dayGoal), calories: goalTotals(dayGoal).calories + routeCaloriesForDate(routes, dates[0], includeRoutes) } : null,
+    return { ...summary, goals: bucketSize > 1 ? summary.goals : dayGoal ? { ...goalTotals(dayGoal), calories: goalTotals(dayGoal).calories + exerciseCaloriesForDate(routes, workouts, dates[0], includeRoutes, includeWorkouts).total } : null,
       key: dates[0], label: bucketSize > 1 ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : range === 'week' ? `${date.toLocaleDateString(undefined, { weekday: 'short' })}\n${date.getMonth() + 1}/${date.getDate()}` : `${date.getMonth() + 1}/${date.getDate()}`,
       detail: dates.length > 1 ? `${dates[0]} – ${dates.at(-1)}` : date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
       state: dates.includes(today) ? 'today' : summary.loggedDays ? 'logged' : eligible.length ? 'missing' : 'future', meals };
@@ -77,7 +77,7 @@ export function buildNutritionReport(entries: NutritionEntry[], goals: Nutrition
   const usedIds = new Set(points.flatMap((point) => Object.keys(point.meals)));
   const mealGroups = [...usedIds].map((id) => ({ id, name: groups.find((g) => g.id === id)?.name ?? entries.find((e) => e.mealGroupId === id)?.mealLabel ?? 'Meal', color: mealColor(id) })).sort((a, b) => (groups.find((g) => g.id === a.id)?.sortOrder ?? 999) - (groups.find((g) => g.id === b.id)?.sortOrder ?? 999) || a.id.localeCompare(b.id));
   const todayGoal = goalForDate(goals, today);
-  return { ...period, points, summary, previous, previousLabel: previousDates.length ? `${previousDates[0]} – ${previousDates.at(-1)}` : 'No elapsed comparison days', mealGroups, today: nutritionTotals(byDate.get(today) ?? []), todayGoal: todayGoal ? { ...todayGoal, calorieBudget: goalTotals(todayGoal).calories + routeCaloriesForDate(routes, today, includeRoutes) } : undefined, isCurrent: offset === 0 };
+  return { ...period, points, summary, previous, previousLabel: previousDates.length ? `${previousDates[0]} – ${previousDates.at(-1)}` : 'No elapsed comparison days', mealGroups, today: nutritionTotals(byDate.get(today) ?? []), todayGoal: todayGoal ? { ...todayGoal, calorieBudget: goalTotals(todayGoal).calories + exerciseCaloriesForDate(routes, workouts, today, includeRoutes, includeWorkouts).total } : undefined, isCurrent: offset === 0 };
 }
 
 export function mealColor(id: string) {

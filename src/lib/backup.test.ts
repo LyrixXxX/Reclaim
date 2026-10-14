@@ -65,7 +65,7 @@ describe('full Reclaim backups', () => {
 
   it('accepts legacy version-one backups and upgrades them', () => {
     const parsed = parseReclaimBackup(JSON.stringify({ format: 'reclaim-full-backup', version: 1, exportedAt: 'now', state: { trackers: [], checkIns: [] }, attachments: [] }));
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(3);
   });
 
   it('accepts old medication records, preserves supplement types, and rejects unknown types', () => {

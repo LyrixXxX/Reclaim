@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
+import { ActivityRoute, ActualOneRepMax, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { DEFAULT_WORKOUT_SETTINGS, finishWorkout, startWorkout } from '@/lib/workouts';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
@@ -85,6 +86,19 @@ type TrackerContextValue = TrackerState & {
   saveActivityRoute: (route: ActivityRoute) => Promise<void>;
   deleteActivityRoute: (id: string) => void;
   saveStepGoal: (date: string, count: number) => void;
+  saveStrengthExercise: (exercise: StrengthExercise) => void;
+  saveWorkoutRoutine: (routine: WorkoutRoutine) => void;
+  deleteWorkoutRoutine: (id: string) => void;
+  beginWorkout: (name: string, routine?: WorkoutRoutine) => void;
+  updateActiveWorkout: (update: (session: WorkoutSession) => WorkoutSession) => void;
+  completeWorkout: () => void;
+  discardWorkout: () => void;
+  editWorkoutHistory: (session: WorkoutSession) => void;
+  deleteWorkoutHistory: (id: string) => void;
+  saveActualOneRepMax: (record: ActualOneRepMax) => void;
+  deleteActualOneRepMax: (id: string) => void;
+  updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
+  setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   getBackupState: () => TrackerState;
   restoreBackupState: (backupState: TrackerState) => Promise<void>;
 };
@@ -112,6 +126,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       .then(async (parsed) => {
         if (!active) return;
         if (parsed !== null) {
+          for (const tracker of parsed.trackers) if (tracker.habitTemplate === 'exercise') await cancelHabitReminder(tracker.habitNotificationId);
           const migrated = (parsed.lapseEvents ?? []).map((event): HistoricalEntry => ({
             id: `legacy-${event.id}`,
             trackerId: event.trackerId,
@@ -218,6 +233,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteHistory: (id, confirmed) =>
       setState((previous) => deleteTrackerHistory(previous, id, confirmed)),
     createCustomTracker: async (draft, id) => {
+      if (draft.habitTemplate === 'exercise') throw new Error('Exercise habit goals are archived. Use Workouts for new strength sessions.');
       const result = createTracker(state, draft, id);
       if (!result.tracker) return;
       let tracker = result.tracker;
@@ -229,6 +245,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     },
     editExistingTracker: async (id, draft) => {
       const current = state.trackers.find((tracker) => tracker.id === id);
+      if (current?.habitTemplate === 'exercise') throw new Error('Legacy Exercise habit goals are read-only.');
       const result = editTracker(state, id, draft);
       if (!current || !result.tracker) return;
       let tracker = result.tracker;
@@ -247,7 +264,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
     saveGoodHabitLog: (log) => setState((previous) => {
       const tracker = previous.trackers.find((item) => item.id === log.trackerId && item.habitTemplate && item.habitTemplate !== 'water' && !item.archived);
-      if (!tracker || !validHabitLog(log) || (log.nutritionEntryId && tracker.habitTemplate !== 'produce')) return previous;
+      if (!tracker || tracker.habitTemplate === 'exercise' || !validHabitLog(log) || (log.nutritionEntryId && tracker.habitTemplate !== 'produce')) return previous;
       return { ...previous, goodHabitLogs: [...(previous.goodHabitLogs ?? []).filter((item) => item.id !== log.id
         && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)
         && !(log.nutritionEntryId && item.trackerId === log.trackerId && item.nutritionEntryId === log.nutritionEntryId)), log] };
@@ -255,6 +272,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteGoodHabitLog: (id) => setState((previous) => ({ ...previous, goodHabitLogs: (previous.goodHabitLogs ?? []).filter((log) => log.id !== id) })),
     setArchived: (id, archived) => {
       const tracker = state.trackers.find((item) => item.id === id);
+      if (tracker?.habitTemplate === 'exercise' && !archived) return;
       if (archived) void cancelHabitReminder(tracker?.habitNotificationId);
       else if (tracker?.habitReminderTime) void scheduleHabitReminder({ ...tracker, archived: false }).then((habitNotificationId) => setState((previous) => ({ ...previous, trackers: previous.trackers.map((item) => item.id === id ? { ...item, habitNotificationId } : item) }))).catch(() => undefined);
       setState((previous) => setTrackerArchived(previous, id, archived));
@@ -312,6 +330,19 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     },
     deleteActivityRoute: (id) => setState((previous) => ({ ...previous, activityRoutes: (previous.activityRoutes ?? []).filter((route) => route.id !== id) })),
     saveStepGoal: (date, count) => setState((previous) => ({ ...previous, stepGoals: setDailyStepGoal(previous.stepGoals ?? [], date, count) })),
+    saveStrengthExercise: (exercise) => setState((previous) => ({ ...previous, strengthExercises: [...(previous.strengthExercises ?? []).filter((item) => item.id !== exercise.id), exercise] })),
+    saveWorkoutRoutine: (routine) => setState((previous) => ({ ...previous, workoutRoutines: [...(previous.workoutRoutines ?? []).filter((item) => item.id !== routine.id), routine] })),
+    deleteWorkoutRoutine: (id) => setState((previous) => ({ ...previous, workoutRoutines: (previous.workoutRoutines ?? []).filter((item) => item.id !== id) })),
+    beginWorkout: (name, routine) => setState((previous) => previous.activeWorkout ? previous : { ...previous, activeWorkout: startWorkout(name, routine, new Date().toISOString(), previous.strengthExercises ?? []) }),
+    updateActiveWorkout: (update) => setState((previous) => previous.activeWorkout ? { ...previous, activeWorkout: update(previous.activeWorkout) } : previous),
+    completeWorkout: () => setState((previous) => finishWorkout(previous)),
+    discardWorkout: () => setState((previous) => ({ ...previous, activeWorkout: undefined })),
+    editWorkoutHistory: (session) => setState((previous) => ({ ...previous, workoutSessions: (previous.workoutSessions ?? []).map((item) => item.id === session.id ? session : item) })),
+    deleteWorkoutHistory: (id) => setState((previous) => ({ ...previous, workoutSessions: (previous.workoutSessions ?? []).filter((item) => item.id !== id) })),
+    saveActualOneRepMax: (record) => setState((previous) => ({ ...previous, actualOneRepMaxes: [...(previous.actualOneRepMaxes ?? []).filter((item) => item.id !== record.id), record] })),
+    deleteActualOneRepMax: (id) => setState((previous) => ({ ...previous, actualOneRepMaxes: (previous.actualOneRepMaxes ?? []).filter((item) => item.id !== id) })),
+    updateWorkoutSettings: (update) => setState((previous) => ({ ...previous, workoutSettings: { ...DEFAULT_WORKOUT_SETTINGS, ...previous.workoutSettings, ...update } })),
+    setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),
     getBackupState: () => JSON.parse(JSON.stringify(state)) as TrackerState,
     restoreBackupState: async (backupState) => {
       for (const tracker of state.trackers) await cancelHabitReminder(tracker.habitNotificationId);
@@ -358,7 +389,8 @@ const storageStyles = StyleSheet.create({
 
 function migrateStoredState(parsed: TrackerState): TrackerState {
   // Keep older medical records untouched for future full-edition restores.
-  return migratePreferences(migrateNutritionState(migrateTaperState(parsed)));
+  const migrated = migratePreferences(migrateNutritionState(migrateTaperState(parsed)));
+  return { ...migrated, trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
 }
 
 export function useTrackers() {

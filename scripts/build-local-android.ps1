@@ -212,6 +212,15 @@ if ($SyncOnly) {
 # EXPO_PUBLIC_ values are embedded into the JS bundle. Gradle does not track
 # shell environment changes as inputs, so a changed key must invalidate that
 # bundle explicitly. Validate the key before starting a long native build.
+$playIntegrityProjectNumber = [string]$env:EXPO_PUBLIC_RECLAIM_PLAY_INTEGRITY_PROJECT_NUMBER
+if ([string]::IsNullOrWhiteSpace($playIntegrityProjectNumber)) {
+  $playIntegrityProjectNumber = '805708095592'
+  $env:EXPO_PUBLIC_RECLAIM_PLAY_INTEGRITY_PROJECT_NUMBER = $playIntegrityProjectNumber
+}
+if ($playIntegrityProjectNumber -notmatch '^\d+$') {
+  throw 'EXPO_PUBLIC_RECLAIM_PLAY_INTEGRITY_PROJECT_NUMBER must be a numeric Google Cloud project number.'
+}
+Write-Host 'Play Integrity project number configured for this build.'
 $stadiaKey = [string]$env:EXPO_PUBLIC_STADIA_MAPS_KEY
 if ([string]::IsNullOrWhiteSpace($stadiaKey) -or $stadiaKey -match '^\s*(<|PASTE_|your-|YOUR-)') {
   throw 'Set EXPO_PUBLIC_STADIA_MAPS_KEY to your real Stadia Maps API key in this PowerShell window before building.'
@@ -248,7 +257,8 @@ $monetizationValues = @(
   [string]$env:EXPO_PUBLIC_ADMOB_BANNER_ID,
   [string]$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID,
   [string]$env:EXPO_PUBLIC_ADMOB_APP_ID,
-  [string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL
+  [string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL,
+  $playIntegrityProjectNumber
 ) -join '|'
 $monetizationHashBytes = [Text.Encoding]::UTF8.GetBytes($monetizationValues)
 $monetizationSha = [Security.Cryptography.SHA256]::Create()
@@ -260,7 +270,7 @@ if ($monetizationHash -ne $previousMonetizationHash) {
   $expectedBundlePrefix = [IO.Path]::GetFullPath((Join-Path $buildRootFull 'android\app\build\generated\assets\react\release')) + [IO.Path]::DirectorySeparatorChar
   if (-not $bundlePath.StartsWith($expectedBundlePrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Refusing to invalidate a bundle outside the Reclaim build cache.' }
   if (Test-Path -LiteralPath $bundlePath) { Remove-Item -LiteralPath $bundlePath -Force }
-  Write-Host 'Monetization configuration changed; refreshing the bundled app code.'
+  Write-Host 'Bundled configuration changed; refreshing the bundled app code.'
 }
 
 if (-not (Test-Path -LiteralPath $credentialsPath)) {

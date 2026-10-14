@@ -174,19 +174,33 @@ export type CpapMaintenanceEvent = {
   completedAt: string;
 };
 
-export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity';
+export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'workouts';
 export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
 export type AppPreferences = {
   dashboard?: DashboardWidget[];
-  visibleSections: Record<AppSection, boolean>;
+  visibleSections: Record<Exclude<AppSection, 'workouts'>, boolean> & { workouts?: boolean };
   visibleHealthModules: Record<HealthModule, boolean>;
   includeRouteCaloriesInNutrition?: boolean;
+  includeWorkoutCaloriesInNutrition?: boolean;
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
 export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; segment?: number };
 export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; estimateWeightKg?: number; estimatedCalories?: number; name?: string; notes?: string };
+export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'arms' | 'quadriceps' | 'hamstrings' | 'glutes' | 'calves' | 'legs' | 'core' | 'traps' | 'forearms' | 'full body';
+export type ExerciseEquipment = 'machine' | 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'other';
+export type ExerciseMeasurement = 'weighted_reps' | 'bodyweight_reps' | 'assisted_reps' | 'timed_hold' | 'distance_carry';
+export type StrengthExercise = { id: string; name: string; primaryMuscle: MuscleGroup; secondaryMuscles: MuscleGroup[]; equipment: ExerciseEquipment; measurementType?: ExerciseMeasurement; aliases?: string[]; notes?: string; custom?: boolean };
+export type StrengthSet = { id: string; kind: 'warmup' | 'working' | 'drop' | 'failure'; weightKg?: number; assistanceKg?: number; holdSeconds?: number; distanceMeters?: number; reps: number; notes?: string; completedAt: string; startedAt?: string; durationMs?: number };
+export type WorkoutExercise = { id: string; exerciseId: string; name: string; primaryMuscle: MuscleGroup; secondaryMuscles?: MuscleGroup[]; equipment: ExerciseEquipment; measurementType?: ExerciseMeasurement; plannedSets?: number; targetReps?: number; targetWeightKg?: number; restSeconds?: number; notes?: string; sets: StrengthSet[] };
+export type WorkoutRoutine = { id: string; name: string; exercises: WorkoutExercise[]; weekdays?: number[]; notes?: string; createdAt: string; updatedAt: string };
+export type ActualOneRepMax = { id: string; exerciseId: string; weightKg: number; date: string; notes?: string; context?: string; sourceSetId?: string };
+export type WorkoutSetDraft = { weight: string; reps: string; notes: string; kind: StrengthSet['kind']; unit: 'lb' | 'kg'; autoSuggested?: boolean };
+export type WorkoutTimingMode = 'smart' | 'timed' | 'simple';
+export type WorkoutSettings = { timingMode: WorkoutTimingMode; restSeconds: number; exerciseRestSeconds: Record<string, number>; haptics: boolean; restNotifications: boolean; weightUnit: 'lb' | 'kg'; showCalories: boolean };
+export type WorkoutCalories = { source: 'estimated' | 'manual'; type: 'active' | 'gross'; kcal: number; activeKcal: number; intensity?: 'light' | 'moderate' | 'vigorous'; estimateWeightKg?: number };
+export type WorkoutSession = { id: string; name: string; routineId?: string; startedAt: string; endedAt?: string; pausedAt?: string; pausedMs: number; exercises: WorkoutExercise[]; currentExerciseId?: string; setStartedAt?: string; setExerciseId?: string; restStartedAt?: string; restEndsAt?: string; restPausedMs?: number; restNotificationId?: string; calories?: WorkoutCalories; notes?: string; setDrafts?: Record<string, WorkoutSetDraft> };
 export type StepDay = { date: string; count: number; incomplete: boolean };
 export type StepGoal = { effectiveDate: string; count: number };
 export type DashboardWidget = {
@@ -400,6 +414,12 @@ export type TrackerState = {
   stepGoals?: StepGoal[];
   waterLogs?: WaterLog[];
   goodHabitLogs?: GoodHabitLog[];
+  strengthExercises?: StrengthExercise[];
+  workoutRoutines?: WorkoutRoutine[];
+  workoutSessions?: WorkoutSession[];
+  actualOneRepMaxes?: ActualOneRepMax[];
+  activeWorkout?: WorkoutSession;
+  workoutSettings?: WorkoutSettings;
 };
 
-export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'bloodPressure' | 'medications' | 'labs';
+export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'workouts' | 'bloodPressure' | 'medications' | 'labs';

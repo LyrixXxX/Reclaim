@@ -24,6 +24,7 @@ export function OnboardingScreen({ selected, onChange, onFinish }: Props) {
     ...(selected.includes('habits') ? ['Habits'] : []),
     ...(selected.includes('weight') ? ['Weight'] : []),
     ...(selected.includes('nutrition') ? ['Nutrition'] : []),
+    ...(selected.includes('workouts') ? ['Workouts'] : []),
     ...(selected.includes('activity') ? ['Activity'] : []),
     'Settings',
   ];

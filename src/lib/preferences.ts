@@ -3,9 +3,10 @@ import { defaultDashboard, normalizeDashboard } from './dashboard';
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   dashboard: defaultDashboard(),
-  visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false },
+  visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false, workouts: false },
   visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
   includeRouteCaloriesInNutrition: false,
+  includeWorkoutCaloriesInNutrition: false,
 };
 
 export function hiddenHabitsDestination(sections: AppPreferences['visibleSections']) {
@@ -23,6 +24,7 @@ export function migratePreferences(state: TrackerState): TrackerState {
       visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(state.preferences?.visibleSections ?? {}), health: false, cpap: false },
       visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
       includeRouteCaloriesInNutrition: state.preferences?.includeRouteCaloriesInNutrition ?? false,
+      includeWorkoutCaloriesInNutrition: state.preferences?.includeWorkoutCaloriesInNutrition ?? false,
     },
   };
 }

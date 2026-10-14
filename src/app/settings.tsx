@@ -25,6 +25,7 @@ const sections: { id: AppSection; label: string; description: string }[] = [
   { id: 'weight', label: 'Weight', description: 'Weight history, trends, and goals.' },
   { id: 'nutrition', label: 'Nutrition', description: 'Daily macros, fiber, saved foods, and nutrition trends.' },
   { id: 'activity', label: 'Activity + Map', description: 'Daily steps and GPS-recorded walks, hikes, or runs.' },
+  { id: 'workouts', label: 'Workouts', description: 'Strength sessions, routines, and progress.' },
 ];
 
 export default function SettingsScreen() {
@@ -128,7 +129,7 @@ export default function SettingsScreen() {
       <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
       <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
     </View>
-    <Text style={styles.section}>Bottom navigation</Text><View style={styles.card}>{sections.map((item) => <SettingRow key={item.id} label={item.label} description={item.description} value={preferences.visibleSections[item.id]} onChange={(value) => setSectionVisibility(item.id, value)} />)}</View>
+    <Text style={styles.section}>Bottom navigation</Text><View style={styles.card}>{sections.map((item) => <SettingRow key={item.id} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onChange={(value) => setSectionVisibility(item.id, value)} />)}</View>
     <View style={styles.notice}><Text style={styles.noticeTitle}>Older records stay intact</Text><Text style={styles.noticeText}>If you updated from a full-featured version, its records remain in local storage and backups. This wellness edition does not display or update them.</Text></View>
   </ScrollView></SafeAreaView>;
 }

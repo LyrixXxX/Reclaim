@@ -1,9 +1,11 @@
 import { TrackerState } from '@/models/tracker';
 import { validWaterDate } from '@/lib/water-habit';
 import { GOOD_HABIT_TEMPLATES, validHabitLog } from '@/lib/good-habit-templates';
+import { isMuscleGroup } from '@/lib/workout-muscles';
+import { validWorkoutDate } from '@/lib/workout-analytics';
 
 export const RECLAIM_BACKUP_FORMAT = 'reclaim-full-backup' as const;
-export const RECLAIM_BACKUP_VERSION = 2 as const;
+export const RECLAIM_BACKUP_VERSION = 3 as const;
 
 export type BackupAttachment = {
   ownerType: 'cpap' | 'lab' | 'nutrition';
@@ -26,7 +28,7 @@ const stateArrayKeys = [
   'healthReadings', 'cpapReadings', 'cpapTherapySettings', 'cpapUsageGoals', 'weightEntries', 'cpapEquipment',
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutritionMealGroups',
-  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs',
+  'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs', 'strengthExercises', 'workoutRoutines', 'workoutSessions', 'actualOneRepMaxes',
 ] as const;
 
 export function createReclaimBackup(
@@ -50,7 +52,7 @@ export function parseReclaimBackup(raw: string): ReclaimBackup {
   } catch {
     throw new Error('This file is not valid JSON. Choose a Reclaim backup file.');
   }
-  if (!isObject(value) || value.format !== RECLAIM_BACKUP_FORMAT || (value.version !== 1 && value.version !== RECLAIM_BACKUP_VERSION)) {
+  if (!isObject(value) || value.format !== RECLAIM_BACKUP_FORMAT || ![1, 2, RECLAIM_BACKUP_VERSION].includes(Number(value.version))) {
     throw new Error('This is not a supported Reclaim backup file.');
   }
   if (typeof value.exportedAt !== 'string' || !isObject(value.state)) {
@@ -196,6 +198,62 @@ function validateState(value: Record<string, unknown>) {
   if (Array.isArray(value.goodHabitLogs) && value.goodHabitLogs.some((log) => !isObject(log) || !validHabitLog(log as never))) {
     throw new Error('This Reclaim backup contains invalid good habit logs. Nothing was restored.');
   }
+  if ((value.strengthExercises as unknown[] | undefined)?.some((item) => !validStrengthExercise(item))
+    || (value.workoutRoutines as unknown[] | undefined)?.some((item) => !isObject(item) || typeof item.id !== 'string' || typeof item.name !== 'string' || (item.notes !== undefined && typeof item.notes !== 'string') || (item.weekdays !== undefined && (!Array.isArray(item.weekdays) || item.weekdays.some((day: unknown) => !Number.isInteger(day) || Number(day) < 0 || Number(day) > 6))) || !Array.isArray(item.exercises) || item.exercises.some((entry: unknown) => !validWorkoutExercise(entry)))
+    || (value.workoutSessions as unknown[] | undefined)?.some((item) => !validWorkoutSession(item, true))
+    || (value.actualOneRepMaxes as unknown[] | undefined)?.some((item) => !validActualOneRepMax(item))
+    || (value.activeWorkout !== undefined && !validWorkoutSession(value.activeWorkout, false))) {
+    throw new Error('This Reclaim backup contains invalid workout data. Nothing was restored.');
+  }
+  if (value.workoutSettings !== undefined && (!isObject(value.workoutSettings)
+    || !['smart', 'timed', 'simple'].includes(String(value.workoutSettings.timingMode))
+    || !Number.isInteger(value.workoutSettings.restSeconds) || Number(value.workoutSettings.restSeconds) < 0 || Number(value.workoutSettings.restSeconds) > 3600
+    || !['lb', 'kg'].includes(String(value.workoutSettings.weightUnit)))) {
+    throw new Error('This Reclaim backup contains invalid workout settings. Nothing was restored.');
+  }
+}
+
+function validStrengthExercise(item: unknown) {
+  return isObject(item) && typeof item.id === 'string' && typeof item.name === 'string' && !!item.name.trim()
+    && isMuscleGroup(item.primaryMuscle)
+    && ['machine','barbell','dumbbell','cable','bodyweight','other'].includes(String(item.equipment))
+    && Array.isArray(item.secondaryMuscles) && item.secondaryMuscles.every(isMuscleGroup)
+    && (item.measurementType === undefined || ['weighted_reps','bodyweight_reps','assisted_reps','timed_hold','distance_carry'].includes(String(item.measurementType)))
+    && (item.aliases === undefined || (Array.isArray(item.aliases) && item.aliases.every((alias: unknown) => typeof alias === 'string')));
+}
+function validWorkoutExercise(item: unknown) {
+  return isObject(item) && typeof item.id === 'string' && typeof item.exerciseId === 'string' && typeof item.name === 'string' && isMuscleGroup(item.primaryMuscle)
+    && (item.secondaryMuscles === undefined || (Array.isArray(item.secondaryMuscles) && item.secondaryMuscles.every(isMuscleGroup)))
+    && ['machine','barbell','dumbbell','cable','bodyweight','other'].includes(String(item.equipment)) && (item.plannedSets === undefined || (Number.isInteger(item.plannedSets) && Number(item.plannedSets) >= 0 && Number(item.plannedSets) <= 100))
+    && (item.measurementType === undefined || ['weighted_reps','bodyweight_reps','assisted_reps','timed_hold','distance_carry'].includes(String(item.measurementType)))
+    && (item.notes === undefined || typeof item.notes === 'string')
+    && Array.isArray(item.sets) && item.sets.every((set: unknown) => isObject(set) && typeof set.id === 'string' && ['warmup','working','drop','failure'].includes(String(set.kind))
+      && Number.isInteger(set.reps) && Number(set.reps) >= 1 && Number(set.reps) <= 1000 && typeof set.completedAt === 'string' && Number.isFinite(Date.parse(set.completedAt))
+      && (set.weightKg === undefined || (typeof set.weightKg === 'number' && Number.isFinite(set.weightKg) && set.weightKg >= 0))
+      && (set.assistanceKg === undefined || (typeof set.assistanceKg === 'number' && Number.isFinite(set.assistanceKg) && set.assistanceKg >= 0))
+      && (set.holdSeconds === undefined || (typeof set.holdSeconds === 'number' && Number.isFinite(set.holdSeconds) && set.holdSeconds > 0))
+      && (set.distanceMeters === undefined || (typeof set.distanceMeters === 'number' && Number.isFinite(set.distanceMeters) && set.distanceMeters > 0)));
+}
+function validActualOneRepMax(item: unknown) {
+  return isObject(item) && typeof item.id === 'string' && typeof item.exerciseId === 'string'
+    && typeof item.weightKg === 'number' && Number.isFinite(item.weightKg) && item.weightKg > 0
+    && validWorkoutDate(item.date)
+    && (item.notes === undefined || typeof item.notes === 'string') && (item.context === undefined || typeof item.context === 'string')
+    && (item.sourceSetId === undefined || typeof item.sourceSetId === 'string');
+}
+function validWorkoutSession(item: unknown, completed: boolean) {
+  return isObject(item) && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.startedAt === 'string' && Number.isFinite(Date.parse(item.startedAt))
+    && (!completed || (typeof item.endedAt === 'string' && Number.isFinite(Date.parse(item.endedAt))))
+    && typeof item.pausedMs === 'number' && Number.isFinite(item.pausedMs) && item.pausedMs >= 0
+    && Array.isArray(item.exercises) && item.exercises.every((entry: unknown) => validWorkoutExercise(entry))
+    && (item.setDrafts === undefined || (!completed && isObject(item.setDrafts)
+      && Object.entries(item.setDrafts).every(([id, draft]) => id.length <= 120 && isObject(draft)
+        && typeof draft.weight === 'string' && draft.weight.length <= 32
+        && typeof draft.reps === 'string' && draft.reps.length <= 32
+        && typeof draft.notes === 'string' && draft.notes.length <= 2000
+        && (draft.autoSuggested === undefined || typeof draft.autoSuggested === 'boolean')
+        && ['warmup','working','drop','failure'].includes(String(draft.kind))
+        && ['lb','kg'].includes(String(draft.unit)))));
 }
 
 function isAttachment(value: unknown): value is BackupAttachment {

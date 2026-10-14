@@ -7,7 +7,7 @@ import { completedCalendarDays, formatTaperQuitStart, taperQuitPhase, trackerJou
 import { currentStreakFromEntries } from './recovery';
 import { StepResult } from './activity-steps';
 import { formatMiles } from './activity-units';
-import { routeCaloriesForDate } from './activity';
+import { exerciseCaloriesForDate } from './workouts';
 import { waterDisplayAmount } from './water-habit';
 import { exerciseModeOn, habitProgress, templateConfig } from './good-habit-templates';
 
@@ -38,7 +38,7 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
     const goal = goalForDate(state.nutritionGoals ?? [], today);
     if (!entries.length) return empty(`Today · ${goal ? 'Your saved targets are ready.' : 'Set your targets in Nutrition.'}`);
     const totals = nutritionTotals(entries);
-    const budget = goal ? macroCalories(goal) + routeCaloriesForDate(state.activityRoutes ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false) : null;
+    const budget = goal ? macroCalories(goal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false, state.preferences?.includeWorkoutCaloriesInNutrition ?? false).total : null;
     const recordedDates = [...new Set((state.nutritionEntries ?? []).filter((entry) => entry.eventDate <= today).map((entry) => entry.eventDate))].sort().slice(-7);
     return { value: `${number(totals.calories)} kcal`, calorieStatus: budget !== null ? (totals.calories > budget ? 'over' : 'within') : undefined, caption: `Today · ${entries.length} food ${entries.length === 1 ? 'entry' : 'entries'}${budget !== null ? ` · ${number(budget)} kcal target` : ''}`,
       rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(totals[key])}${goal ? ` / ${number(goal[key])}` : ''} g` })),

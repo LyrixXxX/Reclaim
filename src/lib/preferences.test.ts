@@ -4,6 +4,11 @@ import { TrackerState } from '@/models/tracker';
 const state = { trackers: [], checkIns: [] } as TrackerState;
 describe('visibility preferences', () => {
   test('adds backward-compatible defaults', () => { expect(migratePreferences(state).preferences).toEqual(DEFAULT_PREFERENCES); });
+  test('Workouts is hidden by default but a saved setting stays enabled', () => {
+    expect(migratePreferences(state).preferences?.visibleSections.workouts).toBe(false);
+    const enabled = setSectionVisible(migratePreferences(state), 'workouts', true);
+    expect(migratePreferences(enabled).preferences?.visibleSections.workouts).toBe(true);
+  });
   test('adds nutrition without changing existing visibility choices', () => {
     const migrated = migratePreferences({ ...state, preferences: { visibleSections: { goals: false, health: true, cpap: false, weight: true } as never, visibleHealthModules: DEFAULT_PREFERENCES.visibleHealthModules } });
     expect(migrated.preferences?.visibleSections).toMatchObject({ goals: false, cpap: false, nutrition: true });

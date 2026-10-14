@@ -6,22 +6,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { NutritionRing } from '@/components/nutrition-ring';
 import { NutritionNavigation } from '@/components/nutrition-navigation';
-import { routeCaloriesForDate } from '@/lib/activity';
+import { exerciseCaloriesForDate } from '@/lib/workouts';
 import { goalForDate, macroCalories, nutritionEntryCalories, nutritionTotals, scaleNutrients } from '@/lib/nutrition';
 import { NutritionEntry } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
 
 export default function NutritionScreen() {
-  const { nutritionGoals = [], nutritionMealGroups = [], nutritionEntries = [], activityRoutes = [], preferences } = useTrackers();
+  const { nutritionGoals = [], nutritionMealGroups = [], nutritionEntries = [], activityRoutes = [], workoutSessions = [], preferences } = useTrackers();
   const [date, setDate] = useState(today());
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const goal = goalForDate(nutritionGoals, date);
   const dayEntries = useMemo(() => nutritionEntries.filter((entry) => entry.eventDate === date).sort((a, b) => (a.eatenAt ?? '').localeCompare(b.eatenAt ?? '')), [nutritionEntries, date]);
   const totals = nutritionTotals(dayEntries);
   const groups = useMemo(() => nutritionMealGroups.filter((group) => !group.archived || dayEntries.some((entry) => entry.mealGroupId === group.id)).sort((a, b) => a.sortOrder - b.sortOrder), [nutritionMealGroups, dayEntries]);
-  const routeCalories = routeCaloriesForDate(activityRoutes, date, preferences?.includeRouteCaloriesInNutrition ?? false);
-  const calorieGoal = goal ? macroCalories(goal) + routeCalories : 0;
+  const exerciseCalories = exerciseCaloriesForDate(activityRoutes, workoutSessions, date, preferences?.includeRouteCaloriesInNutrition ?? false, preferences?.includeWorkoutCaloriesInNutrition ?? false);
+  const calorieGoal = goal ? macroCalories(goal) + exerciseCalories.total : 0;
   const moveDate = (days: number) => { const next = new Date(`${date}T12:00:00`); next.setDate(next.getDate() + days); const key = localDate(next); if (key <= today()) setDate(key); };
 
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -30,7 +30,7 @@ export default function NutritionScreen() {
     <View style={styles.actions}><Link href={{ pathname: '/nutrition-log', params: { mode: 'text', date } }} asChild><Pressable style={styles.primary}><Text style={styles.primaryText}>Describe Meal</Text></Pressable></Link><Link href={{ pathname: '/nutrition-log', params: { mode: 'label', date, captureOnOpen: 'camera' } }} asChild><Pressable style={styles.action}><Text style={styles.actionText}>Scan Label</Text></Pressable></Link><Link href={{ pathname: '/nutrition-log', params: { mode: 'manual', date } }} asChild><Pressable style={styles.action}><Text style={styles.actionText}>Manual</Text></Pressable></Link></View>
     <NutritionNavigation date={date} />
     {!goal ? <View style={styles.setupCard}><Text style={styles.setupTitle}>Set your macro targets</Text><Text style={styles.setupText}>Choose your own carb, protein, fat, and fiber gram goals in Goals & Meals. The calorie and macro rings appear after you set targets and log food. You can log food now and add targets later.</Text><Link href={{ pathname: '/nutrition-settings', params: { date } }} asChild><Pressable style={styles.setupButton}><Text style={styles.setupButtonText}>Set Nutrition Goals</Text></Pressable></Link></View> : dayEntries.length ? <>
-      <View style={styles.summaryCard}><NutritionRing large label="CALORIES" value={totals.calories} goal={calorieGoal} color={colors.nutritionCalories} unit="kcal" />{routeCalories > 0 && <Text style={styles.calorieRule}>Includes {routeCalories} estimated route kcal in today’s budget.</Text>}<View style={styles.macroGrid}><NutritionRing label="CARBS" value={totals.carbsGrams} goal={goal.carbsGrams} color="#41B8E8" /><NutritionRing label="PROTEIN" value={totals.proteinGrams} goal={goal.proteinGrams} color="#A987F4" /><NutritionRing label="FAT" value={totals.fatGrams} goal={goal.fatGrams} color="#F2A64A" /><NutritionRing label="FIBER" value={totals.fiberGrams} goal={goal.fiberGrams} color="#6FD39A" /></View><Text style={styles.calorieRule}>Printed label calories are used when saved; otherwise calories are calculated from carbs × 4 + protein × 4 + fat × 9. Fiber is tracked separately.</Text></View>
+      <View style={styles.summaryCard}><NutritionRing large label="CALORIES" value={totals.calories} goal={calorieGoal} color={colors.nutritionCalories} unit="kcal" />{exerciseCalories.total > 0 && <Text style={styles.calorieRule}>Includes {exerciseCalories.route} route + {exerciseCalories.workout} workout active kcal{exerciseCalories.overlap ? `, minus ${exerciseCalories.overlap} overlapping kcal` : ''} in today’s budget.</Text>}<View style={styles.macroGrid}><NutritionRing label="CARBS" value={totals.carbsGrams} goal={goal.carbsGrams} color="#41B8E8" /><NutritionRing label="PROTEIN" value={totals.proteinGrams} goal={goal.proteinGrams} color="#A987F4" /><NutritionRing label="FAT" value={totals.fatGrams} goal={goal.fatGrams} color="#F2A64A" /><NutritionRing label="FIBER" value={totals.fiberGrams} goal={goal.fiberGrams} color="#6FD39A" /></View><Text style={styles.calorieRule}>Printed label calories are used when saved; otherwise calories are calculated from carbs × 4 + protein × 4 + fat × 9. Fiber is tracked separately.</Text></View>
     </> : <View style={styles.noDataCard}><Text style={styles.noDataTitle}>No nutrition data</Text><Text style={styles.noDataText}>Nothing was logged for this day. Your saved daily targets remain active, and you can backfill a meal using the buttons above.</Text></View>}
     <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Meals</Text><Text style={styles.sectionMeta}>{dayEntries.length} item{dayEntries.length === 1 ? '' : 's'}</Text></View>
     {groups.map((group) => {

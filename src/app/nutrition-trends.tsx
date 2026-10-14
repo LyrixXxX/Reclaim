@@ -11,7 +11,7 @@ import { colors, layout, spacing } from '@/theme';
 
 const macros = [{ metric: 'carbs', name: 'Carbs' }, { metric: 'protein', name: 'Protein' }, { metric: 'fat', name: 'Fat' }] as const;
 export default function NutritionTrendsScreen() {
-  const { nutritionEntries = [], nutritionGoals = [], nutritionMealGroups = [], activityRoutes = [], preferences } = useTrackers();
+  const { nutritionEntries = [], nutritionGoals = [], nutritionMealGroups = [], activityRoutes = [], workoutSessions = [], preferences } = useTrackers();
   const [range, setRange] = useState<ReportRange>('week');
   const [offset, setOffset] = useState(0);
   const [mode, setMode] = useState<MacroMode>('grams');
@@ -23,7 +23,7 @@ export default function NutritionTrendsScreen() {
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
     return () => { clearInterval(timer); subscription.remove(); };
   }, []));
-  const report = useMemo(() => buildNutritionReport(nutritionEntries, nutritionGoals, nutritionMealGroups, range, offset, now, activityRoutes, preferences?.includeRouteCaloriesInNutrition ?? false), [nutritionEntries, nutritionGoals, nutritionMealGroups, range, offset, now, activityRoutes, preferences?.includeRouteCaloriesInNutrition]);
+  const report = useMemo(() => buildNutritionReport(nutritionEntries, nutritionGoals, nutritionMealGroups, range, offset, now, activityRoutes, preferences?.includeRouteCaloriesInNutrition ?? false, workoutSessions, preferences?.includeWorkoutCaloriesInNutrition ?? false), [nutritionEntries, nutritionGoals, nutritionMealGroups, range, offset, now, activityRoutes, workoutSessions, preferences?.includeRouteCaloriesInNutrition, preferences?.includeWorkoutCaloriesInNutrition]);
   const toPoints = (metric: NutritionMetric, selectedMode: MacroMode = 'grams', meals = false): ReportChartPoint[] => report.points.map((point) => ({
     key: point.key, label: point.label, detail: point.detail, value: reportValue(point.average, metric, selectedMode), goal: meals ? null : reportValue(point.goals, metric, selectedMode),
     status: point.state === 'today' ? (range === 'year' || range === 'all' ? `Date bucket to date · includes today · ${point.loggedDays}/${point.elapsedDays} days logged` : point.average ? 'Today' : 'Today · no food logged yet') : point.state === 'future' ? 'Future date' : !point.average ? 'No data' : selectedMode === 'percent' && metric !== 'fiber' && metric !== 'calories' && macroShare(point.average, metric) === null ? 'No macro calories recorded' : range === 'year' || range === 'all' ? `${point.loggedDays} of ${point.elapsedDays} elapsed days logged` : '',

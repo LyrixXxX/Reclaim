@@ -27,8 +27,16 @@ describe('first-run setup', () => {
 
   test('one choice enables only its tab and widget', () => {
     const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['weight'] });
-    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false });
+    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false, workouts: false });
     expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => [widget.id, widget.expanded])).toEqual([['weight', false]]);
+  });
+
+  test('Workouts is optional and adds its tab without inventing a Home widget', () => {
+    const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['workouts'] });
+    expect(next.preferences!.visibleSections.workouts).toBe(true);
+    expect(next.preferences!.visibleSections.activity).toBe(false);
+    expect(next.preferences!.dashboard?.filter((widget) => widget.visible)).toEqual([]);
+    expect(migratePreferences(next).preferences?.visibleSections.workouts).toBe(true);
   });
 
   test('older medical selections are ignored in the wellness edition', () => {

@@ -20,6 +20,7 @@ export const colors = {
   weightNav: '#78B7FF',
   nutritionNav: '#B98CFF',
   activityNav: '#6DD7B1',
+  workoutsNav: '#19DDD0',
   nutritionCalories: '#FF7AAE',
   settingsNav: '#F2B766',
 } as const;
