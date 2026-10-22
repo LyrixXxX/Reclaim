@@ -10,6 +10,19 @@ const now = new Date(2026, 8, 22, 10, 30);
 const widget = (id: DashboardWidget['id']): DashboardWidget => ({ id, visible: true, expanded: true });
 
 describe('customizable dashboard', () => {
+  test('Steps summary does not include saved route details', () => {
+    const state: TrackerState = { ...empty, activityRoutes: [{ id: 'route-1', kind: 'walk', startedAt: now.toISOString(), endedAt: now.toISOString(), pausedMs: 0, distanceMeters: 2500, points: [] }] };
+    const content = dashboardContent(state, widget('activity'), now, { status: 'available', count: 1234 });
+    expect(content.value).toBe('1,234 steps');
+    expect(content.rows).toEqual([]);
+  });
+  test('a saved nutrition target appears on Home without pretending food was logged', () => {
+    const state: TrackerState = { ...empty, nutritionGoals: [{ id: 'goal', effectiveDate: '2026-09-22', recordedAt: now.toISOString(), carbsGrams: 200, proteinGrams: 100, fatGrams: 50, fiberGrams: 25 }] };
+    const content = dashboardContent(state, widget('nutrition'), now);
+    expect(content.value).toBe('1,650 kcal target');
+    expect(content.caption).toContain('no food logged');
+    expect(content.rows).toHaveLength(4);
+  });
   test('Home shows only the extra Weight card while retaining other widget choices', () => {
     const layout = defaultDashboard();
     const preferences = { ...DEFAULT_PREFERENCES, dashboard: layout };

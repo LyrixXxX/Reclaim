@@ -51,6 +51,17 @@ if (-not (Test-Path -LiteralPath $markerPath)) {
   Set-Content -LiteralPath $markerPath -Value 'Reclaim local Android build cache. Safe to delete when no build is running.'
 }
 
+# Robocopy /E retains removed local modules. Clear the retired Health Connect
+# module from this verified Reclaim cache so it cannot be autolinked into an AAB.
+$retiredModule = [IO.Path]::GetFullPath((Join-Path $buildRootFull 'modules\reclaim-health-connect'))
+$cachePrefix = $buildRootFull.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $retiredModule.StartsWith($cachePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "Refusing to remove a module outside $buildRootFull."
+}
+if (Test-Path -LiteralPath $retiredModule) {
+  Remove-Item -LiteralPath $retiredModule -Recurse -Force
+}
+
 # Robocopy's /XD matching applies to nested folders too. The general sync excludes
 # generated "build" directories, but npm packages can also contain required source
 # files in folders with that name (for example, Expo config plugins). Refresh the
@@ -89,6 +100,9 @@ if ($packageLockHash -ne $cachedPackageLockHash) {
 $nativeConfigMarker = Join-Path $buildRootFull '.reclaim-native-config.sha256'
 $appConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.json') -Algorithm SHA256).Hash
 $dynamicConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.config.js') -Algorithm SHA256).Hash
+# Play update prompts belong only in bundles distributed through Google Play.
+# Force this per build type so a prior shell value cannot leak into a sideloaded APK.
+$env:EXPO_PUBLIC_RECLAIM_PLAY_UPDATES_ENABLED = if ($PlayBundle) { '1' } else { '0' }
 # Local phone builds show Google's non-revenue sample banner by default.
 # An explicit 0 keeps ads off; live monetization always uses its own setup.
 if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED) -and $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -ne '1') {
@@ -160,6 +174,16 @@ if (-not (Test-Path -LiteralPath $androidManifestPath) -or
     -not (Select-String -LiteralPath $androidManifestPath -Pattern '<uses-permission\s+android:name="android.permission.RECEIVE_BOOT_COMPLETED"' -Quiet)) {
   throw 'Android manifest is missing RECEIVE_BOOT_COMPLETED. Refusing to build a release that crashes when a route starts.'
 }
+if (Select-String -LiteralPath $androidManifestPath -Pattern 'android.permission.health.|com.google.android.apps.healthdata|HEALTH_PERMISSIONS|ACTION_SHOW_PERMISSIONS_RATIONALE' -Quiet) {
+  throw 'Android manifest still contains retired Health Connect declarations. Refusing to build.'
+}
+if (Select-String -LiteralPath $androidManifestPath -Pattern 'android:screenOrientation=|android:resizeableActivity=|android:minAspectRatio=|android:maxAspectRatio=' -Quiet) {
+  throw 'Android manifest still restricts orientation or large-screen resizing. Refusing to build.'
+}
+$androidStylesPath = Join-Path $buildRootFull 'android\app\src\main\res\values\styles.xml'
+if (Select-String -LiteralPath $androidStylesPath -Pattern 'android:(statusBarColor|navigationBarColor|navigationBarDividerColor)' -Quiet) {
+  throw 'Android theme still sets deprecated system-bar colors. Refusing to build.'
+}
 
 # The source checkout contains an older generated android/gradle.properties.
 # Robocopy updates the short-path build copy on every run, so restore this
@@ -173,6 +197,17 @@ if ($gradleProperties -match '(?m)^android\.minSdkVersion=') {
   $gradleProperties = $gradleProperties -replace '(?m)^android\.minSdkVersion=.*$', 'android.minSdkVersion=26'
 } else {
   $gradleProperties = $gradleProperties.TrimEnd() + "`r`nandroid.minSdkVersion=26`r`n"
+}
+Set-Content -LiteralPath $gradlePropertiesPath -Value $gradleProperties
+
+# Keep R8 enabled even when incremental prebuild reuses an older native project.
+$gradleProperties = Get-Content -Raw -LiteralPath $gradlePropertiesPath
+foreach ($setting in @('android.enableMinifyInReleaseBuilds', 'android.enableShrinkResourcesInReleaseBuilds')) {
+  if ($gradleProperties -match "(?m)^$([regex]::Escape($setting))=") {
+    $gradleProperties = $gradleProperties -replace "(?m)^$([regex]::Escape($setting))=.*$", "$setting=true"
+  } else {
+    $gradleProperties = $gradleProperties.TrimEnd() + "`r`n$setting=true`r`n"
+  }
 }
 Set-Content -LiteralPath $gradlePropertiesPath -Value $gradleProperties
 
@@ -258,6 +293,7 @@ $monetizationValues = @(
   [string]$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID,
   [string]$env:EXPO_PUBLIC_ADMOB_APP_ID,
   [string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL,
+  [string]$env:EXPO_PUBLIC_RECLAIM_PLAY_UPDATES_ENABLED,
   $playIntegrityProjectNumber
 ) -join '|'
 $monetizationHashBytes = [Text.Encoding]::UTF8.GetBytes($monetizationValues)
@@ -363,6 +399,9 @@ if ($PlayBundle) {
     throw 'The App Bundle was created but its upload signature could not be verified.'
   }
   Copy-Item -LiteralPath $builtBundle -Destination $outputBundle -Force
+  $mappingFile = Join-Path $buildRootFull 'android\app\build\outputs\mapping\release\mapping.txt'
+  if (-not (Test-Path -LiteralPath $mappingFile)) { throw 'R8 mapping.txt was not generated for the release bundle.' }
+  Copy-Item -LiteralPath $mappingFile -Destination (Join-Path $outputDirectory 'Reclaim-android-release-mapping.txt') -Force
   $outputArtifact = $outputBundle
 } else {
   $builtApk = Join-Path $buildRootFull 'android\app\build\outputs\apk\release\app-release.apk'
@@ -390,7 +429,8 @@ Write-Host "$($releaseKind): $outputArtifact"
 Write-Host "Size: $sizeMb MB"
 Write-Host 'Signature: verified'
 if ($PlayBundle) {
-  Write-Host 'Upload this .aab file to Google Play Console > Test and release > Testing > Internal testing.'
+  Write-Host 'Upload this .aab file to the intended Google Play testing track. Check the track before releasing it to testers.'
+  Write-Host "R8 deobfuscation file: $outputDirectory\Reclaim-android-release-mapping.txt"
 } else {
   Write-Host 'Install this APK over the existing app. Do not uninstall Reclaim first.'
 }

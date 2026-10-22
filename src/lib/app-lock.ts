@@ -3,6 +3,7 @@ export const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 8;
 export const MAX_PIN_ATTEMPTS = 5;
 export const PIN_COOLDOWN_MS = 30_000;
+export const APP_LOCK_GRACE_MS = 60_000;
 
 export type AppLockConfig = {
   version: typeof APP_LOCK_VERSION;
@@ -36,6 +37,10 @@ export function canStartBiometricUnlock({
 
 export function canApplyUnlockResult(attempt: number, currentAttempt: number, appState: AppLockLifecycleState) {
   return attempt === currentAttempt && appState === 'active';
+}
+
+export function canResumeWithoutUnlock(backgroundedAt: number | undefined, now = Date.now()) {
+  return backgroundedAt !== undefined && Number.isFinite(backgroundedAt) && now >= backgroundedAt && now - backgroundedAt < APP_LOCK_GRACE_MS;
 }
 
 export function pinValidationMessage(pin: string) {

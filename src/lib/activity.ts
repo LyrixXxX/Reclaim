@@ -15,14 +15,22 @@ export function routeDistanceMeters(points: ActivityPoint[]): number {
 
 export function validActivityPoint(point: ActivityPoint, previous?: ActivityPoint): boolean {
   if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) return false;
-  if (point.accuracy != null && (point.accuracy < 0 || point.accuracy > 100)) return false;
-  if (!previous || (point.segment ?? 0) !== (previous.segment ?? 0)) return true;
+  if (point.accuracy != null && (point.accuracy < 0 || point.accuracy > 50)) return false;
+  if (!previous || (point.segment ?? 0) !== (previous.segment ?? 0)) return point.accuracy == null || point.accuracy <= 35;
   const seconds = (point.timestamp - previous.timestamp) / 1000;
-  return seconds > 0 && pointDistanceMeters(previous, point) / seconds < 12;
+  const distance = pointDistanceMeters(previous, point);
+  const uncertainty = ((previous.accuracy ?? 10) + (point.accuracy ?? 10)) * 0.75;
+  return seconds > 0 && distance >= Math.max(8, uncertainty) && distance / seconds < 12;
 }
 
 export function activityDurationMs(route: Pick<ActivityRoute, 'startedAt' | 'endedAt' | 'pausedMs'>): number {
+  // Reclaim's existing "active time" excluded explicit manual pauses. This
+  // remains the elapsed-time convention for both new and historical routes.
   return Math.max(0, Date.parse(route.endedAt) - Date.parse(route.startedAt) - route.pausedMs);
+}
+
+export function routeMovingDurationMs(route: ActivityRoute): number | null {
+  return route.movingMs === undefined || !Number.isFinite(route.movingMs) ? null : Math.max(0, Math.min(activityDurationMs(route), route.movingMs));
 }
 
 export function activeRouteDurationMs(route: { startedAt: string; pausedAt?: string; pausedMs: number }, now = Date.now()) {

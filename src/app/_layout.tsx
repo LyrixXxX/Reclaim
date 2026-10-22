@@ -9,6 +9,7 @@ import { AppLockScreen } from '@/components/app-lock-screen';
 import { BottomNavigation } from '@/components/bottom-navigation';
 import { LocalSaveStatus } from '@/components/local-save-status';
 import { HomeAdBanner } from '@/components/home-ad-banner';
+import { PlayUpdatePrompt } from '@/components/play-update-prompt';
 import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
 import { MonetizationProvider } from '@/state/monetization-context';
@@ -32,7 +33,7 @@ function AppShell() {
   const pathname = usePathname();
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/activity-map', '/workouts', '/settings'];
+  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/routes', '/activity-map', '/activity-routes', '/workouts', '/settings'];
   const showBottomNavigation = mainTabs.includes(pathname);
   useEffect(() => {
     Promise.all([ImagePicker.getPendingResultAsync(), consumePendingCaptureTarget()]).then(([result, target]) => {
@@ -67,18 +68,21 @@ function AppShell() {
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
           <Stack.Screen name="weight" options={{ headerShown: false }} />
           <Stack.Screen name="nutrition" options={{ headerShown: false }} />
+          <Stack.Screen name="supplements" options={{ title: 'Vitamins & Supplements' }} />
           <Stack.Screen name="activity" options={{ headerShown: false }} />
+          <Stack.Screen name="routes" options={{ headerShown: false }} />
           <Stack.Screen name="workouts" options={{ headerShown: false }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
           <Stack.Screen name="workout-routines" options={{ title: 'Routines' }} />
+          <Stack.Screen name="workout-plan" options={{ title: 'Build a training week' }} />
           <Stack.Screen name="workout-history" options={{ title: 'Workout history' }} />
           <Stack.Screen name="workout-progress" options={{ title: 'Strength progress' }} />
           <Stack.Screen name="workout-exercise-progress" options={{ title: 'Exercise progress' }} />
           <Stack.Screen name="workout-settings" options={{ title: 'Workout settings' }} />
           <Stack.Screen name="activity-map" options={{ headerShown: false }} />
           <Stack.Screen name="activity-routes" options={{ title: 'Saved routes' }} />
-          <Stack.Screen name="activity-map-settings" options={{ title: 'Offline maps' }} />
+          <Stack.Screen name="route-settings" options={{ title: 'Route settings' }} />
           <Stack.Screen name="nutrition-log" options={{ title: 'Log food' }} />
           <Stack.Screen name="nutrition-trends" options={{ title: 'Food trend report' }} />
           <Stack.Screen name="nutrition-foods" options={{ title: 'Saved foods' }} />
@@ -89,6 +93,7 @@ function AppShell() {
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
         </Stack>
         <LocalSaveStatus errorsOnly />
+        <PlayUpdatePrompt active={!privateContent} />
         {['/', '/nutrition', '/activity'].includes(pathname) && !privateContent && <HomeAdBanner />}
         {showBottomNavigation && <BottomNavigation />}
       </View>

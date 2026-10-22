@@ -32,3 +32,16 @@ test('interrupted step tracking is not counted as reached', () => {
   const state = { ...base, stepGoals: [{ effectiveDate: '2026-10-01', count: 2000 }] };
   expect(homeOverview(state, { status: 'interrupted', count: 3000 }, new Date(2026, 9, 2, 10))).toMatchObject({ goalCount: 1, reachedCount: 0, stepProgress: { pending: true } });
 });
+
+test('Home shows due supplement doses but no future, taken, skipped, or archived doses', () => {
+  const supplement = { id: 'vitamin', kind: 'supplement' as const, name: 'Vitamin D', schedule: { type: 'daily' as const, times: ['09:00', '18:00'] },
+    remindersEnabled: false, notificationIds: [], archived: false, recordedAt: '2026-10-01T12:00:00Z' };
+  const now = new Date(2026, 9, 22, 10);
+  const state = { ...base, medications: [supplement] };
+  expect(homeOverview(state, { status: 'permission-needed' }, now).attention).toEqual([
+    { id: 'supplement-vitamin-09:00', title: 'Supplement: Vitamin D', detail: '9:00 AM · Not logged yet', href: '/supplements' },
+  ]);
+  const logged = { ...state, medicationEvents: [{ id: 'taken', medicationId: 'vitamin', scheduledFor: '2026-10-22T09:00', occurredAt: now.toISOString(), outcome: 'taken' as const }] };
+  expect(homeOverview(logged, { status: 'permission-needed' }, now).attention).toEqual([]);
+  expect(homeOverview({ ...state, medications: [{ ...supplement, archived: true }] }, { status: 'permission-needed' }, now).attention).toEqual([]);
+});

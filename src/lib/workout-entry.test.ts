@@ -1,4 +1,4 @@
-import { clearSetDraft, emptySetDraft, loggedWeightLabel, parseRoutineDraft, parseSetDraft, recordCompletedSet, routineDraftFor, updateSetDraft, weightFieldLabel } from './workout-entry';
+import { clearSetDraft, emptySetDraft, hasUnloggedSetInput, loggedWeightLabel, parseRoutineDraft, parseSetDraft, recordCompletedSet, routineDraftFor, updateSetDraft, weightFieldLabel } from './workout-entry';
 import { WorkoutExercise } from '@/models/tracker';
 
 const chestPress: WorkoutExercise = { id: 'press', exerciseId: 'press', name: 'Chest Press', primaryMuscle: 'chest', equipment: 'machine', plannedSets: 3, targetReps: 10, sets: [] };
@@ -53,4 +53,11 @@ test('completed sets auto-suggest editable next values and reject duplicate set 
   expect(logged.setDrafts?.press).toMatchObject({ reps: '8', weight: '40', autoSuggested: true });
   expect(recordCompletedSet(logged, 'press', set, 'kg')).toBe(logged);
   expect(updateSetDraft(logged, 'press', { weight: '42.5', autoSuggested: false }, 'kg').setDrafts?.press).toMatchObject({ weight: '42.5', autoSuggested: false });
+});
+
+test('carried values do not look unfinished, but typed set inputs do', () => {
+  const carried = { ...emptySetDraft('lb'), weight: '75', reps: '10', autoSuggested: true };
+  expect(hasUnloggedSetInput({ press: carried })).toBe(false);
+  expect(hasUnloggedSetInput({ press: { ...carried, reps: '12', autoSuggested: false } })).toBe(true);
+  expect(hasUnloggedSetInput({ press: emptySetDraft('lb') })).toBe(false);
 });

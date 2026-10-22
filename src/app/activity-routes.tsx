@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityRouteDetails, routeDisplayName } from '@/components/activity-route-details';
 import { HistoryPages } from '@/components/history-pages';
 import { RoutePreview } from '@/components/route-preview';
-import { activityDurationMs, averagePaceMinPerMile } from '@/lib/activity';
+import { activityDurationMs, averagePaceMinPerMile, routeMovingDurationMs } from '@/lib/activity';
 import { formatMiles } from '@/lib/activity-units';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
@@ -20,7 +20,8 @@ export default function SavedRoutesScreen() {
     {!routes.length && <Text style={styles.empty}>No routes saved yet. Finished routes will appear here.</Text>}
     <HistoryPages items={routes} pageSize={5}>{(page) => page.map((route) => {
       const duration = activityDurationMs(route);
-      const pace = averagePaceMinPerMile(route.distanceMeters, duration);
+      const movingMs = routeMovingDurationMs(route);
+      const pace = averagePaceMinPerMile(route.distanceMeters, movingMs ?? duration);
       const paceSeconds = pace === null ? null : Math.round(pace * 60);
       const seconds = Math.floor(Math.max(0, duration) / 1000);
       const durationLabel = `${Math.floor(seconds / 3600)}h ${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}m ${String(seconds % 60).padStart(2, '0')}s`;
@@ -30,7 +31,7 @@ export default function SavedRoutesScreen() {
           <RoutePreview points={route.points} />
           <Text style={styles.name}>{routeDisplayName(route)}</Text>
           <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
-          <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} · {paceLabel}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>
+          <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} elapsed · {movingMs == null ? 'Moving time unavailable' : `${Math.round(movingMs / 60_000)} min moving`} · {paceLabel} {movingMs == null ? 'overall pace' : 'moving pace'}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
           <Text style={styles.open}>View on map ›</Text>
         </Pressable>

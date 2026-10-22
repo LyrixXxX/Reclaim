@@ -1,15 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, ActualOneRepMax, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { ActivityRoute, ActualOneRepMax, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
+import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { DEFAULT_WORKOUT_SETTINGS, finishWorkout, startWorkout } from '@/lib/workouts';
-import { createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from '@/lib/onboarding';
+import { createFreshState, needsOnboarding, normalizeOnboardingSelections, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
+import { readTodaySteps } from '@/lib/activity-steps';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
 import { deleteTrackerHistory } from '@/lib/recovery';
@@ -27,7 +30,7 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { DEFAULT_PREFERENCES, migratePreferences, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, migratePreferences, setNavigationOrder, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -40,6 +43,7 @@ import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, 
 type TrackerContextValue = TrackerState & {
   hydrated: boolean;
   setOnboardingSelections: (selected: OnboardingArea[]) => void;
+  setOnboardingSetupDraft: (draft: OnboardingSetupDraft) => void;
   finishOnboarding: () => Promise<void>;
   saveDashboard: (widgets: DashboardWidget[]) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
@@ -72,6 +76,7 @@ type TrackerContextValue = TrackerState & {
   saveWeightTdeeProfile: (profile: WeightTdeeProfile) => void;
   deleteWeightEntry: (date: string, confirmed: boolean) => void;
   setSectionVisibility: (section: AppSection, visible: boolean) => void;
+  setNavigationOrder: (order: NavigationSection[]) => void;
   setRouteCaloriesInNutrition: (enabled: boolean) => void;
   saveNutritionGoal: (input: Omit<NutritionGoalProfile, 'id' | 'recordedAt'>, id?: string) => void;
   deleteNutritionGoal: (id: string, confirmed: boolean) => void;
@@ -99,6 +104,12 @@ type TrackerContextValue = TrackerState & {
   deleteActualOneRepMax: (id: string) => void;
   updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
+  saveSupplement: (draft: SupplementDraft, id: string) => void;
+  archiveSupplement: (id: string, archived: boolean) => void;
+  logSupplement: (id: string, eventId: string, outcome?: 'taken' | 'skipped', scheduledFor?: string) => void;
+  deleteSupplementLog: (id: string) => void;
+  saveSupplementStack: (stack: SupplementStack) => string | undefined;
+  deleteSupplementStack: (id: string) => void;
   getBackupState: () => TrackerState;
   restoreBackupState: (backupState: TrackerState) => Promise<void>;
 };
@@ -182,10 +193,17 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setOnboardingSelections: (selected) => setState((previous) => previous.onboardingStatus === 'pending'
       ? { ...previous, onboardingSelections: normalizeOnboardingSelections(selected) }
       : previous),
+    setOnboardingSetupDraft: (draft) => setState((previous) => previous.onboardingStatus === 'pending'
+      ? { ...previous, onboardingSetupDraft: draft }
+      : previous),
     finishOnboarding: async () => {
       if (state.onboardingStatus !== 'pending') return;
       const next = await persistCompletedOnboarding(state, writer.save);
       setState(next);
+      if (shouldEnableFirstStepTracking(state)) {
+        const result = await readTodaySteps(true);
+        if (result.status !== 'available') Alert.alert('Step tracking not enabled', `${result.message ?? 'This phone could not start step counting.'} You can try again from Activity; your daily goal was saved.`);
+      }
     },
     saveDashboard: (widgets) => setState((previous) => saveDashboardLayout(previous, previous.preferences ?? DEFAULT_PREFERENCES, widgets)),
     swapHabitOrder: (firstId, secondId) => setState((previous) => swapHabitOrder(previous, firstId, secondId)),
@@ -306,6 +324,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       if (confirmed) setState((previous) => ({ ...previous, weightEntries: (previous.weightEntries ?? []).filter((entry) => entry.date !== date) }));
     },
     setSectionVisibility: (section, visible) => setState((previous) => setSectionVisible(previous, section, visible)),
+    setNavigationOrder: (order) => setState((previous) => setNavigationOrder(previous, order)),
     setRouteCaloriesInNutrition: (enabled) => setState((previous) => setRouteCaloriesInNutrition(previous, enabled)),
     saveNutritionGoal: (input, id) => setState((previous) => ({ ...previous, nutritionGoals: upsertNutritionGoal(previous.nutritionGoals ?? [], input, id) })),
     deleteNutritionGoal: (id, confirmed) => setState((previous) => ({ ...previous, nutritionGoals: removeNutritionGoal(previous.nutritionGoals ?? [], id, confirmed) })),
@@ -333,7 +352,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     saveStrengthExercise: (exercise) => setState((previous) => ({ ...previous, strengthExercises: [...(previous.strengthExercises ?? []).filter((item) => item.id !== exercise.id), exercise] })),
     saveWorkoutRoutine: (routine) => setState((previous) => ({ ...previous, workoutRoutines: [...(previous.workoutRoutines ?? []).filter((item) => item.id !== routine.id), routine] })),
     deleteWorkoutRoutine: (id) => setState((previous) => ({ ...previous, workoutRoutines: (previous.workoutRoutines ?? []).filter((item) => item.id !== id) })),
-    beginWorkout: (name, routine) => setState((previous) => previous.activeWorkout ? previous : { ...previous, activeWorkout: startWorkout(name, routine, new Date().toISOString(), previous.strengthExercises ?? []) }),
+    beginWorkout: (name, routine) => setState((previous) => previous.activeWorkout || !routine?.exercises.length ? previous : { ...previous, activeWorkout: startWorkout(name, routine, new Date().toISOString(), previous.strengthExercises ?? []) }),
     updateActiveWorkout: (update) => setState((previous) => previous.activeWorkout ? { ...previous, activeWorkout: update(previous.activeWorkout) } : previous),
     completeWorkout: () => setState((previous) => finishWorkout(previous)),
     discardWorkout: () => setState((previous) => ({ ...previous, activeWorkout: undefined })),
@@ -343,6 +362,22 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteActualOneRepMax: (id) => setState((previous) => ({ ...previous, actualOneRepMaxes: (previous.actualOneRepMaxes ?? []).filter((item) => item.id !== id) })),
     updateWorkoutSettings: (update) => setState((previous) => ({ ...previous, workoutSettings: { ...DEFAULT_WORKOUT_SETTINGS, ...previous.workoutSettings, ...update } })),
     setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),
+    saveSupplement: (draft, id) => setState((previous) => ({ ...previous, medications: saveSupplementDraft(previous.medications ?? [], draft, id) })),
+    archiveSupplement: (id, archived) => setState((previous) => ({ ...previous, medications: (previous.medications ?? []).map((item) => item.id === id && item.kind === 'supplement' ? { ...item, archived } : item) })),
+    logSupplement: (id, eventId, outcome = 'taken', scheduledFor) => setState((previous) => {
+      const item = (previous.medications ?? []).find((entry) => entry.id === id && entry.kind === 'supplement');
+      return item ? { ...previous, medicationEvents: recordSupplementDose(previous.medicationEvents ?? [], item, eventId, outcome, scheduledFor) } : previous;
+    }),
+    deleteSupplementLog: (id) => setState((previous) => {
+      const supplementIds = new Set((previous.medications ?? []).filter((item) => item.kind === 'supplement').map((item) => item.id));
+      return { ...previous, medicationEvents: (previous.medicationEvents ?? []).filter((event) => event.id !== id || !supplementIds.has(event.medicationId)) };
+    }),
+    saveSupplementStack: (stack) => {
+      const problem = validateSupplementStack(stack, state.supplementStacks ?? [], state.medications ?? []);
+      if (!problem) setState((previous) => ({ ...previous, supplementStacks: upsertSupplementStack(previous.supplementStacks ?? [], stack) }));
+      return problem;
+    },
+    deleteSupplementStack: (id) => setState((previous) => ({ ...previous, supplementStacks: (previous.supplementStacks ?? []).filter((stack) => stack.id !== id) })),
     getBackupState: () => JSON.parse(JSON.stringify(state)) as TrackerState,
     restoreBackupState: async (backupState) => {
       for (const tracker of state.trackers) await cancelHabitReminder(tracker.habitNotificationId);
@@ -370,7 +405,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
   }), [hydrated, state, saveStatus, writer]);
 
   return <TrackerContext.Provider value={value}>{hydrated ? needsOnboarding(state)
-    ? <OnboardingScreen selected={normalizeOnboardingSelections(state.onboardingSelections)} onChange={value.setOnboardingSelections} onFinish={value.finishOnboarding} />
+    ? <OnboardingScreen selected={normalizeOnboardingSelections(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />
     : children : !loadFailed ? <BrandedLoading /> :
     <SafeAreaView style={storageStyles.loading}>
         <Text style={storageStyles.title}>Could not open local history</Text>

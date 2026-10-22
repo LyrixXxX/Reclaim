@@ -2,8 +2,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Href, Link } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Animated, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppLockSettings } from '@/components/app-lock-settings';
@@ -11,20 +11,21 @@ import { AdsConsent } from 'react-native-google-mobile-ads';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { LocalSaveStatus } from '@/components/local-save-status';
 import { backupSummary, parseReclaimBackup } from '@/lib/backup';
-import { readTodaySteps, stopStepTracking, StepResult } from '@/lib/activity-steps';
+import { readActiveRoute } from '@/lib/activity-recording';
 import { createPortableBackup, restorePortableBackup } from '@/lib/backup-files';
-import { DEFAULT_PREFERENCES } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, moveNavigationSection, normalizeNavigationOrder } from '@/lib/preferences';
 import { MONETIZATION_ENABLED, TEST_ADS_ENABLED } from '@/lib/monetization';
-import { AppSection } from '@/models/tracker';
+import { NavigationSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useMonetization } from '@/state/monetization-context';
 import { colors, layout, spacing } from '@/theme';
 
-const sections: { id: AppSection; label: string; description: string }[] = [
+const sections: { id: NavigationSection; label: string; description: string }[] = [
   { id: 'goals', label: 'Habits', description: 'Habits you are quitting, reducing, or building.' },
   { id: 'weight', label: 'Weight', description: 'Weight history, trends, and goals.' },
   { id: 'nutrition', label: 'Nutrition', description: 'Daily macros, fiber, saved foods, and nutrition trends.' },
-  { id: 'activity', label: 'Activity + Map', description: 'Daily steps and GPS-recorded walks, hikes, or runs.' },
+  { id: 'activity', label: 'Steps', description: 'Daily steps, goal, and trends.' },
+  { id: 'routes', label: 'Routes', description: 'GPS-recorded walks, hikes, runs, and saved maps.' },
   { id: 'workouts', label: 'Workouts', description: 'Strength sessions, routines, and progress.' },
 ];
 
@@ -32,14 +33,15 @@ export default function SettingsScreen() {
   const {
     preferences = DEFAULT_PREFERENCES,
     setSectionVisibility,
+    setNavigationOrder,
     setRouteCaloriesInNutrition,
     getBackupState,
     restoreBackupState,
   } = useTrackers();
   const [backupBusy, setBackupBusy] = useState(false);
-  const [stepStatus, setStepStatus] = useState<StepResult>({ status: 'permission-needed' });
+  const [draggingNavigation, setDraggingNavigation] = useState(false);
   const monetization = useMonetization();
-  useEffect(() => { void readTodaySteps().then(setStepStatus); }, []);
+  const navigationOrder = normalizeNavigationOrder(preferences.navigationOrder);
 
   const exportBackup = async () => {
     if (backupBusy) return;
@@ -96,46 +98,65 @@ export default function SettingsScreen() {
     }
   };
 
-  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} scrollEnabled={!draggingNavigation}>
     <MainScreenHeader eyebrow="SETTINGS & PREFERENCES" subtitle="Choose what appears in Reclaim and keep a portable copy of your local data." accent={colors.settingsNav} />
     <LocalSaveStatus />
-    <Text style={styles.section}>Home dashboard</Text>
-    <View style={styles.backupCard}><Text style={styles.backupTitle}>Home Weight card</Text><Text style={styles.backupText}>Goals already link to their sections. Choose whether the extra Weight card appears below them and how much detail it shows.</Text><Link href={'/dashboard-edit' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Customize Weight card</Text></Pressable></Link></View>
     <Text style={styles.section}>Privacy & app lock</Text>
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Privacy & data</Text><Text style={styles.backupText}>See what Reclaim stores on this device and when information leaves it.</Text><Link href={'/privacy' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Read privacy information</Text></Pressable></Link></View>
-    <Pressable onPress={() => { void Linking.openURL(process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/'); }} style={styles.secondary}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
+    <Pressable onPress={() => { void Linking.openURL(process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/'); }} style={[styles.secondary, styles.privacyPolicyLink]}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
     <AppLockSettings />
     <Text style={styles.section}>Ads & support</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>{monetization.adFree ? 'Ads removed' : 'Keep Reclaim free'}</Text>
-      <Text style={styles.backupText}>{TEST_ADS_ENABLED ? 'Google test banners appear on Home, Activity, and Nutrition. A test ad may also appear after saving a current meal. They earn no revenue; purchases are off in this build.' : monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : 'Banners and occasional post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
+      <Text style={styles.backupText}>{TEST_ADS_ENABLED ? 'Google test banners appear on Home, Steps, Routes, and Nutrition. A test ad may also appear after saving a current meal. They earn no revenue; purchases are off in this build.' : monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : 'Banners and occasional post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
       {!!monetization.error && <Text accessibilityRole="alert" style={styles.privacy}>{monetization.error}</Text>}
       {MONETIZATION_ENABLED && !monetization.adFree && <Pressable disabled={!monetization.connected || !monetization.price || monetization.busy} onPress={() => { void monetization.buy().catch(() => Alert.alert('Purchase unavailable', 'Please try again through Google Play.')); }} style={[styles.primary, (!monetization.connected || !monetization.price || monetization.busy) && styles.disabled]}><Text style={styles.primaryText}>Remove ads permanently{monetization.price ? ` · ${monetization.price}` : ''}</Text></Pressable>}
       {MONETIZATION_ENABLED && <Pressable disabled={monetization.busy} onPress={() => { void monetization.restore().then((result) => Alert.alert(result === 'restored' ? 'Ads removed' : result === 'none' ? 'No purchase found' : 'Could not check purchases', result === 'restored' ? 'Your Remove Ads purchase is active on this Play account.' : result === 'none' ? 'No completed Remove Ads purchase was found on this Play account.' : 'Connect to Google Play and try again.')); }} style={styles.secondary}><Text style={styles.secondaryText}>Restore purchase</Text></Pressable>}
       {MONETIZATION_ENABLED && <Pressable onPress={() => { void AdsConsent.showPrivacyOptionsForm().catch(() => Alert.alert('Privacy options unavailable', 'Try again when connected.')); }} style={styles.secondary}><Text style={styles.secondaryText}>Ad privacy choices</Text></Pressable>}
       {!MONETIZATION_ENABLED && !TEST_ADS_ENABLED && <Text style={styles.backupText}>Ads and purchases are not active in this build.</Text>}
     </View>
-    <Text style={styles.section}>Activity</Text>
-    <View style={styles.card}><SettingRow label="Add Activity Calorie Estimates to Nutrition Budget" description="Include saved route estimates in your daily calorie budget." value={preferences.includeRouteCaloriesInNutrition ?? false} onChange={setRouteCaloriesInNutrition} /></View>
-    {stepStatus.status === 'available' && <View style={styles.backupCard}><Text style={styles.backupTitle}>Step tracking</Text><Text style={styles.backupText}>Your phone is counting steps in the background.</Text><Pressable accessibilityRole="button" onPress={() => Alert.alert('Turn off step tracking?', 'Your daily steps will stop updating until you enable tracking again in Activity.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Turn off', style: 'destructive', onPress: () => { void stopStepTracking().then(() => readTodaySteps().then(setStepStatus)).catch(() => Alert.alert('Could not stop tracking', 'Please try again.')); } }])} style={styles.secondary}><Text style={styles.secondaryText}>Turn off step tracking</Text></Pressable></View>}
-    <View style={styles.backupCard}><Text style={styles.backupTitle}>Offline map areas</Text><Text style={styles.backupText}>Optional downloads for trips without mobile data. Previously viewed areas are not guaranteed to work offline.</Text><Link href={'/activity-map-settings' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Manage offline maps</Text></Pressable></Link></View>
-    <Text style={styles.section}>Private AI</Text>
-    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food assistance</Text><Text style={styles.backupText}>No connection setup is needed. Only the food content you choose to analyze is sent through the Lyrix Studios relay to OpenAI. Your saved records remain on this device. Private AI requires a Google Play-installed copy of Reclaim; manual tracking always works.</Text></View>
+    <Text style={styles.section}>Route calorie estimates</Text>
+    <View style={styles.card}><SettingRow label="Add route calories to Nutrition budget" description="Include saved route estimates in your daily calorie budget." value={preferences.includeRouteCaloriesInNutrition ?? false} onChange={setRouteCaloriesInNutrition} /></View>
+    <Text style={styles.section}>AI</Text>
+    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food and workout assistance</Text><Text style={styles.backupText}>No connection setup is needed. Only content you explicitly submit is sent through the Lyrix Studios relay to OpenAI. Strength planning sends your selected schedule, session preferences, and built-in exercise names—not your workout history or logged weights. Saved records remain on this device. AI requires a Google Play-installed copy; manual tracking and offline sample routines remain available.</Text></View>
     <Text style={styles.section}>Backup & transfer</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>Your Reclaim data</Text>
-      <Text style={styles.backupText}>Export your local records and settings, including data retained from older Reclaim versions. The backup stays local until you choose where to save it. Downloaded map tiles are not included.</Text>
+      <Text style={styles.backupText}>Export your local records and settings, including data retained from older Reclaim versions. The backup stays local until you choose where to save it.</Text>
       <Pressable disabled={backupBusy} style={[styles.primary, backupBusy && styles.disabled]} onPress={() => { void exportBackup(); }}><Text style={styles.primaryText}>{backupBusy ? 'Working…' : 'Export Reclaim backup'}</Text></Pressable>
       <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
       <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
     </View>
-    <Text style={styles.section}>Bottom navigation</Text><View style={styles.card}>{sections.map((item) => <SettingRow key={item.id} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onChange={(value) => setSectionVisibility(item.id, value)} />)}</View>
+    <Text style={styles.section}>Bottom navigation</Text><Text style={styles.navHint}>Drag the handles to choose the left-to-right order. Home and Settings stay fixed.</Text><View style={styles.card}>{navigationOrder.map((id, index) => { const item = sections.find((section) => section.id === id)!; return <NavigationSettingRow key={item.id} index={index} count={navigationOrder.length} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onDragStart={() => setDraggingNavigation(true)} onDragEnd={(offset) => { setDraggingNavigation(false); const target = Math.max(0, Math.min(navigationOrder.length - 1, index + Math.round(offset / 78))); setNavigationOrder(moveNavigationSection(navigationOrder, index, target)); }} onChange={(value) => {
+      if (item.id !== 'routes' || value) { setSectionVisibility(item.id, value); return; }
+      void readActiveRoute().then((route) => {
+        if (route) Alert.alert('Finish your route first', 'Routes stays visible while a recording or unsaved route is in progress. Return to Routes to finish it.');
+        else setSectionVisibility('routes', false);
+      }).catch(() => Alert.alert('Could not check your route', 'Try again before hiding Routes.'));
+    }} />; })}</View>
     <View style={styles.notice}><Text style={styles.noticeTitle}>Older records stay intact</Text><Text style={styles.noticeText}>If you updated from a full-featured version, its records remain in local storage and backups. This wellness edition does not display or update them.</Text></View>
   </ScrollView></SafeAreaView>;
 }
 
 function SettingRow({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (value: boolean) => void }) {
   return <View style={styles.row}><View style={styles.rowBody}><Text style={styles.rowTitle}>{label}</Text><Text style={styles.rowText}>{description}</Text></View><Switch value={value} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.accentSoft }} thumbColor={value ? colors.accent : colors.textDim} /></View>;
+}
+
+function NavigationSettingRow({ index, count, label, description, value, onChange, onDragStart, onDragEnd }: { index: number; count: number; label: string; description: string; value: boolean; onChange: (value: boolean) => void; onDragStart: () => void; onDragEnd: (offset: number) => void }) {
+  const [displacement] = useState(() => new Animated.Value(0));
+  const responder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: onDragStart,
+    onPanResponderMove: (_, gesture) => displacement.setValue(gesture.dy),
+    onPanResponderRelease: (_, gesture) => { displacement.setValue(0); onDragEnd(gesture.dy); },
+    onPanResponderTerminate: () => { displacement.setValue(0); onDragEnd(0); },
+  }), [displacement, onDragStart, onDragEnd]);
+  return <View style={styles.row}>
+    <Animated.View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={`Reorder ${label}, position ${index + 1} of ${count}`} accessibilityHint="Drag to reorder, or use accessibility actions" accessibilityActions={[{ name: 'increment', label: 'Move right' }, { name: 'decrement', label: 'Move left' }]} onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'increment' && index < count - 1) onDragEnd(78); if (event.nativeEvent.actionName === 'decrement' && index > 0) onDragEnd(-78); }} style={[styles.dragHandle, { transform: [{ translateY: displacement }] }]}><Text style={styles.dragText}>☰</Text></Animated.View>
+    <View style={styles.rowBody}><Text style={styles.rowTitle}>{label}</Text><Text style={styles.rowText}>{description}</Text></View>
+    <Switch value={value} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.accentSoft }} thumbColor={value ? colors.accent : colors.textDim} />
+  </View>;
 }
 
 function messageFrom(error: unknown) {
@@ -153,10 +174,14 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.settingsNav, borderRadius: 14, alignItems: 'center', paddingVertical: 14, marginTop: 16 },
   primaryText: { color: colors.background, fontSize: 12, fontWeight: '900' },
   secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 14, alignItems: 'center', paddingVertical: 14, marginTop: 10 },
+  privacyPolicyLink: { marginBottom: spacing.md },
   secondaryText: { color: colors.text, fontSize: 12, fontWeight: '800' },
   disabled: { opacity: 0.55 },
   privacy: { color: colors.textDim, fontSize: 9, lineHeight: 14, marginTop: 12 },
   row: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomColor: colors.border, borderBottomWidth: 1 },
+  navHint: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginBottom: 10 },
+  dragHandle: { alignItems: 'center', justifyContent: 'center', width: 40, height: 48, borderRadius: 10, backgroundColor: colors.surfaceRaised, zIndex: 1 },
+  dragText: { color: colors.textMuted, fontSize: 18, fontWeight: '800' },
   rowBody: { flex: 1 },
   rowTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
   rowText: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 3 },

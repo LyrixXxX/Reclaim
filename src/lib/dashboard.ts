@@ -4,7 +4,7 @@ export const DASHBOARD_WIDGETS: { id: DashboardWidgetId; title: string; descript
   { id: 'nutrition', title: 'Nutrition', description: 'Today’s calories, macros, and fiber.' },
   { id: 'weight', title: 'Weight', description: 'Latest weigh-in and recent recorded trend.' },
   { id: 'habits', title: 'Habits', description: 'Your selected active habits.' },
-  { id: 'activity', title: 'Activity', description: 'Daily steps and saved routes.' },
+  { id: 'activity', title: 'Steps', description: 'Daily steps and goal progress.' },
 ];
 
 export function defaultDashboard(): DashboardWidget[] {

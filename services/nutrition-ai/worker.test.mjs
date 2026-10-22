@@ -2,7 +2,127 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generateKeyPairSync } from 'node:crypto';
 
-import { handleRequest } from './worker.mjs';
+import { handleRequest, macroCalorieEstimate, macroPlanContext } from './worker.mjs';
+
+test('macro calorie estimates are bounded and goal-sensitive', () => {
+  const answers = { age: 35, heightCm: 178, weightKg: 82, activity: 'moderate', estimationBasis: 'male' };
+  const maintain = macroCalorieEstimate({ ...answers, goal: 'maintain' });
+  assert.ok(maintain > 1200);
+  assert.equal(macroCalorieEstimate({ ...answers, goal: 'lose' }), maintain - 250);
+  assert.equal(macroCalorieEstimate({ ...answers, goal: 'gain' }), maintain + 250);
+  assert.equal(macroCalorieEstimate({ ...answers, age: 17, goal: 'maintain' }), null);
+});
+
+test('new weight-loss paces are distinct, guarded, and leave older clients unchanged', () => {
+  const base = { age: 35, heightCm: 177.8, weightKg: 294 * 0.45359237, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', lossPriority: 'balanced' };
+  const gentle = macroPlanContext({ ...base, lossPace: 'gentle' });
+  const moderate = macroPlanContext({ ...base, lossPace: 'moderate' });
+  const faster = macroPlanContext({ ...base, lossPace: 'faster' });
+  assert.equal(gentle.version, 3);
+  assert.equal(gentle.targetCalories - moderate.targetCalories, 250);
+  assert.equal(moderate.targetCalories - faster.targetCalories, 250);
+  assert.equal(moderate.goalAdjustment, -500);
+  assert.equal(macroPlanContext({ ...base }).version, 2);
+  assert.equal(macroPlanContext({ ...base }).goalAdjustment, -250);
+  assert.equal(macroPlanContext({ ...base, goal: 'maintain', lossPace: 'faster' }).goalAdjustment, 0);
+  assert.equal(macroPlanContext({ ...base, goal: 'gain', lossPace: 'faster' }).goalAdjustment, 250);
+});
+
+test('pace safety rejects low intake and excessive percentage of body weight', () => {
+  const small = { age: 35, heightCm: 177.8, weightKg: 155 * 0.45359237, activity: 'low', goal: 'lose', estimationBasis: 'female', trainingFocus: 'strength', lossPriority: 'balanced' };
+  assert.equal(macroPlanContext({ ...small, lossPace: 'faster' }), null);
+  assert.ok(macroPlanContext({ ...small, lossPace: 'gentle' }));
+  const large = { age: 20, heightCm: 228.6, weightKg: 600 * 0.45359237, activity: 'low', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', lossPriority: 'balanced', lossPace: 'gentle', calorieSource: 'user', ownCalories: 1500 };
+  assert.equal(macroPlanContext(large), null);
+});
+
+test('strength loss can use a known calorie target without treating it as verified maintenance', () => {
+  const calculation = macroPlanContext({ age: 35, heightCm: 177.8, weightKg: 294 * 0.45359237, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', calorieSource: 'user', ownCalories: 2400 });
+  assert.equal(calculation.targetCalories, 2400);
+  assert.equal(calculation.calorieSource, 'user');
+  assert.ok(calculation.proteinTargetGrams >= 185);
+  assert.ok(calculation.proteinTargetGrams <= 210);
+  assert.ok(calculation.maintenanceCalories > calculation.targetCalories);
+  assert.equal(macroPlanContext({ age: 35, heightCm: 177.8, weightKg: 133, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', calorieSource: 'user', ownCalories: 1100 }), null);
+});
+
+test('macro planner only forwards the calorie estimate and validates AI output', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const answers = { age: 35, heightCm: 178, weightKg: 82, activity: 'moderate', goal: 'maintain', estimationBasis: 'male' };
+  const estimatedCalories = macroCalorieEstimate(answers);
+  globalThis.fetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    assert.equal(request.store, false);
+    assert.equal(request.text.format.name, 'macro_plan');
+    const forwarded = JSON.parse(request.input[0].content[0].text);
+    assert.deepEqual(forwarded, { targetCalories: estimatedCalories, calorieSource: 'estimated', proteinTargetGrams: macroPlanContext(answers).proteinTargetGrams, fatCaloriesRangePercent: [25, 35], goal: 'maintain', activity: 'moderate', trainingFocus: 'general' });
+    assert.ok(!request.input[0].content[0].text.includes('heightCm'));
+    const proteinGrams = forwarded.proteinTargetGrams;
+    const fatGrams = Math.round(estimatedCalories * 0.3 / 9);
+    const carbsGrams = Math.round((estimatedCalories - 4 * proteinGrams - 9 * fatGrams) / 4);
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ carbsGrams, proteinGrams, fatGrams, fiberGrams: 25, rationale: 'An editable starting point.' }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-macros', { method: 'POST', headers: auth, body: JSON.stringify(answers) }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).estimatedCalories, estimatedCalories);
+});
+
+test('macro planner rejects an AI split below the protein guardrail', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const answers = { age: 35, heightCm: 177.8, weightKg: 294 * 0.45359237, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', calorieSource: 'user', ownCalories: 2400 };
+  globalThis.fetch = async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ carbsGrams: 345, proteinGrams: 160, fatGrams: 42, fiberGrams: 35, rationale: 'A split.' }) }] }] });
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-macros', { method: 'POST', headers: auth, body: JSON.stringify(answers) }), env);
+  assert.equal(response.status, 502);
+});
+
+test('macro planner accepts a strength-focused 2400 kcal draft and exposes its assumptions', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const answers = { age: 35, heightCm: 177.8, weightKg: 294 * 0.45359237, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', calorieSource: 'user', ownCalories: 2400 };
+  const proteinGrams = macroPlanContext(answers).proteinTargetGrams;
+  globalThis.fetch = async (_url, init) => {
+    const forwarded = JSON.parse(JSON.parse(init.body).input[0].content[0].text);
+    assert.equal(forwarded.targetCalories, 2400);
+    assert.equal(forwarded.proteinTargetGrams, proteinGrams);
+    assert.ok(!('weightKg' in forwarded));
+    const fatGrams = 80;
+    const carbsGrams = (2400 - proteinGrams * 4 - fatGrams * 9) / 4;
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ carbsGrams, proteinGrams, fatGrams, fiberGrams: 30, rationale: 'An editable strength-focused starting point; the calorie target is user-entered.' }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-macros', { method: 'POST', headers: auth, body: JSON.stringify(answers) }), env);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.calculation.calorieSource, 'user');
+  assert.equal(result.calculation.proteinTargetGrams, proteinGrams);
+  assert.equal(result.estimatedCalories, 2400);
+});
+
+test('new pace request returns a validated v3 plan without forwarding body measurements', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const answers = { age: 35, heightCm: 177.8, weightKg: 294 * 0.45359237, activity: 'moderate', goal: 'lose', estimationBasis: 'male', trainingFocus: 'strength', lossPace: 'faster', lossPriority: 'performance', calorieSource: 'estimated' };
+  const expected = macroPlanContext(answers);
+  globalThis.fetch = async (_url, init) => {
+    const forwardedText = JSON.parse(init.body).input[0].content[0].text;
+    assert.ok(!forwardedText.includes('weightKg'));
+    assert.ok(!forwardedText.includes('heightCm'));
+    const forwarded = JSON.parse(forwardedText);
+    assert.equal(forwarded.lossPace, 'faster');
+    assert.equal(forwarded.lossPriority, 'performance');
+    const fatGrams = Math.round(forwarded.targetCalories * 0.3 / 9);
+    const carbsGrams = Math.round((forwarded.targetCalories - 4 * forwarded.proteinTargetGrams - 9 * fatGrams) / 4);
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ carbsGrams, proteinGrams: forwarded.proteinTargetGrams, fatGrams, fiberGrams: 30, rationale: 'An editable estimate, not a guaranteed rate of loss.' }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-macros', { method: 'POST', headers: auth, body: JSON.stringify(answers) }), env);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.calculation.version, 3);
+  assert.equal(result.calculation.targetCalories, expected.targetCalories);
+  assert.equal(result.calculation.goalAdjustment, -750);
+  assert.ok(Math.abs(4 * result.carbsGrams + 4 * result.proteinGrams + 9 * result.fatGrams - expected.targetCalories) <= 50);
+});
 import { requestHash, validVerdict } from './play-integrity.mjs';
 
 const env = { RECLAIM_ACCESS_TOKEN: 'a-very-long-personal-access-token', OPENAI_API_KEY: 'test-key', OPENAI_MODEL: 'gpt-6-astra' };
@@ -33,6 +153,41 @@ test('produce suggestions require selected entries and return structured estimat
   };
   const response = await handleRequest(new Request('https://relay.test/v1/suggest-produce', { method: 'POST', headers: auth, body: JSON.stringify({ entries: [{ id: 'apple', name: 'Apple', servingLabel: '1 medium apple', servings: 1 }] }) }), env);
   assert.deepEqual((await response.json()).suggestions[0], { nutritionEntryId: 'apple', servings: 1, category: 'fruit', explanation: 'One whole apple.' });
+});
+
+test('workout planning validates choices and returns exercise IDs for selected weekdays', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const body = { weekdays: [1, 3], minutes: 45, experience: 'beginner', equipment: ['dumbbell'], priorityMuscles: ['biceps'], catalog: [{ id: 'builtin-22', name: 'Dumbbell Curl', primaryMuscle: 'biceps', equipment: 'dumbbell' }] };
+  const invalid = await handleRequest(new Request('https://relay.test/v1/plan-workouts', { method: 'POST', headers: auth, body: JSON.stringify({ ...body, weekdays: [1, 1] }) }), env);
+  assert.equal(invalid.status, 400);
+  globalThis.fetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    assert.equal(request.store, false);
+    assert.equal(request.text.format.name, 'workout_plan');
+    assert.match(request.instructions, /not medical advice/i);
+    assert.match(request.instructions, /Do not choose sets, reps, weights/i);
+    assert.deepEqual(request.text.format.schema.properties.days.items.properties.exercises.items.required, ['exerciseId']);
+    assert.match(request.input[0].content[0].text, /Dumbbell Curl/);
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ days: [1, 3].map((weekday) => ({ weekday, name: 'Strength', exercises: [{ exerciseId: 'builtin-22' }] })) }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-workouts', { method: 'POST', headers: { ...auth, 'X-Reclaim-Plan-Format': 'exercise-ids-v2' }, body: JSON.stringify(body) }), env);
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).days.map((day) => day.weekday), [1, 3]);
+});
+
+test('older Play installs continue receiving set and rep targets', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const body = { weekdays: [1], minutes: 45, experience: 'beginner', equipment: ['dumbbell'], priorityMuscles: [], catalog: [{ id: 'builtin-22', name: 'Dumbbell Curl', primaryMuscle: 'biceps', equipment: 'dumbbell' }] };
+  globalThis.fetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    assert.deepEqual(request.text.format.schema.properties.days.items.properties.exercises.items.required, ['exerciseId', 'sets', 'reps']);
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ days: [{ weekday: 1, name: 'Monday strength', exercises: [{ exerciseId: 'builtin-22', sets: 2, reps: 10 }] }] }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/plan-workouts', { method: 'POST', headers: auth, body: JSON.stringify(body) }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).days[0].exercises[0].sets, 2);
 });
 
 test('validates empty food text before calling OpenAI', async () => {

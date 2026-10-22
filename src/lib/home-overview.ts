@@ -5,8 +5,10 @@ import { exerciseCaloriesForDate } from './workouts';
 import { goalForDate as nutritionGoalForDate, macroCalories, nutritionTotals } from './nutrition';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
+import { formatMedicationTime } from './medications';
+import { supplementDosesForDate } from './supplements';
 
-export type HomeAttention = { id: string; title: string; detail: string; href: '/activity' };
+export type HomeAttention = { id: string; title: string; detail: string; href: '/activity' | '/supplements' };
 
 export function nutritionGoalReached(calories: number, budget: number, entryCount: number) {
   return entryCount > 0 && Math.abs(calories - budget) <= 200;
@@ -37,7 +39,13 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date) 
   const nutritionReached = Boolean(nutrition && nutritionGoalReached(nutrition.calories, nutrition.budget, nutrition.entryCount));
 
   const attention: HomeAttention[] = [];
-  if (preferences.visibleSections.activity && steps.status === 'interrupted') attention.push({ id: 'steps-interrupted', title: 'Step tracking interrupted', detail: 'Open Activity to restart tracking.', href: '/activity' });
+  if (preferences.visibleSections.activity && steps.status === 'interrupted') attention.push({ id: 'steps-interrupted', title: 'Step tracking interrupted', detail: 'Open Steps to restart tracking.', href: '/activity' });
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  for (const dose of supplementDosesForDate(state.medications ?? [], state.medicationEvents ?? [], today)) {
+    if (dose.status || dose.time > currentTime) continue;
+    attention.push({ id: `supplement-${dose.medication.id}-${dose.time}`, title: `Supplement: ${dose.medication.name}`,
+      detail: `${formatMedicationTime(dose.time)} · Not logged yet`, href: '/supplements' });
+  }
 
   const goalCount = Number(Boolean(stepProgress)) + Number(Boolean(nutrition));
   const reachedCount = Number(Boolean(stepProgress?.reached)) + Number(nutritionReached);

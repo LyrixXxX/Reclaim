@@ -29,14 +29,14 @@ export async function parseNutritionLabel(base64: string, mimeType = 'image/jpeg
 }
 
 export async function requestPrivateAiRelay(path: string, init: RequestInit) {
-  if (Platform.OS !== 'android' || !ReclaimIntegrity) throw new Error('Private AI requires the Android app installed through Google Play. Manual entry remains available.');
-  if (!CLOUD_PROJECT_NUMBER || !/^\d+$/.test(CLOUD_PROJECT_NUMBER)) throw new Error('Private AI is not ready in this build. Manual entry remains available.');
+  if (Platform.OS !== 'android' || !ReclaimIntegrity) throw new Error('AI requires the Android app installed through Google Play. Manual entry remains available.');
+  if (!CLOUD_PROJECT_NUMBER || !/^\d+$/.test(CLOUD_PROJECT_NUMBER)) throw new Error('AI is not ready in this build. Manual entry remains available.');
   if (init.method !== 'POST' || typeof init.body !== 'string') throw new Error('The AI request is invalid.');
 
   const requestHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${path}\n${init.body}`);
   let integrityToken: string;
   try { integrityToken = await ReclaimIntegrity.token(CLOUD_PROJECT_NUMBER, requestHash); }
-  catch { throw new Error('Google Play could not verify this app install for Private AI. Manual entry remains available.'); }
+  catch { throw new Error('Google Play could not verify this app install for AI. Manual entry remains available.'); }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -51,7 +51,7 @@ export async function requestPrivateAiRelay(path: string, init: RequestInit) {
       },
     });
     if (!response.ok) {
-      let message = response.status === 429 ? 'Private AI is temporarily busy. Try again shortly.' : 'Private AI could not process this request.';
+      let message = response.status === 429 ? 'AI is temporarily busy. Try again shortly.' : 'AI could not process this request.';
       try {
         const error = await response.json() as { error?: string };
         if (error.error) message = error.error;
@@ -60,7 +60,7 @@ export async function requestPrivateAiRelay(path: string, init: RequestInit) {
     }
     return response;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw new Error('Private AI took too long to respond. Try again or enter the information manually.');
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('AI took too long to respond. Try again or enter the information manually.');
     throw error;
   } finally {
     clearTimeout(timer);

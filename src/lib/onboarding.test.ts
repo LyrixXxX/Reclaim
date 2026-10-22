@@ -2,7 +2,7 @@ import { createSeedState } from '@/data/seed';
 import { createLocalStateWriter, readLocalState } from './local-storage';
 import { migratePreferences, setHealthModuleVisible, setSectionVisible } from './preferences';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
-import { completeOnboarding, createFreshState, needsOnboarding, normalizeOnboardingSelections, persistCompletedOnboarding } from './onboarding';
+import { completeOnboarding, createFreshState, needsOnboarding, normalizeOnboardingSelections, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight, persistCompletedOnboarding, shouldEnableFirstStepTracking } from './onboarding';
 import { migrateCpapState } from './cpap';
 
 describe('first-run setup', () => {
@@ -27,7 +27,7 @@ describe('first-run setup', () => {
 
   test('one choice enables only its tab and widget', () => {
     const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['weight'] });
-    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false, workouts: false });
+    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false, routes: false, workouts: false });
     expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => [widget.id, widget.expanded])).toEqual([['weight', false]]);
   });
 
@@ -80,7 +80,7 @@ describe('first-run setup', () => {
   });
 
   test('a failed final save keeps setup pending; retry persists the completed choices', async () => {
-    const pending = { ...createFreshState(), onboardingSelections: ['habits' as const] };
+    const pending = { ...createFreshState(), onboardingSelections: ['weight' as const], onboardingSetupDraft: { weight: { value: '180', unit: 'lb' as const } } };
     let fail = true;
     const snapshots: string[] = [];
     const writer = createLocalStateWriter(async (snapshot) => {
@@ -93,6 +93,54 @@ describe('first-run setup', () => {
     fail = false;
     const completed = await persistCompletedOnboarding(pending, writer.save);
     expect(needsOnboarding(completed)).toBe(false);
+    expect(completed.weightEntries).toHaveLength(1);
+    expect(pending.weightEntries).toBeUndefined();
     expect(JSON.parse(snapshots[0])).toEqual(completed);
+  });
+
+  test('first entries become ordinary records only for selected, unskipped areas', () => {
+    const date = new Date(2026, 9, 15, 12);
+    const draft = { weight: { value: '182.5', unit: 'lb' as const }, nutrition: { carbs: '220', protein: '160', fat: '65', fiber: '30' } };
+    const pending = { ...createFreshState(), onboardingSelections: ['weight' as const, 'nutrition' as const], onboardingSetupDraft: draft };
+    expect(pending.weightEntries).toBeUndefined();
+    const complete = completeOnboarding(pending, date);
+    expect(complete.weightEntries?.[0]).toMatchObject({ date: '2026-10-15', weight: 182.5, unit: 'lb' });
+    expect(complete.nutritionGoals?.[0]).toMatchObject({ effectiveDate: '2026-10-15', carbsGrams: 220, proteinGrams: 160, fatGrams: 65, fiberGrams: 30 });
+    expect(complete.onboardingSetupDraft).toBeUndefined();
+    expect(completeOnboarding({ ...pending, onboardingSelections: ['weight'], onboardingSetupDraft: { ...draft, weight: { value: '82.4', unit: 'kg' }, nutrition: { ...draft.nutrition, skipped: true } } }, date).nutritionGoals).toBeUndefined();
+    expect(completeOnboarding({ ...pending, onboardingSetupDraft: { ...draft, weight: { ...draft.weight, skipped: true } } }, date).weightEntries).toBeUndefined();
+  });
+
+  test('setup values survive pending-state reload and cannot save invalid numbers', async () => {
+    const pending = { ...createFreshState(), onboardingSelections: ['weight' as const], onboardingSetupDraft: { weight: { value: '78.4', unit: 'kg' as const } } };
+    const reloaded = await readLocalState(async () => JSON.stringify(pending));
+    expect(reloaded?.onboardingSetupDraft).toEqual(pending.onboardingSetupDraft);
+    expect(completeOnboarding(reloaded!, new Date(2026, 9, 15)).weightEntries?.[0].unit).toBe('kg');
+    expect(() => parseFirstWeight('')).toThrow();
+    expect(() => parseFirstWeight('-2')).toThrow();
+    expect(() => parseFirstNutrition({ carbs: '0', protein: '0', fat: '0', fiber: '0' })).toThrow();
+    expect(() => parseFirstNutrition({ carbs: '20', protein: '', fat: '0', fiber: '0' })).toThrow();
+    expect(parseFirstNutrition({ carbs: '20.5', protein: '30', fat: '10', fiber: '0' }).carbsGrams).toBe(20.5);
+    expect(parseFirstNutrition({ carbs: '20.5', protein: '30', fat: '10', fiber: '' }).fiberGrams).toBe(0);
+    expect(() => parseFirstNutrition({ carbs: '20', protein: '30', fat: '10', fiber: '-1' })).toThrow();
+  });
+
+  test('Activity setup saves a daily goal and requests tracking only when explicitly chosen', async () => {
+    const date = new Date(2026, 9, 15, 12);
+    const pending = { ...createFreshState(), onboardingSelections: ['activity' as const], onboardingSetupDraft: { activity: { stepGoal: '8500', enableStepTracking: true } } };
+    const reloaded = await readLocalState(async () => JSON.stringify(pending));
+    expect(reloaded?.onboardingSetupDraft?.activity).toEqual(pending.onboardingSetupDraft.activity);
+    expect(shouldEnableFirstStepTracking(reloaded!)).toBe(true);
+    expect(completeOnboarding(reloaded!, date).stepGoals).toEqual([{ effectiveDate: '2026-10-15', count: 8500 }]);
+    const goalOnly = { ...pending, onboardingSetupDraft: { activity: { stepGoal: '7000', enableStepTracking: false } } };
+    expect(shouldEnableFirstStepTracking(goalOnly)).toBe(false);
+    expect(completeOnboarding(goalOnly, date).stepGoals?.[0].count).toBe(7000);
+    const skipped = { ...pending, onboardingSetupDraft: { activity: { stepGoal: '8500', enableStepTracking: true, skipped: true } } };
+    expect(shouldEnableFirstStepTracking(skipped)).toBe(false);
+    expect(completeOnboarding(skipped, date).stepGoals).toBeUndefined();
+    expect(shouldEnableFirstStepTracking({ ...pending, onboardingSelections: [] })).toBe(false);
+    expect(() => parseFirstStepGoal('')).toThrow();
+    expect(() => parseFirstStepGoal('12.5')).toThrow();
+    expect(() => parseFirstStepGoal('100001')).toThrow();
   });
 });

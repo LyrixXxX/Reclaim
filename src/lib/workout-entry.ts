@@ -63,6 +63,9 @@ export function setAmountLabel(set: StrengthSet, measurementType?: ExerciseMeasu
 }
 
 export function emptySetDraft(unit: 'lb' | 'kg'): WorkoutSetDraft { return { weight: '', reps: '', notes: '', kind: 'working', unit }; }
+export function hasUnloggedSetInput(drafts?: Record<string, WorkoutSetDraft>) {
+  return Object.values(drafts ?? {}).some((draft) => !draft.autoSuggested && !!(draft.weight.trim() || draft.reps.trim() || draft.notes.trim() || draft.kind !== 'working'));
+}
 export function updateSetDraft(session: WorkoutSession, exerciseId: string, patch: Partial<WorkoutSetDraft>, unit: 'lb' | 'kg'): WorkoutSession {
   return { ...session, setDrafts: { ...session.setDrafts, [exerciseId]: { ...(session.setDrafts?.[exerciseId] ?? emptySetDraft(unit)), ...patch } } };
 }

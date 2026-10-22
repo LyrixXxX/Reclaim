@@ -1,8 +1,8 @@
 import { localDateKey } from './progress';
 
 export type AdFrequency = { day: string; shownAt: number[] };
-export const AD_DAILY_LIMIT = 2;
-export const AD_MIN_INTERVAL_MS = 20 * 60 * 1000;
+export const AD_DAILY_LIMIT = 6;
+export const AD_MIN_INTERVAL_MS = 15 * 60 * 1000;
 
 export function canShowCompletionAd(history: AdFrequency, now = new Date()): boolean {
   const shown = history.day === localDateKey(now) ? history.shownAt.filter((time) => Number.isFinite(time) && time <= now.getTime()) : [];

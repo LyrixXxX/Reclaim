@@ -6,8 +6,8 @@
   "expo": {
     "name": "Reclaim",
     "slug": "reclaim",
-    "version": "1.0.5",
-    "orientation": "portrait",
+    "version": "1.0.19",
+    "orientation": "default",
     "icon": "./assets/images/reclaim-icon.png",
     "scheme": "reclaim",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
       "icon": "./assets/images/reclaim-icon.png"
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 20,
       "permissions": ["android.permission.ACTIVITY_RECOGNITION", "android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"],
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -62,7 +62,7 @@
       ],
       [
         "expo-build-properties",
-        { "android": { "minSdkVersion": 26 } }
+        { "android": { "minSdkVersion": 26, "enableMinifyInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true } }
       ],
       "@maplibre/maplibre-react-native",
       [
@@ -79,7 +79,8 @@
         {
           "faceIDPermission": "Allow Reclaim to use Face ID to unlock your private records."
         }
-      ]
+      ],
+      "./plugins/with-adaptive-android-ui"
     ],
     "experiments": {
       "typedRoutes": true,

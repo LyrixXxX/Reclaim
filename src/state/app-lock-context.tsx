@@ -2,7 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { AppLockConfig, canApplyUnlockResult, PinAttemptState, pinValidationMessage, registerFailedPinAttempt, remainingPinCooldown } from '@/lib/app-lock';
+import { AppLockConfig, canApplyUnlockResult, canResumeWithoutUnlock, PinAttemptState, pinValidationMessage, registerFailedPinAttempt, remainingPinCooldown } from '@/lib/app-lock';
 import { createAppLockConfig, deleteAppLockConfig, loadAppLockConfig, saveAppLockConfig, verifyAppLockPin } from '@/lib/app-lock-storage';
 
 type Result = { ok: true } | { ok: false; message: string };
@@ -35,6 +35,14 @@ export function AppLockProvider({ children }: PropsWithChildren) {
   const configRef = useRef<AppLockConfig | undefined>(undefined);
   const authenticatingRef = useRef(false);
   const unlockAttemptRef = useRef(0);
+  const lockedRef = useRef(true);
+  const backgroundedAtRef = useRef<number | undefined>(undefined);
+  const resumeEligibleRef = useRef(false);
+
+  const updateLocked = (next: boolean) => {
+    lockedRef.current = next;
+    setLocked(next);
+  };
 
   useEffect(() => {
     let active = true;
@@ -43,7 +51,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
         if (!active) return;
         configRef.current = saved;
         setConfig(saved);
-        setLocked(Boolean(saved));
+        updateLocked(Boolean(saved));
         setBiometricAvailable(biometrics.available);
         setBiometricLabel(biometrics.label);
       })
@@ -51,7 +59,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
         if (!active) return;
         configRef.current = undefined;
         setConfig(undefined);
-        setLocked(false);
+        updateLocked(false);
       })
       .finally(() => { if (active) setReady(true); });
     return () => { active = false; };
@@ -59,13 +67,25 @@ export function AppLockProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'background') return;
-      unlockAttemptRef.current += 1;
-      if (authenticatingRef.current) {
-        authenticatingRef.current = false;
-        void LocalAuthentication.cancelAuthenticate().catch(() => undefined);
+      if (state === 'background') {
+        // Cover private content in Android's recent-apps preview immediately.
+        // Only an already-unlocked session can use the short return grace period.
+        if (backgroundedAtRef.current === undefined) {
+          backgroundedAtRef.current = Date.now();
+          resumeEligibleRef.current = Boolean(configRef.current) && !lockedRef.current;
+        }
+        unlockAttemptRef.current += 1;
+        if (authenticatingRef.current) {
+          authenticatingRef.current = false;
+          void LocalAuthentication.cancelAuthenticate().catch(() => undefined);
+        }
+        if (configRef.current) updateLocked(true);
+      } else if (state === 'active' && backgroundedAtRef.current !== undefined) {
+        const resume = resumeEligibleRef.current && canResumeWithoutUnlock(backgroundedAtRef.current);
+        backgroundedAtRef.current = undefined;
+        resumeEligibleRef.current = false;
+        if (resume && configRef.current) updateLocked(false);
       }
-      if (configRef.current) setLocked(true);
     });
     return () => subscription.remove();
   }, []);
@@ -100,7 +120,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
       if (!canApplyUnlockResult(attempt, unlockAttemptRef.current, AppState.currentState)) {
         return { ok: false, message: 'Unlock was interrupted. Try again.' };
       }
-      setLocked(false);
+      updateLocked(false);
     }
     return result;
   };
@@ -125,7 +145,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
       }
       if (!result.success) return { ok: false, message: biometricMessage(result.error) };
       setPinAttempts({ failedAttempts: 0 });
-      setLocked(false);
+      updateLocked(false);
       return { ok: true };
     } catch {
       return { ok: false, message: 'Biometric unlock could not be started. Use your PIN.' };
@@ -146,7 +166,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
       const next = await createAppLockConfig(pin, useBiometrics);
       await saveAppLockConfig(next);
       replaceConfig(next);
-      setLocked(false);
+      updateLocked(false);
       return { ok: true };
     } catch {
       return { ok: false, message: 'Reclaim could not save the app lock securely on this device.' };
@@ -159,7 +179,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
     try {
       await deleteAppLockConfig();
       replaceConfig(undefined);
-      setLocked(false);
+      updateLocked(false);
       return { ok: true };
     } catch {
       return { ok: false, message: 'Reclaim could not remove the app lock.' };
@@ -231,7 +251,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
     setBiometricEnabled,
     unlockWithPin,
     unlockWithBiometrics,
-    lockNow: () => setLocked(true),
+    lockNow: () => { resumeEligibleRef.current = false; updateLocked(true); },
   }}>{children}</AppLockContext.Provider>;
 }
 

@@ -5,10 +5,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { colors } from '@/theme';
-import { DEFAULT_PREFERENCES } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, normalizeNavigationOrder } from '@/lib/preferences';
 import { selectionHaptic } from '@/lib/haptics';
 import { horizontalOverflowState } from '@/lib/navigation';
 import { useTrackers } from '@/state/tracker-context';
+import { NavigationSection } from '@/models/tracker';
+
+const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts'; label: string; icon: NavIconName; color: string; active: (path: string) => boolean }> = {
+  activity: { href: '/activity', label: 'Steps', icon: 'activity', color: colors.activityNav, active: (path) => path === '/activity' },
+  routes: { href: '/routes', label: 'Routes', icon: 'routes', color: colors.activityNav, active: (path) => path === '/routes' || path === '/activity-map' || path === '/activity-routes' },
+  goals: { href: '/habits', label: 'Habits', icon: 'habits', color: colors.habitsNav, active: (path) => path === '/habits' },
+  weight: { href: '/weight', label: 'Weight', icon: 'weight', color: colors.weightNav, active: (path) => path.startsWith('/weight') },
+  nutrition: { href: '/nutrition', label: 'Nutrition', icon: 'nutrition', color: colors.nutritionNav, active: (path) => path.startsWith('/nutrition') },
+  workouts: { href: '/workouts', label: 'Workouts', icon: 'workouts', color: colors.workoutsNav, active: (path) => path.startsWith('/workout') },
+};
 
 export function BottomNavigation() {
   const path = usePathname();
@@ -30,11 +40,10 @@ export function BottomNavigation() {
       <View style={styles.moduleViewport} onLayout={setViewportWidth}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moduleScroll} contentContainerStyle={styles.moduleContent} onContentSizeChange={setContentWidth} onScroll={setOffset} scrollEventThrottle={32}>
           <Tab href="/" label="Home" icon="home" color={colors.accent} active={path === '/'} />
-          {preferences.visibleSections.goals && <Tab href="/habits" label="Habits" icon="habits" color={colors.habitsNav} active={path === '/habits'} />}
-          {preferences.visibleSections.weight && <Tab href="/weight" label="Weight" icon="weight" color={colors.weightNav} active={path.startsWith('/weight')} />}
-          {preferences.visibleSections.nutrition && <Tab href="/nutrition" label="Nutrition" icon="nutrition" color={colors.nutritionNav} active={path.startsWith('/nutrition')} />}
-          {preferences.visibleSections.workouts && <Tab href="/workouts" label="Workouts" icon="workouts" color={colors.workoutsNav} active={path.startsWith('/workout')} />}
-          {preferences.visibleSections.activity && <Tab href="/activity" label="Activity" icon="activity" color={colors.activityNav} active={path === '/activity' || path === '/activity-map'} />}
+          {normalizeNavigationOrder(preferences.navigationOrder).filter((section) => preferences.visibleSections[section]).map((section) => {
+            const tab = navigationTabs[section];
+            return <Tab key={section} {...tab} active={tab.active(path)} />;
+          })}
         </ScrollView>
         {overflow.canScrollLeft && <ScrollCue side="left" />}
         {overflow.canScrollRight && <ScrollCue side="right" />}
@@ -55,9 +64,9 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'workouts' | 'settings';
+type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'settings';
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/workouts' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
+function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
     <NavIcon name={icon} active={active} />
     <Text style={[styles.label, active && { color }]}>{label}</Text>
@@ -65,10 +74,11 @@ function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/w
 }
 
 function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
-  if (name === 'workouts') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Svg width="34" height="34" viewBox="0 0 34 34"><Path d="M3 12v10m4-14v18m4-13v8m12-8v8m4-13v18m4-14v10M11 17h12" stroke={colors.workoutsNav} strokeWidth="3" strokeLinecap="round" /></Svg></View>;
+  if (name === 'workouts') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Image source={require('../../assets/images/workouts-navigation.jpg')} resizeMode="cover" style={styles.icon} /></View>;
+  if (name === 'routes') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Image source={require('../../assets/images/maps-navigation.png')} resizeMode="cover" style={styles.icon} /></View>;
   const centers: Record<NavIconName, [number, number]> = {
     home: [267, 198], habits: [680, 198],
-    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], workouts: [1096, 623], settings: [1508, 623],
+    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], routes: [1096, 623], workouts: [1096, 623], settings: [1508, 623],
   };
   const scale = 34 / 326;
   const [centerX, centerY] = centers[name];

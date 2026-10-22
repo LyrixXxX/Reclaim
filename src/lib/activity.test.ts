@@ -1,6 +1,6 @@
-import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, validActivityPoint } from './activity';
+import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, routeMovingDurationMs, validActivityPoint } from './activity';
 import { createFreshState, completeOnboarding } from './onboarding';
-import { migratePreferences } from './preferences';
+import { DEFAULT_PREFERENCES, migratePreferences } from './preferences';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
 
 describe('Activity route data', () => {
@@ -13,8 +13,22 @@ describe('Activity route data', () => {
     expect(validActivityPoint({ ...near, accuracy: 250 }, origin)).toBe(false);
     expect(routeDistanceMeters([origin, near, { ...near, latitude: 42, segment: 1 }])).toBeCloseTo(pointDistanceMeters(origin, near));
   });
+  test('filters stationary drift without losing ordinary movement or joining paused segments', () => {
+    const wobble = { ...origin, latitude: origin.latitude + 0.00004, timestamp: 6_000 };
+    const walking = { ...origin, latitude: origin.latitude + 0.00012, timestamp: 11_000 };
+    expect(validActivityPoint(wobble, origin)).toBe(false);
+    expect(validActivityPoint(walking, origin)).toBe(true);
+    expect(validActivityPoint({ ...walking, accuracy: 80 }, origin)).toBe(false);
+    expect(validActivityPoint({ ...walking, accuracy: 40 }, origin)).toBe(false);
+    expect(validActivityPoint({ ...origin, accuracy: 40 })).toBe(false);
+    expect(validActivityPoint({ ...walking, segment: 1 }, origin)).toBe(true);
+    expect(routeDistanceMeters([origin, walking, { ...walking, segment: 1, latitude: 42 }])).toBeCloseTo(pointDistanceMeters(origin, walking));
+  });
   test('subtracts pauses from duration', () => {
     expect(activityDurationMs({ startedAt: '2026-09-25T10:00:00Z', endedAt: '2026-09-25T11:00:00Z', pausedMs: 600_000 })).toBe(3_000_000);
+    const oldRoute = { id: 'old', kind: 'hike' as const, startedAt: '2026-09-25T10:00:00Z', endedAt: '2026-09-25T11:00:00Z', pausedMs: 0, distanceMeters: 1000, points: [] };
+    expect(routeMovingDurationMs(oldRoute)).toBeNull();
+    expect(routeMovingDurationMs({ ...oldRoute, movingMs: 1_200_000 })).toBe(1_200_000);
   });
   test('uses active time for pace and a weight-based exercise estimate', () => {
     expect(activeRouteDurationMs({ startedAt: '2026-09-25T10:00:00Z', pausedAt: '2026-09-25T10:30:00Z', pausedMs: 300_000 }, Date.parse('2026-09-25T11:00:00Z'))).toBe(1_500_000);
@@ -34,14 +48,31 @@ describe('Activity route data', () => {
     const backup = createReclaimBackup({ ...createFreshState(), activityRoutes: [route] });
     expect(parseReclaimBackup(JSON.stringify(backup)).state.activityRoutes).toEqual([route]);
     expect(parseReclaimBackup(JSON.stringify(createReclaimBackup({ ...createFreshState(), activityRoutes: [{ ...route, kind: 'run' }] }))).state.activityRoutes?.[0].kind).toBe('run');
+    const timed = { ...route, movingMs: 2_400_000, stoppedMs: 1_200_000, unclassifiedMs: 0, manualPauseIntervals: [], stationaryIntervals: [{ startedAt: '2026-09-25T18:20:00Z', endedAt: '2026-09-25T18:40:00Z' }], autoPauseIntervals: [] };
+    expect(parseReclaimBackup(JSON.stringify(createReclaimBackup({ ...createFreshState(), activityRoutes: [timed] }))).state.activityRoutes).toEqual([timed]);
   });
   test('keeps existing Activity hidden and includes routes in backups', () => {
     const existing = migratePreferences({ trackers: [], checkIns: [] });
     expect(existing.preferences?.visibleSections.activity).toBe(false);
+    expect(existing.preferences?.visibleSections.routes).toBe(false);
     const fresh = completeOnboarding({ ...createFreshState(), onboardingSelections: ['activity'] });
     expect(fresh.preferences?.visibleSections.activity).toBe(true);
+    expect(fresh.preferences?.visibleSections.routes).toBe(false);
     expect(fresh.preferences?.dashboard?.filter((widget) => widget.visible).map((widget) => widget.id)).toEqual(['activity']);
     const route = { id: 'route-1', kind: 'hike' as const, startedAt: '2026-09-25T10:00:00Z', endedAt: '2026-09-25T11:00:00Z', pausedMs: 0, distanceMeters: 11, points: [origin, near] };
     expect(parseReclaimBackup(JSON.stringify(createReclaimBackup({ ...fresh, activityRoutes: [route] }))).state.activityRoutes).toEqual([route]);
+  });
+  test('routes-only setup does not enable steps or create a step goal', () => {
+    const routes = completeOnboarding({ ...createFreshState(), onboardingSelections: ['routes'] });
+    expect(routes.preferences?.visibleSections.activity).toBe(false);
+    expect(routes.preferences?.visibleSections.routes).toBe(true);
+    expect(routes.stepGoals).toBeUndefined();
+    expect(routes.preferences?.dashboard?.find((widget) => widget.id === 'activity')?.visible).toBe(false);
+  });
+  test('existing combined Activity visibility migrates to both tabs once', () => {
+    const old = { ...createFreshState(), preferences: { ...DEFAULT_PREFERENCES, visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, activity: true, routes: undefined } } };
+    const migrated = migratePreferences(old);
+    expect(migrated.preferences?.visibleSections).toMatchObject({ activity: true, routes: true });
+    expect(migratePreferences({ ...migrated, preferences: { ...migrated.preferences!, visibleSections: { ...migrated.preferences!.visibleSections, routes: false } } }).preferences?.visibleSections.routes).toBe(false);
   });
 });

@@ -6,7 +6,6 @@ import { localDateKey } from './progress';
 import { completedCalendarDays, formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from './taper-quit';
 import { currentStreakFromEntries } from './recovery';
 import { StepResult } from './activity-steps';
-import { formatMiles } from './activity-units';
 import { exerciseCaloriesForDate } from './workouts';
 import { waterDisplayAmount } from './water-habit';
 import { exerciseModeOn, habitProgress, templateConfig } from './good-habit-templates';
@@ -30,13 +29,13 @@ const empty = (caption: string): DashboardContent => ({ value: 'No data yet', ca
 export function dashboardContent(state: TrackerState, widget: DashboardWidget, now: Date, steps?: StepResult): DashboardContent {
   const today = localDateKey(now);
   if (widget.id === 'activity') {
-    const routes = [...(state.activityRoutes ?? [])].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return { value: steps?.count !== undefined ? `${number(steps.count)} steps` : 'Steps not connected', caption: steps?.incomplete ? 'Today · count may be incomplete' : steps?.status === 'available' ? 'Today · phone step counter' : 'Open Activity to enable step tracking.', rows: routes[0] ? [{ label: `Latest ${routes[0].kind} · ${dashboardDate(routes[0].startedAt)}`, value: formatMiles(routes[0].distanceMeters) }] : [] };
+    return { value: steps?.count !== undefined ? `${number(steps.count)} steps` : 'Steps not connected', caption: steps?.incomplete ? 'Today · count may be incomplete' : steps?.status === 'available' ? 'Today · phone step counter' : 'Open Steps to enable step tracking.', rows: [] };
   }
   if (widget.id === 'nutrition') {
     const entries = (state.nutritionEntries ?? []).filter((entry) => entry.eventDate === today);
     const goal = goalForDate(state.nutritionGoals ?? [], today);
-    if (!entries.length) return empty(`Today · ${goal ? 'Your saved targets are ready.' : 'Set your targets in Nutrition.'}`);
+    if (!entries.length && goal) return { value: `${number(macroCalories(goal))} kcal target`, caption: 'Today · targets ready · no food logged', rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(goal[key])} g target` })) };
+    if (!entries.length) return empty('Today · Set your targets in Nutrition.');
     const totals = nutritionTotals(entries);
     const budget = goal ? macroCalories(goal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false, state.preferences?.includeWorkoutCaloriesInNutrition ?? false).total : null;
     const recordedDates = [...new Set((state.nutritionEntries ?? []).filter((entry) => entry.eventDate <= today).map((entry) => entry.eventDate))].sort().slice(-7);

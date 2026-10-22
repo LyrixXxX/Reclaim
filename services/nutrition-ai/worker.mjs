@@ -73,6 +73,82 @@ const produceSchema = {
   },
 };
 
+const workoutPlanSchema = {
+  type: 'object', additionalProperties: false, required: ['days'], properties: {
+    days: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'object', additionalProperties: false,
+      required: ['weekday', 'name', 'exercises'], properties: {
+        weekday: { type: 'integer', minimum: 0, maximum: 6 },
+        name: { type: 'string' },
+        exercises: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'object', additionalProperties: false,
+          required: ['exerciseId'], properties: { exerciseId: { type: 'string' } } } },
+      } } },
+  },
+};
+
+const macroPlanSchema = {
+  type: 'object', additionalProperties: false, required: ['carbsGrams', 'proteinGrams', 'fatGrams', 'fiberGrams', 'rationale'], properties: {
+    carbsGrams: { type: 'number', minimum: 0, maximum: 1000 },
+    proteinGrams: { type: 'number', minimum: 0, maximum: 1000 },
+    fatGrams: { type: 'number', minimum: 0, maximum: 1000 },
+    fiberGrams: { type: 'number', minimum: 0, maximum: 100 },
+    rationale: { type: 'string' },
+  },
+};
+const macroPlanInstructions = `Allocate an adult general-wellness macro starting point within the supplied guardrails. Use the supplied protein target (within 5 g), choose fat between 25% and 35% of target calories, and assign the remaining calories to carbohydrates. Return daily carbohydrate, protein, fat, and optional fiber grams plus a concise rationale that names these assumptions. Calories from carbohydrate × 4 + protein × 4 + fat × 9 must be within 50 kcal of the supplied target, with at least 100 g carbohydrate. The calorie target may be a user-entered number; never claim it is a verified deficit or maintenance. For an estimated target, describe it as an uncertain starting point, not a precise measurement. Do not promise muscle retention or weight loss, recommend extreme restriction, supplements, diagnoses, disease treatment, or a target date. Do not repeat age, height, weight, or the estimation basis in the rationale. The user will review and edit before saving.`;
+
+// Product guardrails; these screen out obvious mismatches but cannot certify safety.
+export const MACRO_SAFETY = { minCalories: 1500, maxCalories: 5000, maxDeficitFraction: 0.25, maxWeeklyWeightFraction: 0.01, minCarbsGrams: 100, fatFraction: 0.25 };
+export const LOSS_PACE = { gentle: { weeklyLb: 0.5, deficit: 250 }, moderate: { weeklyLb: 1, deficit: 500 }, faster: { weeklyLb: 1.5, deficit: 750 } };
+
+export function macroPlanContext(body) {
+  const { age, heightCm, weightKg, activity, goal, estimationBasis } = body ?? {};
+  if (!Number.isInteger(age) || age < 18 || age > 100 || !Number.isFinite(heightCm) || heightCm < 100 || heightCm > 230 || !Number.isFinite(weightKg) || weightKg < 30 || weightKg > 300 || !['low', 'moderate', 'high'].includes(activity) || !['maintain', 'lose', 'gain'].includes(goal) || !['female', 'male'].includes(estimationBasis)) return null;
+  const trainingFocus = body.trainingFocus ?? 'general'; // Existing internal builds omit this field.
+  const calorieSource = body.calorieSource ?? 'estimated';
+  const currentFormat = body.lossPace !== undefined;
+  const lossPace = body.lossPace ?? 'gentle'; // Preserve the previous 250-kcal behavior for installed builds.
+  const lossPriority = body.lossPriority ?? 'balanced';
+  if (!Object.hasOwn(LOSS_PACE, lossPace) || !['fat-loss', 'balanced', 'performance'].includes(lossPriority)) return null;
+  if (!['general', 'strength'].includes(trainingFocus) || !['estimated', 'user'].includes(calorieSource)) return null;
+  if (calorieSource === 'user' && (!Number.isInteger(body.ownCalories) || body.ownCalories < 1200 || body.ownCalories > 5000)) return null;
+  // Mifflin–St Jeor estimates resting expenditure, not measured total daily expenditure.
+  const resting = 10 * weightKg + 6.25 * heightCm - 5 * age + (estimationBasis === 'male' ? 5 : -161);
+  const activityFactor = { low: 1.2, moderate: 1.375, high: 1.55 }[activity];
+  const maintenanceCalories = Math.round(resting * activityFactor / 10) * 10;
+  const goalAdjustment = goal === 'lose' ? -LOSS_PACE[lossPace].deficit : goal === 'gain' ? 250 : 0;
+  const targetCalories = calorieSource === 'user' ? body.ownCalories : maintenanceCalories + goalAdjustment;
+  // App planning heuristic: cap the weight used for protein math at BMI 30 to
+  // avoid scaling a sports-nutrition body-weight formula indefinitely with fat mass.
+  // This is not a clinical estimate of lean mass or an individual requirement.
+  const proteinReferenceKg = Math.min(weightKg, 30 * (heightCm / 100) ** 2);
+  const proteinFactor = goal === 'lose' && trainingFocus === 'strength' && currentFormat ? (lossPriority === 'fat-loss' ? 1.8 : 2) : trainingFocus === 'strength' ? (goal === 'lose' ? 2 : 1.6) : (goal === 'lose' ? 1.6 : 1.2);
+  const proteinTargetGrams = Math.round(proteinReferenceKg * proteinFactor);
+  if (currentFormat && goal === 'lose' && calorieSource === 'estimated' && (LOSS_PACE[lossPace].deficit > maintenanceCalories * MACRO_SAFETY.maxDeficitFraction || LOSS_PACE[lossPace].weeklyLb > weightKg / 0.45359237 * MACRO_SAFETY.maxWeeklyWeightFraction)) return null;
+  if (currentFormat && calorieSource === 'user' && maintenanceCalories - targetCalories > maintenanceCalories * MACRO_SAFETY.maxDeficitFraction) return null;
+  const minCalories = currentFormat ? MACRO_SAFETY.minCalories : 1200;
+  if (targetCalories < minCalories || targetCalories > MACRO_SAFETY.maxCalories || targetCalories < proteinTargetGrams * 4 + targetCalories * MACRO_SAFETY.fatFraction + MACRO_SAFETY.minCarbsGrams * 4) return null;
+  return { version: currentFormat ? 3 : 2, restingCalories: Math.round(resting / 10) * 10, maintenanceCalories, targetCalories, calorieSource, activityFactor, goalAdjustment, proteinFactor, proteinTargetGrams, proteinReferenceKg: Math.round(proteinReferenceKg), trainingFocus, ...(currentFormat ? { lossPace, lossPriority } : {}) };
+}
+
+export function macroCalorieEstimate(body) { return macroPlanContext(body)?.targetCalories ?? null; }
+
+// Internal builds published before the exercise-only planner still validate set/rep targets.
+const legacyWorkoutPlanSchema = {
+  type: 'object', additionalProperties: false, required: ['days'], properties: {
+    days: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'object', additionalProperties: false,
+      required: ['weekday', 'name', 'exercises'], properties: {
+        weekday: { type: 'integer', minimum: 0, maximum: 6 }, name: { type: 'string' },
+        exercises: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'object', additionalProperties: false,
+          required: ['exerciseId', 'sets', 'reps'], properties: {
+            exerciseId: { type: 'string' }, sets: { type: 'integer', minimum: 1, maximum: 6 }, reps: { type: 'integer', minimum: 1, maximum: 30 },
+          } } },
+      } } },
+  },
+};
+
+const workoutPlanInstructions = `Draft a practical weekly strength-training schedule, not medical advice. Use only the supplied built-in exercise IDs. Return exactly one day for every selected weekday and no other days. Choose a manageable number of distinct exercises for each session length, cover major muscle groups across the week, and give emphasis to the selected focus groups. Vary muscle emphasis across adjacent training days where possible. Do not choose sets, reps, weights, or other performance targets; users will enter these themselves when training. Never invent injury accommodations, diagnoses, treatment claims, or exercise IDs. The user will review and edit every suggestion before saving.`;
+const legacyWorkoutPlanInstructions = `Draft a practical weekly strength-training schedule, not medical advice. Use only supplied built-in exercise IDs. Return one day for each selected weekday. Choose manageable exercises and conservative set and rep targets for the user's experience. Never invent weights, diagnoses, treatment claims, or exercise IDs. The user reviews and edits the draft before saving.`;
+
 const produceInstructions = `Estimate cup-equivalent fruit and vegetable servings only for clearly identifiable produce in user-selected food entries. Classify each as fruit or vegetable in ordinary food-use terms. Return suggestions, not advice. Do not invent ingredients in mixed or ambiguous dishes. USDA MyPlate examples include 1 cup fruit, 1 cup raw or cooked vegetables, or 2 cups raw leafy greens as one cup-equivalent; whole fruit equivalents vary by fruit and size. Use the supplied quantity; omit entries whose amount cannot be reasonably estimated. Never diagnose or recommend a dietary target.`;
 
 const instructions = `You extract nutrition facts for a personal food log. Return only the requested structured output.
@@ -113,7 +189,7 @@ export async function handleRequest(request, env, fetcher = fetch) {
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404, headers);
     const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
-    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce') return json({ error: 'Not found.' }, 404, headers);
+    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce' && url.pathname !== '/v1/plan-workouts' && url.pathname !== '/v1/plan-macros') return json({ error: 'Not found.' }, 404, headers);
 
     const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
     const safetyIdentifier = `reclaim-${(await sha256(clientIp)).slice(0, 32)}`;
@@ -162,6 +238,26 @@ export async function handleRequest(request, env, fetcher = fetch) {
       responseSchema = produceSchema;
       responseName = 'produce_suggestions';
       content = [{ type: 'input_text', text: `Estimate produce servings for these selected entries. Return only confident suggestions with the matching entry ID:\n${JSON.stringify(body.entries)}` }];
+    } else if (url.pathname === '/v1/plan-macros') {
+      const calculation = macroPlanContext(body);
+      if (!calculation) return json({ error: 'This pace or calorie target is outside the supported general-wellness range. Try a slower pace or enter targets manually with professional guidance.' }, 400, headers);
+      responseInstructions = macroPlanInstructions;
+      responseSchema = macroPlanSchema;
+      responseName = 'macro_plan';
+      content = [{ type: 'input_text', text: JSON.stringify({ targetCalories: calculation.targetCalories, calorieSource: calculation.calorieSource, proteinTargetGrams: calculation.proteinTargetGrams, fatCaloriesRangePercent: [25, 35], goal: body.goal, activity: body.activity, trainingFocus: calculation.trainingFocus, ...(calculation.version === 3 ? { lossPace: calculation.lossPace, lossPriority: calculation.lossPriority } : {}) }) }];
+    } else if (url.pathname === '/v1/plan-workouts') {
+      const days = body.weekdays;
+      const catalog = body.catalog;
+      if (!Array.isArray(days) || days.length < 1 || days.length > 6 || new Set(days).size !== days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return json({ error: 'Choose one to six training days.' }, 400, headers);
+      if (!Number.isInteger(body.minutes) || body.minutes < 20 || body.minutes > 120 || !['beginner', 'intermediate', 'advanced'].includes(body.experience)) return json({ error: 'Choose a valid session length and experience level.' }, 400, headers);
+      if (!Array.isArray(body.equipment) || body.equipment.length < 1 || body.equipment.length > 5 || body.equipment.some((item) => !['machine', 'barbell', 'dumbbell', 'cable', 'bodyweight'].includes(item))) return json({ error: 'Choose valid equipment.' }, 400, headers);
+      if (!Array.isArray(body.priorityMuscles) || body.priorityMuscles.length > 3 || body.priorityMuscles.some((item) => !['chest', 'back', 'shoulders', 'biceps', 'triceps', 'quadriceps', 'hamstrings', 'glutes', 'calves', 'core'].includes(item))) return json({ error: 'Choose up to three muscle groups.' }, 400, headers);
+      if (!Array.isArray(catalog) || catalog.length < 1 || catalog.length > 250 || catalog.some((item) => typeof item?.id !== 'string' || !/^builtin-(?:v2-)?[a-z0-9-]+$/.test(item.id) || typeof item?.name !== 'string' || item.name.length > 100 || typeof item?.primaryMuscle !== 'string' || typeof item?.equipment !== 'string')) return json({ error: 'No valid exercise catalog was provided.' }, 400, headers);
+      const exerciseOnly = request.headers.get('X-Reclaim-Plan-Format') === 'exercise-ids-v2';
+      responseInstructions = exerciseOnly ? workoutPlanInstructions : legacyWorkoutPlanInstructions;
+      responseSchema = exerciseOnly ? workoutPlanSchema : legacyWorkoutPlanSchema;
+      responseName = 'workout_plan';
+      content = [{ type: 'input_text', text: JSON.stringify({ weekdays: days, minutes: body.minutes, experience: body.experience, equipment: body.equipment, priorityMuscles: body.priorityMuscles, catalog: catalog.map(({ id, name, primaryMuscle, equipment }) => ({ id, name, primaryMuscle, equipment })) }) }];
     } else {
       const labName = typeof body.labName === 'string' ? body.labName.trim() : '';
       const ocrText = typeof body.ocrText === 'string' ? body.ocrText.trim() : '';
@@ -193,6 +289,20 @@ export async function handleRequest(request, env, fetcher = fetch) {
     const outputText = extractOutputText(response);
     if (!outputText) return json({ error: 'The private parser returned no usable data.' }, 502, headers);
     const parsed = JSON.parse(outputText);
+    if (responseName === 'workout_plan') {
+      const allowedIds = new Set(body.catalog.map((exercise) => exercise.id));
+      const exerciseOnly = request.headers.get('X-Reclaim-Plan-Format') === 'exercise-ids-v2';
+      if (!Array.isArray(parsed.days) || parsed.days.length !== body.weekdays.length || new Set(parsed.days.map((day) => day.weekday)).size !== parsed.days.length || parsed.days.some((day) => !body.weekdays.includes(day.weekday) || typeof day.name !== 'string' || !day.name.trim() || day.name.length > 60 || !Array.isArray(day.exercises) || day.exercises.length < 1 || day.exercises.length > 10 || day.exercises.some((exercise) => !allowedIds.has(exercise.exerciseId) || (!exerciseOnly && (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 6 || !Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 30))))) return json({ error: 'The suggested workout could not be validated. Try again.' }, 502, headers);
+      return json(parsed, 200, headers);
+    }
+    if (responseName === 'macro_plan') {
+      const values = ['carbsGrams', 'proteinGrams', 'fatGrams', 'fiberGrams'];
+      const calories = 4 * parsed.carbsGrams + 4 * parsed.proteinGrams + 9 * parsed.fatGrams;
+      const calculation = macroPlanContext(body);
+      const fatShare = (9 * parsed.fatGrams) / calculation.targetCalories;
+      if (values.some((key) => !Number.isFinite(parsed[key]) || parsed[key] < 0 || parsed[key] > (key === 'fiberGrams' ? 100 : 1000)) || typeof parsed.rationale !== 'string' || !parsed.rationale.trim() || parsed.rationale.length > 800 || !Number.isFinite(calories) || calories < 1200 || calories > 5000 || Math.abs(calories - calculation.targetCalories) > 50 || Math.abs(parsed.proteinGrams - calculation.proteinTargetGrams) > 5 || fatShare < 0.25 || fatShare > 0.35 || parsed.carbsGrams < 100) return json({ error: 'The suggested macro plan did not meet the calorie and protein guardrails. Try again or enter targets manually.' }, 502, headers);
+      return json({ ...parsed, estimatedCalories: calculation.targetCalories, calculation }, 200, headers);
+    }
     return json(responseName === 'lab_history_parse' || responseName === 'produce_suggestions' ? parsed : normalizeResult(parsed), 200, headers);
   } catch (error) {
     return json({ error: error instanceof SyntaxError ? 'The private parser returned invalid structured data.' : 'The private parser encountered an unexpected error.' }, 500, headers);

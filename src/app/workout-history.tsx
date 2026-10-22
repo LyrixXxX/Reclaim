@@ -30,6 +30,7 @@ export default function WorkoutHistory() {
   const repeat = () => {
     if (!current) return;
     if (activeWorkout) return Alert.alert('Workout already active', 'Finish or discard the current session first.');
+    if (!current.exercises.length) return Alert.alert('No exercises to repeat', 'Create a routine with at least one exercise to start a new workout.');
     beginWorkout(current.name, { id: current.routineId ?? '', name: current.name, exercises: current.exercises.map((item) => ({ ...item, sets: [] })), createdAt: current.startedAt, updatedAt: current.endedAt! });
     router.push('/workout-session' as Href);
   };

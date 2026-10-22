@@ -1,11 +1,11 @@
 import { Href, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, Text, View } from 'react-native';
 import { WorkoutButton, WorkoutCard, WorkoutInput, WorkoutPage, WorkoutRow, WorkoutText, WorkoutTitle } from '@/components/workout-ui';
 import { cancelWorkoutRest, scheduleWorkoutRest } from '@/lib/workout-notifications';
 import { confirmationHaptic } from '@/lib/haptics';
 import { DEFAULT_WORKOUT_SETTINGS, estimateWorkoutCalories, fromKg, manualWorkoutCalories, newId, remainingWorkoutRestMs, toKg, workoutElapsedMs, workoutSets } from '@/lib/workouts';
-import { clearSetDraft, displayWeight, emptySetDraft, loggedWeightLabel, parseSetDraft, recordCompletedSet, setAmountLabel, updateSetDraft, weightFieldLabel } from '@/lib/workout-entry';
+import { clearSetDraft, displayWeight, emptySetDraft, hasUnloggedSetInput, loggedWeightLabel, parseSetDraft, recordCompletedSet, setAmountLabel, updateSetDraft, weightFieldLabel } from '@/lib/workout-entry';
 import { latestRouteWeightKg } from '@/lib/activity';
 import { StrengthSet, WorkoutExercise, WorkoutSession, WorkoutSetDraft } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
@@ -24,6 +24,8 @@ export default function WorkoutSessionScreen() {
   const [manualType, setManualType] = useState<'active' | 'gross'>('active');
   const alertedRest = useRef<string | null>(null);
   const pendingSets = useRef(new Set<string>());
+  const scrollRef = useRef<ScrollView>(null);
+  const exerciseOffsets = useRef<Record<string, number>>({});
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const deadline = activeWorkout?.restEndsAt;
@@ -43,12 +45,6 @@ export default function WorkoutSessionScreen() {
     else change((old) => updateSetDraft(old, entry.id, { ...patch, autoSuggested: false }, settings.weightUnit));
   };
   const suggest = (entry: WorkoutExercise, weightKg?: number, reps?: number) => patchDraft(entry, { weight: weightKg === undefined ? '' : displayWeight(weightKg, settings.weightUnit), reps: reps === undefined ? '' : String(reps), unit: settings.weightUnit });
-  const adjust = (entry: WorkoutExercise, field: 'weight' | 'reps', step: number) => {
-    const draft = selectDraft(entry);
-    const value = Number(draft[field].replace(',', '.'));
-    const next = Math.max(0, (Number.isFinite(value) ? value : 0) + step);
-    patchDraft(entry, { [field]: field === 'reps' ? String(Math.round(next)) : String(Math.round(next * 10) / 10) });
-  };
   const stopRest = () => { void cancelWorkoutRest(session.restNotificationId); change((old) => ({ ...old, restStartedAt: undefined, restEndsAt: undefined, restPausedMs: undefined, restNotificationId: undefined })); };
   const extendRest = (seconds: number) => {
     void cancelWorkoutRest(session.restNotificationId);
@@ -107,11 +103,20 @@ export default function WorkoutSessionScreen() {
     completeWorkout(); router.replace(`/workout-history?id=${session.id}` as Href);
   };
   const finishWithCheck = () => {
-    const hasDraft = !!editing || Object.values(session.setDrafts ?? {}).some((item) => !item.autoSuggested && (item.weight.trim() || item.reps.trim() || item.notes.trim() || item.kind !== 'working'));
-    if (hasDraft) Alert.alert('Unfinished set', 'Some entries have not been completed. Finish without them?', [{ text: 'Keep workout' }, { text: 'Finish anyway', onPress: finish }]);
-    else finish();
+    const hasDraft = !!editing || hasUnloggedSetInput(session.setDrafts);
+    if (!workoutSets(session).length) return Alert.alert('No sets logged', 'Nothing has been logged yet. Keep logging or discard this workout?', [{ text: 'Keep logging' }, { text: 'Discard workout', style: 'destructive', onPress: () => { void cancelWorkoutRest(session.restNotificationId); discardWorkout(); router.replace('/workouts' as Href); } }]);
+    Alert.alert('Finish workout?', hasDraft ? 'You have unlogged set inputs. Finish without logging them?' : 'Save this completed workout to your history?', [{ text: 'Keep logging' }, { text: 'Finish workout', onPress: finish }]);
   };
-  return <WorkoutPage><WorkoutTitle>{session.name}</WorkoutTitle><WorkoutText>{clock(workoutElapsedMs(session, now))} elapsed · {workoutSets(session).length} completed sets · {session.pausedAt ? 'Paused' : settings.timingMode === 'smart' ? 'Smart Flow' : settings.timingMode === 'timed' ? 'Timed Sets' : 'Simple Logging'}</WorkoutText>
+  const nextExercise = (index: number) => {
+    if (editing) return Alert.alert('Finish editing?', 'Save or cancel the edited set before moving on.');
+    const next = session.exercises[index + 1];
+    if (!next) return finishWithCheck();
+    Keyboard.dismiss();
+    setExpanded((old) => ({ ...old, [session.exercises[index].id]: false, [next.id]: true }));
+    change((old) => ({ ...old, currentExerciseId: next.id }));
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, (exerciseOffsets.current[next.id] ?? 0) - 12), animated: true }), 80);
+  };
+  return <WorkoutPage scrollRef={scrollRef}><WorkoutTitle>{session.name}</WorkoutTitle><WorkoutText>{clock(workoutElapsedMs(session, now))} elapsed · {workoutSets(session).length} completed sets · {session.pausedAt ? 'Paused' : settings.timingMode === 'smart' ? 'Smart Flow' : settings.timingMode === 'timed' ? 'Timed Sets' : 'Simple Logging'}</WorkoutText>
     <View style={{ flexDirection: 'row', gap: 8 }}><View style={{ flex: 1 }}><WorkoutButton label={session.pausedAt ? 'Resume' : 'Pause'} secondary onPress={() => session.pausedAt ? change((old) => ({ ...old, pausedMs: old.pausedMs + (Date.now() - Date.parse(old.pausedAt!)), pausedAt: undefined })) : change((old) => ({ ...old, pausedAt: new Date().toISOString(), setStartedAt: undefined, setExerciseId: undefined }))} /></View><View style={{ flex: 1 }}><WorkoutButton label="Add exercise" secondary onPress={() => router.push('/workout-exercises?select=1' as Href)} /></View></View>
     {(rest > 0 || session.restPausedMs !== undefined) && <WorkoutCard><WorkoutTitle>Rest · {clock(session.restPausedMs ?? rest)}</WorkoutTitle><WorkoutText>Countdown only; reaching zero does not measure lifting time.</WorkoutText><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
       <WorkoutButton label="Skip" secondary onPress={stopRest} />
@@ -125,28 +130,26 @@ export default function WorkoutSessionScreen() {
       const isExpanded = expanded[entry.id] ?? entry.id === (session.currentExerciseId ?? session.exercises[0]?.id);
       const draft = selectDraft(entry);
       const previous = [...workoutSessions].reverse().flatMap((item) => item.exercises).find((item) => item.exerciseId === entry.exerciseId && item.sets.length)?.sets.at(-1);
-      const last = entry.sets.at(-1);
-      return <WorkoutCard key={entry.id}>
+      return <View key={entry.id} onLayout={(event) => { exerciseOffsets.current[entry.id] = event.nativeEvent.layout.y; }}><WorkoutCard>
         <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name}, ${isExpanded ? 'collapse' : 'expand'}`} onPress={() => setExpanded((old) => ({ ...old, [entry.id]: !isExpanded }))}><WorkoutTitle>{index + 1}. {entry.name} {isExpanded ? '⌃' : '⌄'}</WorkoutTitle><WorkoutText>{entry.primaryMuscle} · {entry.equipment} · {entry.sets.length} completed sets</WorkoutText></Pressable>
         {isExpanded && <>
           {entry.sets.map((set, setIndex) => <View key={set.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ flex: 1 }}><WorkoutRow title={`Set ${setIndex + 1} · ${setAmountLabel(set, entry.measurementType)} · ${loggedWeightLabel(set, entry.equipment, settings.weightUnit, entry.measurementType)}`} subtitle={`${set.kind}${set.durationMs !== undefined ? ` · ${clock(set.durationMs)} measured` : ''}${set.notes ? ` · ${set.notes}` : ''} · tap to edit`} onPress={() => editSet(entry, set)} /></View><Pressable accessibilityRole="button" accessibilityLabel={`Move set ${setIndex + 1} up`} disabled={setIndex === 0} onPress={() => moveSet(entry, setIndex, -1)} style={{ minWidth: 42, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.workoutsNav, opacity: setIndex === 0 ? 0.35 : 1 }}>↑</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Move set ${setIndex + 1} down`} disabled={setIndex === entry.sets.length - 1} onPress={() => moveSet(entry, setIndex, 1)} style={{ minWidth: 42, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.workoutsNav, opacity: setIndex === entry.sets.length - 1 ? 0.35 : 1 }}>↓</Text></Pressable></View>)}
           <WorkoutText>{editing?.exerciseId === entry.id ? 'Edit completed set' : `Next set · ${entry.sets.length + 1}`}</WorkoutText>
           <View style={{ flexDirection: 'row', gap: 8 }}><WorkoutInput label={weightFieldLabel(entry.equipment, draft.unit, entry.measurementType)} value={draft.weight} onChangeText={(value) => patchDraft(entry, { weight: value })} numeric /><WorkoutInput label={entry.measurementType === 'timed_hold' ? 'Hold (seconds)' : entry.measurementType === 'distance_carry' ? 'Distance (meters)' : 'Reps'} value={draft.reps} onChangeText={(value) => patchDraft(entry, { reps: value })} numeric /></View>
           {entry.equipment === 'bodyweight' && <WorkoutText>Leave added weight blank for bodyweight.</WorkoutText>}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}><WorkoutButton label={`−${draft.unit === 'lb' ? 5 : 2.5} ${draft.unit}`} secondary onPress={() => adjust(entry, 'weight', draft.unit === 'lb' ? -5 : -2.5)} /><WorkoutButton label={`+${draft.unit === 'lb' ? 5 : 2.5} ${draft.unit}`} secondary onPress={() => adjust(entry, 'weight', draft.unit === 'lb' ? 5 : 2.5)} /><WorkoutButton label="−1 rep" secondary onPress={() => adjust(entry, 'reps', -1)} /><WorkoutButton label="+1 rep" secondary onPress={() => adjust(entry, 'reps', 1)} /></View>
-          {last && <WorkoutButton label={`Use last set · ${setAmountLabel(last, entry.measurementType)} · ${loggedWeightLabel(last, entry.equipment, settings.weightUnit, entry.measurementType)}`} secondary onPress={() => suggest(entry, last.assistanceKg ?? last.weightKg, last.holdSeconds ?? last.distanceMeters ?? last.reps)} />}
-          {previous && <WorkoutButton label={`Use previous workout · ${setAmountLabel(previous, entry.measurementType)} · ${loggedWeightLabel(previous, entry.equipment, settings.weightUnit, entry.measurementType)}`} secondary onPress={() => suggest(entry, previous.assistanceKg ?? previous.weightKg, previous.holdSeconds ?? previous.distanceMeters ?? previous.reps)} />}
-          {(entry.targetReps !== undefined || entry.targetWeightKg !== undefined) && <WorkoutButton label={`Use old routine target · ${entry.targetReps ?? '—'} reps${entry.targetWeightKg !== undefined ? ` · ${displayWeight(entry.targetWeightKg, settings.weightUnit)} ${settings.weightUnit}` : ''}`} secondary onPress={() => suggest(entry, entry.targetWeightKg, entry.targetReps)} />}
+          {!entry.sets.length && previous && <WorkoutButton label={`Use previous workout · ${setAmountLabel(previous, entry.measurementType)} · ${loggedWeightLabel(previous, entry.equipment, settings.weightUnit, entry.measurementType)}`} secondary onPress={() => suggest(entry, previous.assistanceKg ?? previous.weightKg, previous.holdSeconds ?? previous.distanceMeters ?? previous.reps)} />}
+          {!entry.sets.length && (entry.targetReps !== undefined || entry.targetWeightKg !== undefined) && <WorkoutButton label={`Use routine target · ${entry.targetReps ?? '—'} reps${entry.targetWeightKg !== undefined ? ` · ${displayWeight(entry.targetWeightKg, settings.weightUnit)} ${settings.weightUnit}` : ''}`} secondary onPress={() => suggest(entry, entry.targetWeightKg, entry.targetReps)} />}
           <WorkoutInput label="Set note (optional)" value={draft.notes} onChangeText={(value) => patchDraft(entry, { notes: value })} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{(['warmup', 'working', 'drop', 'failure'] as const).map((kind) => <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.kind === kind }} key={kind} onPress={() => patchDraft(entry, { kind })} style={{ minHeight: 42, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 10, backgroundColor: draft.kind === kind ? colors.workoutsNav : colors.surfaceRaised }}><Text style={{ color: draft.kind === kind ? colors.background : colors.text }}>{kind}</Text></Pressable>)}</View>
           {settings.timingMode === 'timed' && !editing && <WorkoutButton label={session.setStartedAt ? `Set running · ${clock(now - Date.parse(session.setStartedAt))}` : 'Start timed set'} secondary disabled={!!session.setStartedAt || !!session.pausedAt} onPress={() => change((old) => ({ ...old, setStartedAt: new Date().toISOString(), setExerciseId: entry.id }))} />}
           <WorkoutButton label={editing?.exerciseId === entry.id ? 'Save edited set' : 'Complete set + add to log'} disabled={!!session.pausedAt} onPress={() => void completeSet(entry)} />
+          {!editing && <WorkoutButton label={index === session.exercises.length - 1 ? 'Done with exercise · Finish workout' : 'Done with exercise → Next'} secondary onPress={() => nextExercise(index)} />}
           {editing?.exerciseId === entry.id && <WorkoutButton label="Cancel edit" secondary onPress={() => setEditing(null)} />}
           <WorkoutInput label="Exercise note (optional)" value={entry.notes ?? ''} onChangeText={(value) => change((old) => ({ ...old, exercises: old.exercises.map((item) => item.id === entry.id ? { ...item, notes: value } : item) }))} />
           <View style={{ flexDirection: 'row', gap: 7 }}><View style={{ flex: 1 }}><WorkoutButton label="Move up" secondary disabled={index === 0} onPress={() => move(index, -1)} /></View><View style={{ flex: 1 }}><WorkoutButton label="Move down" secondary disabled={index === session.exercises.length - 1} onPress={() => move(index, 1)} /></View></View>
           <WorkoutButton label="Remove exercise" secondary onPress={() => Alert.alert('Remove exercise?', 'Its logged sets will also be removed from this active session.', [{ text: 'Cancel' }, { text: 'Remove', style: 'destructive', onPress: () => change((old) => ({ ...clearSetDraft(old, entry.id), exercises: old.exercises.filter((item) => item.id !== entry.id), currentExerciseId: old.currentExerciseId === entry.id ? old.exercises.find((item) => item.id !== entry.id)?.id : old.currentExerciseId })) }])} />
         </>}
-      </WorkoutCard>;
+      </WorkoutCard></View>;
     })}
     <WorkoutInput label="Workout note (optional)" value={session.notes ?? ''} onChangeText={(value) => change((old) => ({ ...old, notes: value }))} />
     {settings.showCalories && <WorkoutCard><WorkoutText>Optional calories · estimates use session time, not training volume</WorkoutText><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{(['none', 'light', 'moderate', 'vigorous', 'manual'] as const).map((mode) => <Pressable accessibilityRole="button" key={mode} onPress={() => setCalorieMode(mode)} style={{ padding: 10, borderRadius: 10, backgroundColor: calorieMode === mode ? colors.workoutsNav : colors.surfaceRaised }}><Text style={{ color: calorieMode === mode ? colors.background : colors.text }}>{mode}</Text></Pressable>)}</View>{calorieMode !== 'none' && <WorkoutInput label={`Body weight (${settings.weightUnit})${storedWeight ? ' · recent weigh-in available' : ''}`} value={bodyWeight} onChangeText={setBodyWeight} numeric placeholder={storedWeight ? String(Math.round(fromKg(storedWeight, settings.weightUnit))) : 'Required for estimate'} />}{calorieMode === 'manual' && <><WorkoutInput label="Tracker calories" value={manualCalories} onChangeText={setManualCalories} numeric /><View style={{ flexDirection: 'row', gap: 8 }}><View style={{ flex: 1 }}><WorkoutButton label="Active" secondary={manualType !== 'active'} onPress={() => setManualType('active')} /></View><View style={{ flex: 1 }}><WorkoutButton label="Gross" secondary={manualType !== 'gross'} onPress={() => setManualType('gross')} /></View></View></>}</WorkoutCard>}

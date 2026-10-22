@@ -29,10 +29,10 @@ export default function DashboardScreen() {
   const cardWidth = '100%' as const;
   useFocusEffect(useCallback(() => {
     setNow(new Date());
-    if (preferences.visibleSections.activity) { void readTodaySteps().then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); }
+    if (preferences.visibleSections.activity) { void readTodaySteps(false).then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); }
     const timer = setInterval(() => { setNow(new Date()); if (preferences.visibleSections.activity) void readStepHistory().then(setStepDays).catch(() => undefined); }, 60_000);
-    const stepsTimer = preferences.visibleSections.activity ? setInterval(() => { void readTodaySteps().then(setSteps); }, 3000) : undefined;
-    const subscription = AppState.addEventListener('change', (status) => { if (status === 'active') { setNow(new Date()); if (preferences.visibleSections.activity) { void readTodaySteps().then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); } } });
+    const stepsTimer = preferences.visibleSections.activity ? setInterval(() => { void readTodaySteps(false).then(setSteps); }, 3000) : undefined;
+    const subscription = AppState.addEventListener('change', (status) => { if (status === 'active') { setNow(new Date()); if (preferences.visibleSections.activity) { void readTodaySteps(false).then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); } } });
     return () => { clearInterval(timer); if (stepsTimer) clearInterval(stepsTimer); subscription.remove(); };
   }, [preferences.visibleSections.activity]));
   const overview = homeOverview(state, steps, now);

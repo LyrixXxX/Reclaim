@@ -1,11 +1,14 @@
 import { canShowCompletionAd, recordCompletionAd } from './ad-frequency';
 
-test('limits completion ads to two per local day and twenty minutes apart', () => {
+test('limits completion ads to six per local day and fifteen minutes apart', () => {
   const start = new Date(2026, 9, 13, 9, 0);
-  const first = recordCompletionAd({ day: '', shownAt: [] }, start);
-  expect(canShowCompletionAd(first, new Date(2026, 9, 13, 9, 19))).toBe(false);
-  expect(canShowCompletionAd(first, new Date(2026, 9, 13, 9, 20))).toBe(true);
-  const second = recordCompletionAd(first, new Date(2026, 9, 13, 9, 20));
-  expect(canShowCompletionAd(second, new Date(2026, 9, 13, 12))).toBe(false);
-  expect(canShowCompletionAd(second, new Date(2026, 9, 14, 0, 1))).toBe(true);
+  let history = recordCompletionAd({ day: '', shownAt: [] }, start);
+  expect(canShowCompletionAd(history, new Date(2026, 9, 13, 9, 14))).toBe(false);
+  for (let index = 1; index < 6; index++) {
+    const next = new Date(2026, 9, 13, 9, index * 15);
+    expect(canShowCompletionAd(history, next)).toBe(true);
+    history = recordCompletionAd(history, next);
+  }
+  expect(canShowCompletionAd(history, new Date(2026, 9, 13, 18))).toBe(false);
+  expect(canShowCompletionAd(history, new Date(2026, 9, 14, 0, 1))).toBe(true);
 });

@@ -160,6 +160,8 @@ function validateState(value: Record<string, unknown>) {
     || typeof route.endedAt !== 'string'
     || typeof route.pausedMs !== 'number'
     || typeof route.distanceMeters !== 'number'
+    || ['movingMs', 'stoppedMs', 'unclassifiedMs'].some((key) => route[key] !== undefined && (typeof route[key] !== 'number' || !Number.isFinite(route[key]) || route[key] < 0))
+    || ['manualPauseIntervals', 'stationaryIntervals', 'autoPauseIntervals'].some((key) => route[key] !== undefined && (!Array.isArray(route[key]) || route[key].some((interval: unknown) => !isObject(interval) || typeof interval.startedAt !== 'string' || typeof interval.endedAt !== 'string' || !Number.isFinite(Date.parse(interval.startedAt)) || !Number.isFinite(Date.parse(interval.endedAt)) || Date.parse(interval.endedAt) < Date.parse(interval.startedAt))))
     || (route.estimateWeightKg !== undefined && (typeof route.estimateWeightKg !== 'number' || !Number.isFinite(route.estimateWeightKg) || route.estimateWeightKg <= 0))
     || (route.estimatedCalories !== undefined && (typeof route.estimatedCalories !== 'number' || !Number.isFinite(route.estimatedCalories) || route.estimatedCalories < 0))
     || (route.name !== undefined && (typeof route.name !== 'string' || route.name.length > 120))

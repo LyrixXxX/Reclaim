@@ -3,6 +3,7 @@ import {
   MAX_PIN_ATTEMPTS,
   PIN_COOLDOWN_MS,
   canApplyUnlockResult,
+  canResumeWithoutUnlock,
   canStartBiometricUnlock,
   parseAppLockConfig,
   pinValidationMessage,
@@ -57,5 +58,12 @@ describe('app lock', () => {
     expect(canApplyUnlockResult(3, 3, 'active')).toBe(true);
     expect(canApplyUnlockResult(2, 3, 'active')).toBe(false);
     expect(canApplyUnlockResult(3, 3, 'background')).toBe(false);
+  });
+  test('allows only a brief return to an existing unlocked process', () => {
+    expect(canResumeWithoutUnlock(1_000, 1_001)).toBe(true);
+    expect(canResumeWithoutUnlock(1_000, 60_999)).toBe(true);
+    expect(canResumeWithoutUnlock(1_000, 61_000)).toBe(false);
+    expect(canResumeWithoutUnlock(undefined, 1_001)).toBe(false);
+    expect(canResumeWithoutUnlock(1_000, 999)).toBe(false);
   });
 });

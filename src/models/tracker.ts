@@ -141,6 +141,8 @@ export type WeightEntry = {
   goal?: number | null;
   notes?: string;
   recordedAt: string;
+  source?: 'health-connect';
+  sourceApp?: string;
 };
 
 export type WeightTdeeProfile = {
@@ -174,12 +176,14 @@ export type CpapMaintenanceEvent = {
   completedAt: string;
 };
 
-export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'workouts';
+export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts';
+export type NavigationSection = 'activity' | 'routes' | 'goals' | 'weight' | 'nutrition' | 'workouts';
 export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
 export type AppPreferences = {
   dashboard?: DashboardWidget[];
-  visibleSections: Record<Exclude<AppSection, 'workouts'>, boolean> & { workouts?: boolean };
+  visibleSections: Record<Exclude<AppSection, 'workouts' | 'routes'>, boolean> & { workouts?: boolean; routes?: boolean };
+  navigationOrder?: NavigationSection[];
   visibleHealthModules: Record<HealthModule, boolean>;
   includeRouteCaloriesInNutrition?: boolean;
   includeWorkoutCaloriesInNutrition?: boolean;
@@ -187,7 +191,8 @@ export type AppPreferences = {
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
 export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; segment?: number };
-export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; estimateWeightKg?: number; estimatedCalories?: number; name?: string; notes?: string };
+export type ActivityTimeInterval = { startedAt: string; endedAt: string };
+export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; name?: string; notes?: string };
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'arms' | 'quadriceps' | 'hamstrings' | 'glutes' | 'calves' | 'legs' | 'core' | 'traps' | 'forearms' | 'full body';
 export type ExerciseEquipment = 'machine' | 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'other';
 export type ExerciseMeasurement = 'weighted_reps' | 'bodyweight_reps' | 'assisted_reps' | 'timed_hold' | 'distance_carry';
@@ -379,6 +384,11 @@ export type TrackerState = {
   /** Missing on older installations and backups means setup was already complete. */
   onboardingStatus?: 'pending' | 'complete';
   onboardingSelections?: OnboardingArea[];
+  onboardingSetupDraft?: {
+    weight?: { value: string; unit: 'lb' | 'kg'; skipped?: boolean };
+    nutrition?: { carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
+    activity?: { stepGoal: string; enableStepTracking: boolean; skipped?: boolean };
+  };
   lapseEvents?: LapseEvent[];
   historicalEntries?: HistoricalEntry[];
   taperSteps?: TaperStep[];
@@ -422,4 +432,4 @@ export type TrackerState = {
   workoutSettings?: WorkoutSettings;
 };
 
-export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'workouts' | 'bloodPressure' | 'medications' | 'labs';
+export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'bloodPressure' | 'medications' | 'labs';
