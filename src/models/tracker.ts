@@ -182,6 +182,8 @@ export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
 export type AppPreferences = {
   dashboard?: DashboardWidget[];
+  hiddenHomeHabitIds?: string[];
+  showQuittingTaperingOnHome?: boolean;
   visibleSections: Record<Exclude<AppSection, 'workouts' | 'routes'>, boolean> & { workouts?: boolean; routes?: boolean };
   navigationOrder?: NavigationSection[];
   visibleHealthModules: Record<HealthModule, boolean>;

@@ -52,6 +52,13 @@ class ReclaimStepsModule : Module() {
 
     AsyncFunction("getHistory") { StepStore.history(context) }
 
+    AsyncFunction("getWalkingIntervals") { date: String -> StepStore.walkingIntervals(context, date) }
+    AsyncFunction("getWalkingHistory") { StepStore.walkingHistory(context) }
+
+    AsyncFunction("hasStepDetector") {
+      (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager).getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) != null
+    }
+
     AsyncFunction("restoreHistory") { entries: List<Map<String, Any>> ->
       StepStore.restoreHistory(context, entries)
     }

@@ -1,6 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import NativeSteps from '../../modules/reclaim-steps';
+import type { WalkingInterval } from './walking-minutes';
 import { waitForStepServiceStartup } from './step-startup';
 
 export type StepResult = {
@@ -43,4 +44,18 @@ export async function readTodaySteps(askPermission = false): Promise<StepResult>
 
 export async function stopStepTracking() {
   if (NativeSteps) await NativeSteps.stop();
+}
+
+export async function readWalkingIntervals(date: string): Promise<WalkingInterval[] | null> {
+  if (Platform.OS !== 'android' || !NativeSteps) return null;
+  try {
+    const status = await NativeSteps.getStatus();
+    if (!status.enabled || !status.available || !await NativeSteps.hasStepDetector()) return null;
+    return await NativeSteps.getWalkingIntervals(date);
+  } catch { return null; }
+}
+
+export async function readWalkingHistory(): Promise<{ date: string; intervals: WalkingInterval[] }[]> {
+  if (Platform.OS !== 'android' || !NativeSteps) return [];
+  try { return await NativeSteps.getWalkingHistory(); } catch { return []; }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Href, Link, Redirect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -133,7 +133,7 @@ export default function HabitsScreen() {
             <View style={styles.cardStack}>
               {habits.map((tracker) => (
                 <View key={tracker.id}>{tracker.habitTemplate === 'water'
-                  ? <WaterHabitCard tracker={tracker} logs={waterLogs} onLog={() => saveWaterDrink({ id: `water-${Date.now()}-${Math.random().toString(36).slice(2)}`, trackerId: tracker.id, eventDate: localDateKey(), ounces: tracker.waterQuickAddOz ?? 8, recordedAt: new Date().toISOString() })} />
+                  ? <WaterHabitCard tracker={tracker} logs={waterLogs} onLog={() => Alert.alert('Add water?', `Add ${tracker.waterQuickAddOz ?? 8} fl oz to today’s water?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => saveWaterDrink({ id: `water-${Date.now()}-${Math.random().toString(36).slice(2)}`, trackerId: tracker.id, eventDate: localDateKey(), ounces: tracker.waterQuickAddOz ?? 8, recordedAt: new Date().toISOString() }) }])} />
                   : tracker.habitTemplate ? <GoodHabitTemplateCard tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} />
                     : <HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} onLog={() => logGoodHabit(tracker.id)} />}{orderControls(habits, tracker.id)}</View>
               ))}

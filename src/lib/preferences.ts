@@ -3,6 +3,8 @@ import { defaultDashboard, normalizeDashboard } from './dashboard';
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   dashboard: defaultDashboard(),
+  hiddenHomeHabitIds: [],
+  showQuittingTaperingOnHome: true,
   navigationOrder: ['activity', 'routes', 'goals', 'weight', 'nutrition', 'workouts'],
   visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false, routes: false, workouts: false },
   visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
@@ -38,6 +40,8 @@ export function migratePreferences(state: TrackerState): TrackerState {
     ...state,
     preferences: {
       dashboard: normalizeDashboard(state.preferences?.dashboard),
+      hiddenHomeHabitIds: Array.isArray(state.preferences?.hiddenHomeHabitIds) ? state.preferences.hiddenHomeHabitIds.filter((id): id is string => typeof id === 'string') : [],
+      showQuittingTaperingOnHome: state.preferences?.showQuittingTaperingOnHome !== false,
       navigationOrder: normalizeNavigationOrder(state.preferences?.navigationOrder),
       // Old Activity included routes; copy its visibility only when no separate Routes choice exists.
       visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(savedSections ?? {}), routes: savedSections?.routes ?? savedSections?.activity ?? false, health: false, cpap: false },
@@ -46,6 +50,18 @@ export function migratePreferences(state: TrackerState): TrackerState {
       includeWorkoutCaloriesInNutrition: state.preferences?.includeWorkoutCaloriesInNutrition ?? false,
     },
   };
+}
+
+export function setHomeHabitVisible(state: TrackerState, id: string, visible: boolean): TrackerState {
+  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
+  const hidden = new Set(preferences.hiddenHomeHabitIds ?? []);
+  if (visible) hidden.delete(id); else hidden.add(id);
+  return { ...state, preferences: { ...preferences, hiddenHomeHabitIds: [...hidden] } };
+}
+
+export function setQuittingTaperingOnHome(state: TrackerState, visible: boolean): TrackerState {
+  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
+  return { ...state, preferences: { ...preferences, showQuittingTaperingOnHome: visible } };
 }
 
 export function setNavigationOrder(state: TrackerState, order: NavigationSection[]): TrackerState {

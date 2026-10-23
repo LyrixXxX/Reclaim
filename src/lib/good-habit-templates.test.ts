@@ -12,6 +12,20 @@ test('saved Walk active time and manual time add without altering routes', () =>
   expect(habitProgress(tracker, [log], [{ ...route, endedAt: '2026-10-12T08:25:00' }], new Date(2026, 9, 12, 12)).amount).toBe(30);
 });
 
+test('Walk more uses moving time from walks, hikes, and runs plus phone minutes once', () => {
+  const routes: ActivityRoute[] = [route, { ...route, id: 'hike', kind: 'hike', movingMs: 600000 }, { ...route, id: 'run', kind: 'run', movingMs: 300000 }];
+  expect(routeMinutesOn(routes, tracker, '2026-10-12')).toBe(45);
+  expect(habitProgress(tracker, [log], routes, new Date(2026, 9, 12, 12), 5).amount).toBe(60);
+  expect(habitProgress(tracker, [log], routes, new Date(2026, 9, 12, 12), 5).percent).toBe(100);
+});
+
+test('phone walking minutes contribute to consecutive Walk more days', () => {
+  const yesterday = new Date(2026, 9, 11, 12);
+  const today = new Date(2026, 9, 12, 12);
+  expect(habitStreak(tracker, [], [], today, { '2026-10-11': 30, '2026-10-12': 30 })).toBe(2);
+  expect(habitStreak(tracker, [], [], yesterday, { '2026-10-11': 30 })).toBe(1);
+});
+
 test('sleep dates cross midnight until six and weekly goals start Monday', () => {
   expect(habitDate('sleep', new Date(2026, 9, 12, 5, 59))).toBe('2026-10-11');
   expect(habitDate('sleep', new Date(2026, 9, 12, 6, 0))).toBe('2026-10-12');

@@ -1,5 +1,5 @@
-import { Href, Link } from 'expo-router';
-import { useState } from 'react';
+import { Href, Link, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoodHabitIcon } from './good-habit-icon';
@@ -10,6 +10,9 @@ import { validWaterDate } from '@/lib/water-habit';
 import { ActivityRoute, GoodHabitLog, NutritionEntry, Tracker } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
+import { readWalkingHistory, readWalkingIntervals } from '@/lib/activity-steps';
+import { readActiveRoute } from '@/lib/activity-recording';
+import { walkingMinutesHistoryOutsideRoutes, walkingMinutesOutsideRoutes } from '@/lib/walking-minutes';
 
 export function GoodHabitTemplateDetail({ tracker, logs, routes, foods }: { tracker: Tracker; logs: GoodHabitLog[]; routes: ActivityRoute[]; foods: NutritionEntry[] }) {
   const config = templateConfig(tracker.habitTemplate);
@@ -26,8 +29,21 @@ export function GoodHabitTemplateDetail({ tracker, logs, routes, foods }: { trac
   const [suggestions, setSuggestions] = useState<ProduceSuggestion[]>([]);
   const [pendingSuggestion, setPendingSuggestion] = useState<ProduceSuggestion | null>(null);
   const [replacementByEntry, setReplacementByEntry] = useState<Record<string, string>>({});
+  const [phoneMinutes, setPhoneMinutes] = useState<number | null>(null);
+  const [phoneMinutesByDate, setPhoneMinutesByDate] = useState<Record<string, number>>({});
+  useFocusEffect(useCallback(() => {
+    if (tracker.habitTemplate !== 'walk') return;
+    let mounted = true;
+    void Promise.all([readWalkingIntervals(localDateKey()), readWalkingHistory(), readActiveRoute()]).then(([intervals, history, active]) => {
+      if (mounted) {
+        setPhoneMinutes(intervals ? walkingMinutesOutsideRoutes(intervals, routes, active) : null);
+        setPhoneMinutesByDate(walkingMinutesHistoryOutsideRoutes(history, routes, active));
+      }
+    }).catch(() => { if (mounted) setPhoneMinutes(null); });
+    return () => { mounted = false; };
+  }, [tracker.habitTemplate, routes]));
   if (!config || !tracker.habitTemplate) return null;
-  const progress = habitProgress(tracker, logs, routes);
+  const progress = habitProgress(tracker, logs, routes, new Date(), phoneMinutes ?? 0);
   const dayLogs = logs.filter((item) => item.trackerId === tracker.id && item.eventDate === date).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   const checklist = config.checklist ? checklistOn(tracker, date) : [];
   const foodChoices = foods.filter((food) => food.eventDate === date && !logs.some((log) => log.trackerId === tracker.id && log.nutritionEntryId === food.id));
@@ -65,7 +81,7 @@ export function GoodHabitTemplateDetail({ tracker, logs, routes, foods }: { trac
   };
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content}>
     <GoodHabitIcon type={tracker.habitTemplate} size={86} style={styles.icon} /><Text style={styles.title}>{tracker.name}</Text><Text style={styles.help}>{config.period === 'week' ? 'This week' : tracker.habitTemplate === 'sleep' ? 'This sleep night' : 'Today'} · {progress.date}</Text>
-    <View style={styles.card}><Text style={styles.label}>CURRENT PROGRESS</Text><Text style={styles.big}>{Number(progress.amount.toFixed(1))}<Text style={styles.target}> / {progress.goal} {config.unit}</Text></Text><View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }} style={styles.track}><View style={[styles.fill, { width: `${progress.percent}%` }]} /></View><Text style={styles.help}>{progress.percent}% of your {config.period === 'week' ? 'weekly' : 'daily'} goal · {habitStreak(tracker, logs, routes)} {config.period === 'week' ? 'weeks' : 'days'} consistent</Text>{tracker.habitTemplate === 'walk' && <Text style={styles.help}>{Number(routeMinutesOn(routes, tracker, progress.date).toFixed(1))} min from saved Walk routes · manual walks stay in Good Habits</Text>}</View>
+    <View style={styles.card}><Text style={styles.label}>CURRENT PROGRESS</Text><Text style={styles.big}>{Number(progress.amount.toFixed(1))}<Text style={styles.target}> / {progress.goal} {config.unit}</Text></Text><View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }} style={styles.track}><View style={[styles.fill, { width: `${progress.percent}%` }]} /></View><Text style={styles.help}>{progress.percent}% of your {config.period === 'week' ? 'weekly' : 'daily'} goal · {habitStreak(tracker, logs, routes, new Date(), phoneMinutesByDate)} {config.period === 'week' ? 'weeks' : 'days'} consistent</Text>{tracker.habitTemplate === 'walk' && <Text style={styles.help}>{phoneMinutes === null ? 'Phone walking minutes unavailable' : `${Number(phoneMinutes.toFixed(1))} min from phone outside routes`} · {Number(routeMinutesOn(routes, tracker, progress.date).toFixed(1))} min from saved route movement{routes.some((route) => route.movingMs === undefined && ['walk', 'hike', 'run'].includes(route.kind) && localDateKey(new Date(route.startedAt)) === progress.date) ? ' (some estimated)' : ''} · manual logs</Text>}</View>
     <View style={styles.card}><Text style={styles.section}>Log and correct progress</Text><Text style={styles.help}>Date (YYYY-MM-DD)</Text><TextInput accessibilityLabel="Habit log date" value={date} onChangeText={setDate} style={styles.input} placeholderTextColor={colors.textDim} />
       {config.checklist ? checklist.map((item) => { const checked = dayLogs.some((log) => log.checklistItemId === item.id); return <Pressable key={item.id} accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={() => toggleStep(item.id)} style={styles.step}><Text style={styles.stepMark}>{checked ? '✓' : '○'}</Text><Text style={styles.stepText}>{item.label}</Text></Pressable>; })
         : <Pressable accessibilityRole="button" onPress={() => { setEditing(null); setPendingSuggestion(null); setAmount(config.id === 'exercise' ? '1' : ''); setDuration(''); setNote(''); setModal(true); }} style={styles.primary}><Text style={styles.primaryText}>+ Log {config.id === 'exercise' ? 'workout' : config.id === 'produce' ? 'servings' : 'minutes'}</Text></Pressable>}

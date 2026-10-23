@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import java.util.Calendar
 import java.util.Locale
@@ -24,6 +25,7 @@ import java.util.Locale
 class StepService : Service(), SensorEventListener {
   private lateinit var sensors: SensorManager
   private var sensor: Sensor? = null
+  private var stepDetector: Sensor? = null
   private val handler = Handler(Looper.getMainLooper())
   private val midnightUpdate = object : Runnable {
     override fun run() {
@@ -38,6 +40,7 @@ class StepService : Service(), SensorEventListener {
     super.onCreate()
     sensors = getSystemService(Context.SENSOR_SERVICE) as SensorManager
     sensor = sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+    stepDetector = sensors.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -52,11 +55,17 @@ class StepService : Service(), SensorEventListener {
     startForeground(NOTIFICATION, notification(StepStore.status(this, true, true)["count"] as Int))
     running = true
     sensors.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+    stepDetector?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
     scheduleMidnightUpdate()
     return START_STICKY
   }
 
   override fun onSensorChanged(event: SensorEvent) {
+    if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+      val stepAt = System.currentTimeMillis() - (SystemClock.elapsedRealtimeNanos() - event.timestamp) / 1_000_000L
+      if (stepAt in (System.currentTimeMillis() - 86_400_000L)..(System.currentTimeMillis() + 5_000L)) StepStore.recordWalkingStep(this, stepAt)
+      return
+    }
     if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
     val count = StepStore.record(this, event.values[0].toLong(), System.currentTimeMillis())
     (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION, notification(count))

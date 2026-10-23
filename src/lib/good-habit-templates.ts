@@ -52,14 +52,16 @@ function creditedAmount(tracker: Tracker, logs: GoodHabitLog[], date: string, en
   return matching.reduce((sum, log) => sum + log.amount, 0);
 }
 export function activeWalkMinutes(route: ActivityRoute) {
-  return Math.max(0, (Date.parse(route.endedAt) - Date.parse(route.startedAt) - route.pausedMs) / 60000);
+  return route.movingMs !== undefined && Number.isFinite(route.movingMs)
+    ? Math.max(0, route.movingMs / 60000)
+    : Math.max(0, (Date.parse(route.endedAt) - Date.parse(route.startedAt) - route.pausedMs) / 60000);
 }
 export function routeMinutesOn(routes: ActivityRoute[], tracker: Tracker, date: string) {
   const started = tracker.startedAt?.slice(0, 10) ?? date;
   if (date < started) return 0;
-  return routes.filter((route) => route.kind === 'walk' && localDateKey(new Date(route.startedAt)) === date).reduce((sum, route) => sum + activeWalkMinutes(route), 0);
+  return routes.filter((route) => ['walk', 'hike', 'run'].includes(route.kind) && localDateKey(new Date(route.startedAt)) === date).reduce((sum, route) => sum + activeWalkMinutes(route), 0);
 }
-export function habitProgress(tracker: Tracker, logs: GoodHabitLog[], routes: ActivityRoute[], now = new Date()) {
+export function habitProgress(tracker: Tracker, logs: GoodHabitLog[], routes: ActivityRoute[], now = new Date(), phoneMinutes = 0) {
   const config = templateConfig(tracker.habitTemplate);
   if (!config) return { date: localDateKey(now), amount: 0, goal: 0, percent: 0 };
   const date = habitDate(tracker.habitTemplate, now);
@@ -68,10 +70,10 @@ export function habitProgress(tracker: Tracker, logs: GoodHabitLog[], routes: Ac
   const applicable = logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= start && log.eventDate <= date);
   const amount = config.checklist
     ? checklistOn(tracker, date).filter((item) => applicable.some((log) => log.eventDate === date && log.checklistItemId === item.id)).length
-    : creditedAmount(tracker, applicable, start, date) + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) : 0);
+    : creditedAmount(tracker, applicable, start, date) + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) + phoneMinutes : 0);
   return { date, amount, goal, percent: goal ? Math.min(100, Math.round(amount / goal * 100)) : 0 };
 }
-export function habitStreak(tracker: Tracker, logs: GoodHabitLog[], routes: ActivityRoute[], now = new Date()) {
+export function habitStreak(tracker: Tracker, logs: GoodHabitLog[], routes: ActivityRoute[], now = new Date(), phoneMinutesByDate: Record<string, number> = {}) {
   const config = templateConfig(tracker.habitTemplate);
   if (!config) return 0;
   const current = habitDate(tracker.habitTemplate, now);
@@ -88,7 +90,7 @@ export function habitStreak(tracker: Tracker, logs: GoodHabitLog[], routes: Acti
     const amount = config.checklist
       ? checklistOn(tracker, date).filter((item) => logs.some((log) => log.trackerId === tracker.id && log.eventDate === date && log.checklistItemId === item.id)).length
       : creditedAmount(tracker, logs, date, localDateKey(periodEnd))
-        + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) : 0);
+        + (config.id === 'walk' ? routeMinutesOn(routes, tracker, date) + (phoneMinutesByDate[date] ?? 0) : 0);
     if (!goal || amount < goal) { if (index !== 0) break; }
     else streak += 1;
     cursor.setDate(cursor.getDate() - (config.period === 'week' ? 7 : 1));

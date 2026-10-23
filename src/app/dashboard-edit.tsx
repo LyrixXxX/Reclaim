@@ -5,13 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DASHBOARD_WIDGETS, dashboardWidgetAllowed, defaultDashboard, moveDashboardWidget, normalizeDashboard } from '@/lib/dashboard';
 import { DEFAULT_PREFERENCES } from '@/lib/preferences';
+import { templateConfig } from '@/lib/good-habit-templates';
 import { DashboardWidget, DashboardWidgetId } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout } from '@/theme';
 
 export default function DashboardEditor() {
-  const { preferences = DEFAULT_PREFERENCES, trackers, labTrackers = [], saveDashboard } = useTrackers();
+  const { preferences = DEFAULT_PREFERENCES, trackers, labTrackers = [], saveDashboard, setHomeHabitVisible, setQuittingTaperingOnHome } = useTrackers();
   const [draft, setDraft] = useState(() => normalizeDashboard(preferences.dashboard));
+  const [hiddenHabits, setHiddenHabits] = useState<string[]>(preferences.hiddenHomeHabitIds ?? []);
+  const [showQuittingTapering, setShowQuittingTapering] = useState(preferences.showQuittingTaperingOnHome !== false);
   const [dragging, setDragging] = useState(false);
   const { fontScale } = useWindowDimensions();
   const rowHeight = Math.max(112, Math.ceil(112 * fontScale));
@@ -22,8 +25,13 @@ export default function DashboardEditor() {
   const update = (id: DashboardWidgetId, patch: Partial<DashboardWidget>) => setDraft((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
   const exit = () => router.replace('/');
   return <ScrollView style={styles.safe} scrollEnabled={!dragging} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
-    <Text style={styles.title}>Home Weight card</Text>
-    <Text style={styles.body}>The goal tiles above already open their sections. Weight is the only extra card below them for now.</Text>
+    <Text style={styles.title}>Edit Home</Text>
+    <Text style={styles.body}>Choose which active habits appear in your daily goals or weekly cards. Hiding one here never stops its tracking.</Text>
+    <Text style={styles.section}>Good habits</Text>
+    {trackers.filter((item) => !item.archived && (item.habitTemplate === 'water' || templateConfig(item.habitTemplate))).map((item) => <View key={item.id} style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>{item.displayName || item.name}</Text><Text style={styles.status}>{templateConfig(item.habitTemplate)?.period === 'week' ? 'Weekly card' : 'Daily goal'}</Text></View><Switch accessibilityLabel={`Show ${item.displayName || item.name} on Home`} value={!hiddenHabits.includes(item.id)} onValueChange={(visible) => setHiddenHabits((current) => visible ? current.filter((id) => id !== item.id) : [...current, item.id])} /></View>)}
+    <Text style={styles.section}>Quitting &amp; Tapering</Text>
+    <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>Show on Home</Text><Text style={styles.status}>Show active items and their current timeframes. Tracking stays unchanged if hidden.</Text></View><Switch accessibilityLabel="Show Quitting and Tapering on Home" value={showQuittingTapering} onValueChange={setShowQuittingTapering} /></View>
+    <Text style={styles.section}>Weight card</Text>
     <Text style={styles.help}>You can hide the Weight card or choose how much detail it shows. Nothing here deletes your weigh-ins or your saved layout choices for other sections.</Text>
     <View style={styles.orderList}>
       {draft.filter((widget) => widget.id === 'weight').map((widget) => <OrderRow key={widget.id} widget={widget} index={0} count={1} height={rowHeight} blocked={!dashboardWidgetAllowed(widget.id, preferences)} move={move} onDragging={setDragging} onVisible={(visible) => update(widget.id, { visible })} />)}
@@ -44,7 +52,7 @@ export default function DashboardEditor() {
         </>}
       </View>;
     })}
-    <Pressable accessibilityRole="button" onPress={() => { saveDashboard(draft); exit(); }} style={styles.save}><Text style={styles.saveText}>Save dashboard</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => { for (const item of trackers) if ((preferences.hiddenHomeHabitIds ?? []).includes(item.id) !== hiddenHabits.includes(item.id)) setHomeHabitVisible(item.id, !hiddenHabits.includes(item.id)); if ((preferences.showQuittingTaperingOnHome !== false) !== showQuittingTapering) setQuittingTaperingOnHome(showQuittingTapering); saveDashboard(draft); exit(); }} style={styles.save}><Text style={styles.saveText}>Save dashboard</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={exit} style={styles.secondary}><Text style={styles.buttonText}>Cancel</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={() => Alert.alert('Restore Weight card default?', 'This resets only the Weight card draft. No other saved widgets or health records will change. Tap Save dashboard to apply it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Restore card', onPress: () => setDraft((current) => current.map((item) => item.id === 'weight' ? defaultDashboard().find((candidate) => candidate.id === 'weight')! : item)) }])} style={styles.secondary}><Text style={styles.buttonText}>Restore Weight card default</Text></Pressable>
   </ScrollView>;

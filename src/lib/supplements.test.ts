@@ -21,7 +21,7 @@ test('validates time and records at most one taken event per supplement each day
 });
 
 test('tracks separate morning and evening servings with taken and skipped outcomes', () => {
-  const item = saveSupplementDraft([], { name: 'Creatine', serving: '5 g', notes: '', scheduleType: 'daily', times: ['09:00', '18:00'] }, 'supp-1')[0];
+  const item = saveSupplementDraft([], { name: 'Creatine', serving: '5 g', notes: '', scheduleType: 'daily', times: ['09:00', '18:00'] }, 'supp-1', '2026-10-01T12:00:00Z')[0];
   const date = new Date(2026, 9, 22, 19);
   const morning = recordSupplementDose([], item, 'first', 'taken', '2026-10-22T09:00', date);
   const both = recordSupplementDose(morning, item, 'second', 'skipped', '2026-10-22T18:00', date);
@@ -49,7 +49,7 @@ test('keeps an existing supplement identity and dose history when adding a secon
 });
 
 test('shows weekly servings only on chosen days and preserves interval schedules', () => {
-  const weekly = saveSupplementDraft([], { name: 'Vitamin D', serving: '', notes: '', scheduleType: 'weekly', times: ['08:00'], weekdays: [5] }, 'weekly')[0];
+  const weekly = saveSupplementDraft([], { name: 'Vitamin D', serving: '', notes: '', scheduleType: 'weekly', times: ['08:00'], weekdays: [5] }, 'weekly', '2026-10-01T12:00:00Z')[0];
   expect(supplementDosesForDate([weekly], [], '2026-10-22')).toHaveLength(1); // Thursday
   expect(supplementDosesForDate([weekly], [], '2026-10-23')).toHaveLength(0);
   const interval = saveSupplementDraft([], { name: 'Electrolytes', serving: '', notes: '', scheduleType: 'interval', intervalHours: 8, times: [] }, 'interval')[0];

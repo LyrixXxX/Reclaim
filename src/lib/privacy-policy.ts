@@ -3,11 +3,11 @@ export const PRIVACY_UPDATED = 'October 22, 2026';
 export const PRIVACY_SECTIONS = [
   {
     title: 'What stays on your device',
-    body: 'Habit trackers, weight, meals, vitamin and supplement schedules, stacks and dose history, steps, strength workouts and routines, and saved routes are stored on your device. Older medical records remain locally and in backups, but are not displayed or updated in this wellness edition. Reclaim does not require an account. App-lock PIN verification stays in secure device storage and is not included in backups.',
+    body: 'Habit trackers, weight, meals, vitamin and supplement schedules, stacks and dose history, step totals and walking-time intervals, strength workouts and routines, and saved routes are stored on your device. Older medical records remain locally and in backups, but are not displayed or updated in this wellness edition. Reclaim does not require an account. App-lock PIN verification stays in secure device storage and is not included in backups.',
   },
   {
     title: 'Permissions and location',
-    body: 'Step tracking uses your phone’s activity sensor when you turn it on. Reclaim no longer connects to Health Connect. Any weigh-ins previously imported from it remain in your local Weight history and can be deleted there. Opening the Routes map uses foreground location to show your position before you start recording. If you start a route, recording can continue in the background until you pause or finish it.',
+    body: 'Step tracking uses your phone’s activity sensors when you turn it on. Where supported, time-stamped step events create local walking-time intervals for Walk more goals; time spent recording a route is excluded from phone walking minutes. These intervals remain in native device storage and are not included in portable backups. Reclaim no longer connects to Health Connect. Any weigh-ins previously imported from it remain in your local Weight history and can be deleted there. Opening the Routes map uses foreground location to show your position before you start recording. If you start a route, recording can continue in the background until you pause or finish it.',
   },
   {
     title: 'When information leaves your device',

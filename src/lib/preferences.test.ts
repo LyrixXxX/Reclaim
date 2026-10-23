@@ -1,9 +1,23 @@
-import { DEFAULT_PREFERENCES, hiddenHabitsDestination, migratePreferences, moveNavigationSection, normalizeNavigationOrder, setHealthModuleVisible, setNavigationOrder, setSectionVisible } from './preferences';
+import { DEFAULT_PREFERENCES, hiddenHabitsDestination, migratePreferences, moveNavigationSection, normalizeNavigationOrder, setHealthModuleVisible, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setSectionVisible } from './preferences';
 import { TrackerState } from '@/models/tracker';
 
 const state = { trackers: [], checkIns: [] } as TrackerState;
 describe('visibility preferences', () => {
   test('adds backward-compatible defaults', () => { expect(migratePreferences(state).preferences).toEqual(DEFAULT_PREFERENCES); });
+  test('hiding a Home habit does not alter the tracker or other preferences', () => {
+    const seeded = { ...migratePreferences(state), trackers: [{ id: 'water' }] } as TrackerState;
+    const hidden = setHomeHabitVisible(seeded, 'water', false);
+    expect(hidden.preferences?.hiddenHomeHabitIds).toEqual(['water']);
+    expect(hidden.trackers).toEqual(seeded.trackers);
+    expect(setHomeHabitVisible(hidden, 'water', true).preferences?.hiddenHomeHabitIds).toEqual([]);
+  });
+  test('the Quitting and Tapering Home switch changes visibility only', () => {
+    const seeded = { ...migratePreferences(state), trackers: [{ id: 'quit' }] } as TrackerState;
+    const hidden = setQuittingTaperingOnHome(seeded, false);
+    expect(hidden.preferences?.showQuittingTaperingOnHome).toBe(false);
+    expect(hidden.trackers).toEqual(seeded.trackers);
+    expect(migratePreferences(hidden).preferences?.showQuittingTaperingOnHome).toBe(false);
+  });
   test('Workouts is hidden by default but a saved setting stays enabled', () => {
     expect(migratePreferences(state).preferences?.visibleSections.workouts).toBe(false);
     const enabled = setSectionVisible(migratePreferences(state), 'workouts', true);

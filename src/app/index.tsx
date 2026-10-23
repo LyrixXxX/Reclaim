@@ -7,9 +7,12 @@ import Svg, { Circle, Polyline } from 'react-native-svg';
 import { Header } from '@/components/header';
 import { DASHBOARD_WIDGETS, homeSecondaryWidgets } from '@/lib/dashboard';
 import { DashboardContent, dashboardContent, dashboardDate } from '@/lib/dashboard-content';
-import { homeOverview, nutritionGoalDetail } from '@/lib/home-overview';
+import { homeOverview, nutritionGoalDetail, type HomeWalkingData } from '@/lib/home-overview';
+import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
 import { DEFAULT_PREFERENCES } from '@/lib/preferences';
-import { readTodaySteps, StepResult } from '@/lib/activity-steps';
+import { readTodaySteps, readWalkingIntervals, StepResult } from '@/lib/activity-steps';
+import { readActiveRoute } from '@/lib/activity-recording';
+import { localDateKey } from '@/lib/progress';
 import { readStepHistory } from '@/lib/activity-step-history';
 import { activityRange } from '@/lib/activity-overview';
 import { DashboardWidget, DashboardWidgetId, StepDay } from '@/models/tracker';
@@ -26,21 +29,26 @@ export default function DashboardScreen() {
   const [now, setNow] = useState(() => new Date());
   const [steps, setSteps] = useState<StepResult>({ status: 'permission-needed' });
   const [stepDays, setStepDays] = useState<StepDay[]>([]);
+  const [walking, setWalking] = useState<HomeWalkingData>({ intervals: null });
   const cardWidth = '100%' as const;
   useFocusEffect(useCallback(() => {
     setNow(new Date());
+    const refreshWalking = () => { const date = localDateKey(); void Promise.all([readWalkingIntervals(date), readActiveRoute()]).then(([intervals, activeRoute]) => setWalking({ date, intervals, activeRoute })).catch(() => setWalking({ date, intervals: null })); };
+    refreshWalking();
     if (preferences.visibleSections.activity) { void readTodaySteps(false).then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); }
-    const timer = setInterval(() => { setNow(new Date()); if (preferences.visibleSections.activity) void readStepHistory().then(setStepDays).catch(() => undefined); }, 60_000);
+    const timer = setInterval(() => { setNow(new Date()); refreshWalking(); if (preferences.visibleSections.activity) void readStepHistory().then(setStepDays).catch(() => undefined); }, 60_000);
     const stepsTimer = preferences.visibleSections.activity ? setInterval(() => { void readTodaySteps(false).then(setSteps); }, 3000) : undefined;
-    const subscription = AppState.addEventListener('change', (status) => { if (status === 'active') { setNow(new Date()); if (preferences.visibleSections.activity) { void readTodaySteps(false).then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); } } });
+    const subscription = AppState.addEventListener('change', (status) => { if (status === 'active') { setNow(new Date()); refreshWalking(); if (preferences.visibleSections.activity) { void readTodaySteps(false).then(setSteps); void readStepHistory().then(setStepDays).catch(() => undefined); } } });
     return () => { clearInterval(timer); if (stepsTimer) clearInterval(stepsTimer); subscription.remove(); };
   }, [preferences.visibleSections.activity]));
-  const overview = homeOverview(state, steps, now);
+  const overview = homeOverview(state, steps, now, walking);
+  const journeys = preferences.showQuittingTaperingOnHome === false || !preferences.visibleSections.goals ? { quitting: [], tapering: [] } : homeQuittingTapering(state.trackers, state.taperSteps ?? [], now);
   const week = activityRange(stepDays, state.stepGoals ?? [], '7D', 0, now);
-  const hasProgress = Boolean(overview.stepProgress || overview.nutrition);
+  const hasProgress = overview.goalCount > 0;
   const ringSegments = [
-    { name: 'Steps', color: colors.activityNav, progress: overview.stepProgress ? (overview.stepProgress.count ?? 0) / overview.stepProgress.target : 0 },
-    { name: 'Nutrition', color: colors.nutritionNav, progress: overview.nutrition ? overview.nutrition.calories / Math.max(1, overview.nutrition.budget) : 0 },
+    ...(overview.stepProgress ? [{ name: 'Steps', color: colors.activityNav, progress: (overview.stepProgress.count ?? 0) / overview.stepProgress.target }] : []),
+    ...(overview.nutrition ? [{ name: 'Nutrition', color: colors.nutritionNav, progress: overview.nutrition.calories / Math.max(1, overview.nutrition.budget) }] : []),
+    ...overview.dailyHabitGoals.map((goal) => ({ name: goal.title, color: colors.habitsNav, progress: goal.progress })),
   ];
   const ringSize = 168;
   const ringCenter = ringSize / 2;
@@ -67,18 +75,25 @@ export default function DashboardScreen() {
         <View style={styles.progressTiles}>
           {overview.stepProgress && <ProgressTile title="Steps" value={overview.stepProgress.count === null ? 'Awaiting steps' : overview.stepProgress.count.toLocaleString()} detail={`Goal ${overview.stepProgress.target.toLocaleString()} steps`} progress={(overview.stepProgress.count ?? 0) / overview.stepProgress.target} color={colors.activityNav} href="/activity" />}
           {overview.nutrition && <ProgressTile title="Nutrition" value={`${Math.round(overview.nutrition.calories).toLocaleString()} kcal`} detail={nutritionGoalDetail(overview.nutrition.calories, overview.nutrition.budget, overview.nutrition.entryCount)} progress={overview.nutrition.calories / Math.max(1, overview.nutrition.budget)} color={colors.nutritionNav} valueColor={overview.nutrition.entryCount ? overview.nutrition.calories > overview.nutrition.budget + 200 ? colors.danger : colors.success : colors.text} href="/nutrition" />}
+          {overview.dailyHabitGoals.map((goal) => <ProgressTile key={goal.id} title={goal.title} value={goal.value} detail={goal.detail} progress={goal.progress} color={colors.habitsNav} href={goal.href} />)}
         </View>
       </View>
     </View>}
 
     {overview.attention.length > 0 && <View style={styles.attentionPanel}><View style={styles.panelHeading}><Text style={styles.attentionTitle}>Needs attention</Text><Text style={styles.attentionCount}>{overview.attention.length} {overview.attention.length === 1 ? 'item' : 'items'}</Text></View>{overview.attention.map((item) => <Link key={item.id} href={item.href as Href} asChild><Pressable accessibilityRole="button" style={styles.attentionRow}><View style={styles.attentionText}><Text style={styles.attentionItemTitle}>{item.title}</Text><Text style={styles.caption}>{item.detail}</Text></View><Text style={styles.arrow}>›</Text></Pressable></Link>)}</View>}
 
+    {overview.weeklyHabitCards.map((goal) => <Pressable key={goal.id} accessibilityRole="button" onPress={() => router.push(goal.href as Href)} style={[styles.dashboardCard, { borderColor: colors.habitsNav, borderLeftColor: colors.habitsNav, backgroundColor: `${colors.habitsNav}0C` }]}><Text style={styles.cardTitle}>{goal.title}</Text><Text style={styles.cardValue}>{goal.value}</Text><Text style={styles.caption}>{goal.detail}</Text><View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, goal.progress * 100))}%`, backgroundColor: colors.habitsNav }]} /></View></Pressable>)}
+    {(journeys.quitting.length > 0 || journeys.tapering.length > 0) && <View style={styles.journeyPanel}><Text accessibilityRole="header" style={styles.journeyTitle}>Quitting &amp; Tapering</Text>{journeys.quitting.length > 0 && <JourneyList title="Quitting" items={journeys.quitting} />}{journeys.tapering.length > 0 && <JourneyList title="Tapering" items={journeys.tapering} />}</View>}
     {widgets.length > 0 && <><View style={styles.dashboardHeading}><Text style={styles.dashboardTitle}>Weight at a glance</Text><Text style={styles.dashboardHint}>Tap to open Weight</Text></View>
       <View style={styles.grid}>{widgets.map((widget) => <DashboardCard key={widget.id} widget={widget} content={dashboardContent(state, widget, now, steps)} overview={overview} week={week} width={cardWidth} />)}</View></>}
   </ScrollView></SafeAreaView>;
 }
 
 function greeting(now: Date) { return now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'; }
+
+function JourneyList({ title, items }: { title: string; items: HomeJourney[] }) {
+  return <View style={styles.journeyList}><Text style={styles.journeyGroup}>{title}</Text>{items.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => router.push(item.href as Href)} style={styles.journeyRow}><View style={{ flex: 1 }}><Text style={styles.journeyName}>{item.title}</Text><Text style={styles.caption}>{item.timeframe}</Text></View><Text style={styles.arrow}>›</Text></Pressable>)}</View>;
+}
 
 function ProgressTile({ title, value, detail, progress, color, valueColor, href }: { title: string; value: string; detail: string; progress: number; color: string; valueColor?: string; href: string }) {
   return <Pressable accessibilityRole="button" onPress={() => router.push(href as Href)} style={[styles.progressTile, { borderColor: `${color}44`, backgroundColor: `${color}0D` }]}><Text style={[styles.tileTitle, { color }]}>{title}</Text><Text style={[styles.tileValue, valueColor && { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text><Text style={styles.caption} numberOfLines={2}>{detail}</Text><View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, progress * 100))}%`, backgroundColor: color }]} /></View></Pressable>;
@@ -116,5 +131,6 @@ const styles = StyleSheet.create({
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 8 }, headingText: { flex: 1, minWidth: 180 }, greeting: { color: colors.textMuted, fontSize: 15 }, date: { color: colors.text, fontSize: 27, fontWeight: '900' }, edit: { minHeight: 48, justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, paddingHorizontal: 12, borderRadius: 14 }, editText: { color: colors.text, fontSize: 12, fontWeight: '800' },
   progressPanel: { padding: 16, borderRadius: 21, borderColor: '#315457', borderWidth: 1, backgroundColor: '#111B1D', gap: 14 }, panelHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, progressTitle: { color: colors.habitsNav, fontSize: 19, fontWeight: '900' }, panelCount: { color: colors.textMuted, fontSize: 12 }, progressBody: { alignItems: 'center', gap: 14 }, goalRing: { width: 168, height: 168, alignItems: 'center', justifyContent: 'center' }, goalRingLabel: { position: 'absolute', alignItems: 'center' }, goalRingValue: { color: colors.text, fontSize: 35, fontWeight: '900' }, goalRingCaption: { color: colors.textMuted, fontSize: 14 }, progressTiles: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, progressTile: { flexBasis: '48%', flexGrow: 1, minWidth: 0, borderRadius: 14, borderWidth: 1, padding: 10, gap: 4 }, tileTitle: { fontSize: 12, fontWeight: '900' }, tileValue: { color: colors.text, fontSize: 20, fontWeight: '900' }, track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden', marginTop: 2 }, fill: { height: '100%', borderRadius: 3 },
   attentionPanel: { padding: 15, borderRadius: 20, borderColor: '#9A4865', borderLeftColor: colors.healthNav, borderWidth: 1, borderLeftWidth: 4, backgroundColor: '#21171D', gap: 9 }, attentionTitle: { color: colors.healthNav, fontSize: 18, fontWeight: '900' }, attentionCount: { color: colors.healthNav, fontSize: 12 }, attentionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#2A1B24', borderRadius: 12, padding: 11 }, attentionText: { flex: 1 }, attentionItemTitle: { color: colors.text, fontSize: 14, fontWeight: '800' }, arrow: { color: colors.textMuted, fontSize: 24, fontWeight: '700' },
+  journeyPanel: { padding: 16, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 14 }, journeyTitle: { color: colors.text, fontSize: 19, fontWeight: '900' }, journeyList: { gap: 8 }, journeyGroup: { color: colors.habitsNav, fontSize: 13, fontWeight: '900' }, journeyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 58, padding: 11, borderRadius: 12, backgroundColor: colors.surfaceRaised }, journeyName: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 3 },
   dashboardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 5 }, dashboardTitle: { color: colors.text, fontSize: 19, fontWeight: '900' }, dashboardHint: { color: colors.textMuted, fontSize: 12 }, grid: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, dashboardCard: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 20, padding: 14, minHeight: 156, gap: 8 }, cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }, cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }, cardDot: { width: 8, height: 8, borderRadius: 4 }, cardTitle: { color: colors.text, fontSize: 17, fontWeight: '900', flexShrink: 1 }, cardValue: { color: colors.text, fontSize: 21, fontWeight: '900' }, caption: { color: colors.textMuted, fontSize: 12, lineHeight: 17 }, dataRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 7 }, rowLabel: { color: colors.textMuted, fontSize: 11, flex: 1 }, rowValue: { color: colors.text, fontSize: 11, fontWeight: '800', maxWidth: '55%', textAlign: 'right' }, trend: { marginTop: 3 }, trendLabel: { color: colors.textMuted, fontSize: 10 }, trendDates: { flexDirection: 'row', justifyContent: 'space-between' }, trendDate: { color: colors.textDim, fontSize: 9 }, miniBars: { height: 58, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }, miniBarSlot: { flex: 1, alignItems: 'center', gap: 2 }, miniBarTrack: { height: 43, width: '100%', justifyContent: 'flex-end', borderBottomColor: colors.border, borderBottomWidth: 1 }, miniBar: { width: '100%', borderTopLeftRadius: 3, borderTopRightRadius: 3 }, miniBarLabel: { color: colors.textDim, fontSize: 8 }, empty: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 18 },
 });

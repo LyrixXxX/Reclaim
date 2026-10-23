@@ -30,7 +30,7 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { DEFAULT_PREFERENCES, migratePreferences, setNavigationOrder, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, migratePreferences, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -46,6 +46,8 @@ type TrackerContextValue = TrackerState & {
   setOnboardingSetupDraft: (draft: OnboardingSetupDraft) => void;
   finishOnboarding: () => Promise<void>;
   saveDashboard: (widgets: DashboardWidget[]) => void;
+  setHomeHabitVisible: (id: string, visible: boolean) => void;
+  setQuittingTaperingOnHome: (visible: boolean) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
   saveStatus: SaveStatus;
   retrySave: () => void;
@@ -206,6 +208,8 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       }
     },
     saveDashboard: (widgets) => setState((previous) => saveDashboardLayout(previous, previous.preferences ?? DEFAULT_PREFERENCES, widgets)),
+    setHomeHabitVisible: (id, visible) => setState((previous) => setHomeHabitVisible(previous, id, visible)),
+    setQuittingTaperingOnHome: (visible) => setState((previous) => setQuittingTaperingOnHome(previous, visible)),
     swapHabitOrder: (firstId, secondId) => setState((previous) => swapHabitOrder(previous, firstId, secondId)),
     saveStatus,
     retrySave: () => { void writer.retry().catch(() => undefined); },
