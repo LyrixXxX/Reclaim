@@ -28,5 +28,5 @@ const styles = StyleSheet.create({
   tile: { flex: 1, minWidth: 0, minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 5, paddingVertical: 8, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: '#51415F', borderRadius: 14 },
   icon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   pressed: { backgroundColor: '#2A2140', borderColor: colors.nutritionNav },
-  label: { color: colors.text, fontSize: 10, lineHeight: 14, fontWeight: '800', textAlign: 'center' },
+  label: { color: colors.text, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
 });

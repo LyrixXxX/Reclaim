@@ -34,13 +34,13 @@ async function ensureRouteMileChannel() {
   const channel = await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: 'Route mile markers',
     description: 'Optional vibration when a recorded route reaches another mile.',
-    // eslint-disable-next-line import/namespace -- exported by expo-notifications at runtime
+     
     importance: Notifications.AndroidImportance.DEFAULT,
     sound: null,
     enableVibrate: true,
     vibrationPattern: [0, 350, 150, 350],
   });
-  // eslint-disable-next-line import/namespace -- exported by expo-notifications at runtime
+   
   if (channel?.importance === Notifications.AndroidImportance.NONE) {
     throw new Error('Route mile-marker notifications are blocked in Android settings.');
   }

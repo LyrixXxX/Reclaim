@@ -4,7 +4,7 @@ import { Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pres
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { colors } from '@/theme';
+import { colors, radius } from '@/theme';
 import { DEFAULT_PREFERENCES, normalizeNavigationOrder } from '@/lib/preferences';
 import { selectionHaptic } from '@/lib/haptics';
 import { horizontalOverflowState } from '@/lib/navigation';
@@ -58,19 +58,21 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   const gradientId = `navigation-${side}-fade`;
   return <View pointerEvents="none" accessibilityElementsHidden style={[styles.scrollCue, side === 'left' ? styles.scrollCueLeft : styles.scrollCueRight]}>
     <Svg width="100%" height="100%" viewBox="0 0 38 48">
-      <Defs><LinearGradient id={gradientId} x1={side === 'left' ? '1' : '0'} x2={side === 'left' ? '0' : '1'}><Stop offset="0" stopColor={colors.background} stopOpacity="0" /><Stop offset=".58" stopColor={colors.background} stopOpacity=".82" /><Stop offset="1" stopColor={colors.background} stopOpacity="1" /></LinearGradient></Defs>
+      <Defs><LinearGradient id={gradientId} x1={side === 'left' ? '1' : '0'} x2={side === 'left' ? '0' : '1'}><Stop offset="0" stopColor={colors.surface} stopOpacity="0" /><Stop offset=".58" stopColor={colors.surface} stopOpacity=".82" /><Stop offset="1" stopColor={colors.surface} stopOpacity="1" /></LinearGradient></Defs>
       <Rect x="0" y="0" width="38" height="48" fill={`url(#${gradientId})`} />
       <Path d={side === 'left' ? 'M22 18 16 24l6 6' : 'm16 18 6 6-6 6'} fill="none" stroke={colors.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   </View>;
 }
 
+const ICON_SIZE = 28;
+
 type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'settings';
 
 function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/supplements' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
-    <NavIcon name={icon} active={active} />
-    <Text style={[styles.label, active && { color }]}>{label}</Text>
+    <View style={[styles.iconWell, active && { backgroundColor: `${color}1F` }]}><NavIcon name={icon} active={active} /></View>
+    <Text style={[styles.label, active && { color: colors.text }]} numberOfLines={1}>{label}</Text>
   </Pressable></Link>;
 }
 
@@ -82,28 +84,29 @@ function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
     home: [267, 198], habits: [680, 198],
     weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], routes: [1096, 623], workouts: [1096, 623], supplements: [1096, 623], settings: [1508, 623],
   };
-  const scale = 34 / 326;
+  const scale = ICON_SIZE / 326;
   const [centerX, centerY] = centers[name];
   return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden>
     <Image
       source={require('../../assets/images/navigation-icons-source.png')}
       resizeMode="stretch"
-      style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: 17 - centerX * scale, top: 17 - centerY * scale }}
+      style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: ICON_SIZE / 2 - centerX * scale, top: ICON_SIZE / 2 - centerY * scale }}
     />
   </View>;
 }
 
 const styles = StyleSheet.create({
-  shell: { backgroundColor: colors.background, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
+  shell: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 6 },
   bar: { flexDirection: 'row', maxWidth: 680, width: '100%', alignSelf: 'center' },
   moduleViewport: { flex: 1, position: 'relative' },
   moduleScroll: { flex: 1 },
   moduleContent: { alignItems: 'stretch' },
-  scrollCue: { position: 'absolute', top: 0, width: 38, height: 48 },
+  scrollCue: { position: 'absolute', top: 6, width: 38, height: 48 },
   scrollCueLeft: { left: 0 },
   scrollCueRight: { right: 0 },
   settingsSlot: { width: 72, borderLeftWidth: 1, borderLeftColor: colors.border },
-  tab: { width: 72, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  icon: { width: 34, height: 34, overflow: 'hidden' },
-  label: { color: colors.textDim, fontSize: 10, fontWeight: '800' },
+  tab: { width: 72, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  iconWell: { width: 48, height: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: ICON_SIZE, height: ICON_SIZE, overflow: 'hidden', borderRadius: 7 },
+  label: { color: colors.textDim, fontSize: 11, fontWeight: '600' },
 });

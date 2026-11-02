@@ -71,7 +71,7 @@ export default function HabitsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         <MainScreenHeader
-          eyebrow="YOUR HABITS"
+          title="Habits"
           subtitle="Track what you’re quitting, reducing, or building."
           accent={colors.habitsNav}
         />
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 54,
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   intro: { marginTop: 34, marginBottom: spacing.xl },
   eyebrow: {
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     fontSize: 38,
     lineHeight: 43,
     letterSpacing: -1.2,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   subtitle: {
     color: colors.textMuted,
@@ -207,29 +207,29 @@ const styles = StyleSheet.create({
   deletedNotice: { color: colors.success, backgroundColor: colors.accentSoft, borderRadius: 12, padding: 10, fontSize: 11, textAlign: 'center', marginTop: 8 },
   tabRow: { flexDirection: 'row', gap: 8, marginBottom: 18, marginTop: 8 },
   tab: { flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8 },
-  tabActive: { backgroundColor: colors.accentSoft, borderColor: colors.habitsNav },
+  tabActive: { backgroundColor: colors.surfaceRaised, borderColor: colors.borderStrong },
   tabText: { color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  tabTextActive: { color: colors.habitsNav, fontWeight: '800' },
+  tabTextActive: { color: colors.text, fontWeight: '600' },
   emptyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: 22, marginTop: 20 },
   emptyText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
   summaryCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, marginBottom: 18, overflow: 'hidden' },
   summaryHeader: { minHeight: 54, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  summaryTitle: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  summaryTitle: { color: colors.text, fontSize: 17, fontWeight: '600' },
   summaryChevron: { color: colors.habitsNav, fontSize: 24, fontWeight: '700' },
   summaryBody: { borderTopWidth: 1, borderTopColor: colors.border, padding: 18, gap: 18 },
   summaryMetric: { flex: 1, gap: 5 },
   summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
-  summaryValue: { color: colors.habitsNav, fontSize: 28, fontWeight: '900' },
-  summaryNote: { color: colors.textDim, fontSize: 10, lineHeight: 15 },
+  summaryValue: { color: colors.habitsNav, fontSize: 28, fontWeight: '700' },
+  summaryNote: { color: colors.textDim, fontSize: 11, lineHeight: 15 },
   managementRow: { flexDirection: 'row', gap: 10, marginTop: 2 },
-  addTracker: { flex: 1, color: colors.background, backgroundColor: colors.accent, borderRadius: 13, paddingVertical: 12, textAlign: 'center', fontSize: 12, fontWeight: '800', overflow: 'hidden' },
+  addTracker: { flex: 1, color: colors.background, backgroundColor: colors.accent, borderRadius: 13, paddingVertical: 12, textAlign: 'center', fontSize: 12, fontWeight: '600', overflow: 'hidden' },
   manageTrackers: { flex: 1, color: colors.textMuted, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 13, paddingVertical: 12, textAlign: 'center', fontSize: 12, fontWeight: '700', overflow: 'hidden' },
   editOrder: { alignSelf: 'flex-end', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: 10 },
-  editOrderText: { color: colors.habitsNav, fontSize: 12, fontWeight: '800' },
+  editOrderText: { color: colors.habitsNav, fontSize: 12, fontWeight: '600' },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: '700' },
   sectionMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   sectionControls: { alignItems: 'flex-end', gap: 5 },
-  timerToggle: { color: colors.habitsNav, fontSize: 10, fontWeight: '800' },
+  timerToggle: { color: colors.habitsNav, fontSize: 11, fontWeight: '600' },
   timerButton: { alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 11, marginTop: 6 },
   orderControls: { flexDirection: 'row', gap: 8, marginTop: 8 },
   orderButton: { flex: 1, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 10 },

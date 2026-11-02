@@ -30,4 +30,4 @@ function ViewPoint({ x, y, item, showLabel, selected, onPress }: { x: number; y:
 function round(value: number) { return Math.abs(value) >= 100 ? Math.round(value).toLocaleString() : `${Math.round(value * 100) / 100}`; }
 function shortDate(value: string) { return `${new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short' })} ’${value.slice(2, 4)}`; }
 function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
-const styles = StyleSheet.create({ empty: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 20, paddingHorizontal: 16 }, detail: { color: colors.textMuted, backgroundColor: colors.surfaceRaised, borderRadius: 9, padding: 9, fontSize: 10, textAlign: 'center', marginTop: -4 } });
+const styles = StyleSheet.create({ empty: { color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 20, paddingHorizontal: 16 }, detail: { color: colors.textMuted, backgroundColor: colors.surfaceRaised, borderRadius: 9, padding: 9, fontSize: 11, textAlign: 'center', marginTop: -4 } });

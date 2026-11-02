@@ -45,13 +45,13 @@ function RouteDetailsEditor({ route, onClose, onSave }: { route: ActivityRoute; 
 const styles = StyleSheet.create({
   shade: { flex: 1, justifyContent: 'center', padding: spacing.lg, backgroundColor: '#000000AA' },
   card: { width: '100%', maxWidth: 480, alignSelf: 'center', padding: spacing.lg, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  title: { color: colors.text, fontSize: 22, fontWeight: '600' },
   help: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 8 },
   label: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 16, marginBottom: 6 },
   input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 },
   notes: { minHeight: 90, textAlignVertical: 'top' },
   primary: { marginTop: 20, padding: 14, alignItems: 'center', borderRadius: 12, backgroundColor: colors.activityNav },
-  primaryText: { color: colors.background, fontWeight: '800' },
+  primaryText: { color: colors.background, fontWeight: '600' },
   secondary: { marginTop: 8, padding: 12, alignItems: 'center' },
   secondaryText: { color: colors.textMuted, fontWeight: '700' },
 });

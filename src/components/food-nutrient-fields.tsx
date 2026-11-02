@@ -21,4 +21,4 @@ export function parseFoodExtraNutrients(values: Record<string, string>) {
   return result;
 }
 
-const styles = StyleSheet.create({ root: { marginTop: 18 }, title: { color: colors.text, fontSize: 16, fontWeight: '900' }, help: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginVertical: 7 }, field: { marginTop: 10 }, label: { color: colors.textMuted, fontSize: 10, fontWeight: '800', marginBottom: 5 }, input: { minHeight: 46, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, color: colors.text, paddingHorizontal: 12 } });
+const styles = StyleSheet.create({ root: { marginTop: 18 }, title: { color: colors.text, fontSize: 16, fontWeight: '700' }, help: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginVertical: 7 }, field: { marginTop: 10 }, label: { color: colors.textMuted, fontSize: 11, fontWeight: '600', marginBottom: 5 }, input: { minHeight: 46, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, color: colors.text, paddingHorizontal: 12 } });

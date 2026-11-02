@@ -1,7 +1,7 @@
 import { Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
-import { Header } from '@/components/header';
+import { MainScreenHeader } from '@/components/main-screen-header';
 import { WorkoutTrendChart } from '@/components/workout-trend-chart';
 import { WorkoutButton, WorkoutCard, WorkoutPage, WorkoutRow, WorkoutText, WorkoutTitle } from '@/components/workout-ui';
 import { formatMiles } from '@/lib/activity-units';
@@ -49,7 +49,7 @@ export default function WorkoutsHome() {
   const latestRoutineValue = points.length ? routineValue(points.at(-1)!, routineMetric) : 0;
   const previousRoutineValue = points.length > 1 ? routineValue(points.at(-2)!, routineMetric) : null;
   const routineDelta = previousRoutineValue === null ? null : latestRoutineValue - previousRoutineValue;
-  return <WorkoutPage><Header /><WorkoutTitle>Workouts</WorkoutTitle><WorkoutText>Your strength and cardio activity, side by side. Analytics come from saved logs on this device.</WorkoutText>
+  return <WorkoutPage><MainScreenHeader title="Workouts" subtitle="Strength and cardio activity side by side, from logs saved on this device." accent={colors.workoutsNav} />
     {activeWorkout ? <WorkoutCard><WorkoutTitle>Workout in progress</WorkoutTitle><WorkoutText>{activeWorkout.name} · {workoutSets(activeWorkout).length} sets logged</WorkoutText><WorkoutButton label="Resume workout" onPress={() => router.push('/workout-session' as Href)} /></WorkoutCard> : <WorkoutButton label={assigned[0] ? `Start ${assigned[0].name}` : 'Start workout'} onPress={() => assigned[0] ? launch(assigned[0]) : router.push('/workout-routines' as Href)} />}
     {!!assigned.length && <WorkoutCard><WorkoutText>Scheduled today</WorkoutText>{assigned.map((item) => <WorkoutRow key={item.id} title={item.name} subtitle={`${item.exercises.length} exercises · tap to start`} onPress={() => launch(item)} />)}</WorkoutCard>}
     {!workoutRoutines.length && <WorkoutCard><WorkoutText>Create a routine with at least one exercise to start training.</WorkoutText></WorkoutCard>}
@@ -76,5 +76,5 @@ export default function WorkoutsHome() {
 }
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) { return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={{ minHeight: 40, borderRadius: 10, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: selected ? colors.workoutsNav : colors.surfaceRaised }}><Text style={{ color: selected ? colors.background : colors.text, fontWeight: '700' }}>{label}</Text></Pressable>; }
-function Stat({ label, value }: { label: string; value: string }) { return <View style={{ width: '48%', minWidth: 130, flexGrow: 1, borderRadius: 12, padding: 11, backgroundColor: colors.surfaceRaised, gap: 5 }}><Text style={{ color: colors.textMuted, fontSize: 11 }}>{label}</Text><Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>{value}</Text></View>; }
+function Stat({ label, value }: { label: string; value: string }) { return <View style={{ width: '48%', minWidth: 130, flexGrow: 1, borderRadius: 12, padding: 11, backgroundColor: colors.surfaceRaised, gap: 5 }}><Text style={{ color: colors.textMuted, fontSize: 11 }}>{label}</Text><Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>{value}</Text></View>; }
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) { return <View accessibilityLabel={`${label}: ${Math.round(value)}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Text style={{ color: colors.textMuted, width: 54, fontSize: 11 }}>{label}</Text><View style={{ flex: 1, height: 8, borderRadius: 5, backgroundColor: colors.surfaceRaised }}><View style={{ width: `${Math.max(0, Math.min(100, value / max * 100))}%`, height: 8, borderRadius: 5, backgroundColor: color }} /></View><Text style={{ color: colors.text, width: 40, textAlign: 'right', fontSize: 11 }}>{Math.round(value)}</Text></View>; }

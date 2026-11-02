@@ -74,4 +74,4 @@ function toggle<T>(items: T[], item: T): T[] { return items.includes(item) ? ite
 function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) { return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={{ minHeight: 42, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 11, backgroundColor: selected ? colors.workoutsNav : colors.surfaceRaised }}><Text style={{ color: selected ? colors.background : colors.text, fontWeight: '700' }}>{label}</Text></Pressable>; }
 const wrap = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 7 };
 const exerciseBox = { backgroundColor: colors.surfaceRaised, borderRadius: 12, padding: 12, gap: 9 };
-const exerciseName = { color: colors.text, fontSize: 15, fontWeight: '800' as const };
+const exerciseName = { color: colors.text, fontSize: 15, fontWeight: '600' as const };

@@ -76,7 +76,7 @@ function AppShell() {
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
             headerShadowVisible: false,
-            headerTitleStyle: { fontWeight: '700' },
+            headerTitleStyle: { fontWeight: '600', fontSize: 17 },
           }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="habits" options={{ headerShown: false }} />

@@ -19,10 +19,10 @@ export function PrivacyContent() {
 
 const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 48 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '900' },
+  title: { color: colors.text, fontSize: 28, fontWeight: '700' },
   intro: { color: colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 12 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 16, marginTop: 12 },
-  heading: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  heading: { color: colors.text, fontSize: 16, fontWeight: '600' },
   body: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
   footer: { color: colors.textDim, fontSize: 11, lineHeight: 17, marginTop: 22 },
 });

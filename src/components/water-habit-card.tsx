@@ -20,7 +20,7 @@ export function WaterHabitCard({ tracker, logs, onLog }: { tracker: Tracker; log
 
 const styles = StyleSheet.create({
   card: { padding: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius },
-  main: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 }, icon: { fontSize: 26 }, copy: { flex: 1 }, name: { color: colors.text, fontSize: 17, fontWeight: '800' }, meta: { color: colors.textMuted, fontSize: 12, marginTop: 4 }, chevron: { color: colors.habitsNav, fontSize: 25 },
+  main: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 }, icon: { fontSize: 26 }, copy: { flex: 1 }, name: { color: colors.text, fontSize: 17, fontWeight: '600' }, meta: { color: colors.textMuted, fontSize: 12, marginTop: 4 }, chevron: { color: colors.habitsNav, fontSize: 25 },
   track: { width: '100%', height: 12, backgroundColor: colors.border, borderRadius: 8, overflow: 'hidden', marginTop: 12 }, fill: { height: '100%', backgroundColor: colors.habitsNav, borderRadius: 8 },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, marginTop: 16, backgroundColor: colors.accentSoft }, buttonText: { color: colors.habitsNav, fontWeight: '800', fontSize: 15 },
+  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, marginTop: 16, backgroundColor: colors.accentSoft }, buttonText: { color: colors.habitsNav, fontWeight: '600', fontSize: 15 },
 });

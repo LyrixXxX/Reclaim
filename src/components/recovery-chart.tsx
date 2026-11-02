@@ -139,9 +139,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  tooltipDate: { color: colors.textDim, fontSize: 9, textAlign: 'center' },
+  tooltipDate: { color: colors.textDim, fontSize: 11, textAlign: 'center' },
   tooltipValue: { color: colors.text, fontSize: 11, fontWeight: '700', marginTop: 2 },
-  hint: { color: colors.textDim, fontSize: 9, textAlign: 'center', marginTop: -3 },
+  hint: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: -3 },
   empty: {
     height: HEIGHT,
     alignItems: 'center',

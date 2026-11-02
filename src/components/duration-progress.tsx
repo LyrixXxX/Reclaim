@@ -22,7 +22,7 @@ export function DurationProgress({ startedAt, now, color, compact = false }: { s
 const styles = StyleSheet.create({
   container: { width: '100%', marginTop: 18 },
   compact: { marginTop: 16 },
-  fullDuration: { color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  fullDuration: { color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: '600', fontVariant: ['tabular-nums'] },
   compactSummary: { fontSize: 13, lineHeight: 18 },
   rows: { gap: 12, marginTop: 14 },
 });
