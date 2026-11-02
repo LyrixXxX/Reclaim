@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Href, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +32,7 @@ export default function DashboardEditor() {
     ...(preferences.visibleSections.nutrition && nutritionGoals.length ? [{ id: 'nutrition', title: 'Nutrition', fallback: colors.nutritionNav }] : []),
     ...activeHabits.filter((item) => !hiddenHabits.includes(item.id)).map((item) => ({ id: item.id, title: item.displayName || item.name, fallback: colors.habitsNav })),
   ];
-  const exit = () => router.replace('/');
+  const exit = () => router.replace('/' as Href);
   return <ScrollView style={styles.safe} scrollEnabled={!dragging} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
     <Text style={styles.title}>Edit Home</Text>
     <Text style={styles.body}>Choose which active habits appear in your daily goals or their own Home cards. Hiding one here never stops its tracking.</Text>

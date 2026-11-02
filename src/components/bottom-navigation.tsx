@@ -1,15 +1,13 @@
-import { Href, Link, usePathname } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Image, ImageSourcePropType, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ImageSourcePropType, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { HomeAdBanner } from '@/components/home-ad-banner';
 import { colors, font } from '@/theme';
-import { DEFAULT_PREFERENCES, normalizeNavigationOrder } from '@/lib/preferences';
 import { selectionHaptic } from '@/lib/haptics';
 import { horizontalOverflowState } from '@/lib/navigation';
-import { useTrackers } from '@/state/tracker-context';
-import { NavigationSection } from '@/models/tracker';
 
 type NavIconName = 'home' | 'steps' | 'routes' | 'habits' | 'weight' | 'nutrition' | 'workouts' | 'supplements' | 'settings';
 
@@ -26,45 +24,68 @@ const navigationIcons: Record<NavIconName, ImageSourcePropType> = {
   settings: require('../../assets/images/nav/settings.png'),
 };
 
-const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts' | '/supplements'; label: string; icon: NavIconName; color: string; active: (path: string) => boolean }> = {
-  activity: { href: '/activity', label: 'Steps', icon: 'steps', color: colors.activityNav, active: (path) => path === '/activity' },
-  routes: { href: '/routes', label: 'Routes', icon: 'routes', color: colors.activityNav, active: (path) => path === '/routes' || path === '/activity-map' || path === '/activity-routes' },
-  goals: { href: '/habits', label: 'Habits', icon: 'habits', color: colors.habitsNav, active: (path) => path === '/habits' },
-  weight: { href: '/weight', label: 'Weight', icon: 'weight', color: colors.weightNav, active: (path) => path.startsWith('/weight') },
-  nutrition: { href: '/nutrition', label: 'Nutrition', icon: 'nutrition', color: colors.nutritionNav, active: (path) => path.startsWith('/nutrition') },
-  workouts: { href: '/workouts', label: 'Workouts', icon: 'workouts', color: colors.workoutsNav, active: (path) => path.startsWith('/workout') },
-  supplements: { href: '/supplements', label: 'Supplements', icon: 'supplements', color: colors.healthNav, active: (path) => path === '/supplements' },
+// Keyed by route file name in app/(tabs).
+const tabDetails: Record<string, { label: string; icon: NavIconName; color: string }> = {
+  index: { label: 'Home', icon: 'home', color: colors.accent },
+  activity: { label: 'Steps', icon: 'steps', color: colors.activityNav },
+  routes: { label: 'Routes', icon: 'routes', color: colors.activityNav },
+  habits: { label: 'Habits', icon: 'habits', color: colors.habitsNav },
+  weight: { label: 'Weight', icon: 'weight', color: colors.weightNav },
+  nutrition: { label: 'Nutrition', icon: 'nutrition', color: colors.nutritionNav },
+  workouts: { label: 'Workouts', icon: 'workouts', color: colors.workoutsNav },
+  supplements: { label: 'Supplements', icon: 'supplements', color: colors.healthNav },
+  settings: { label: 'Settings', icon: 'settings', color: colors.settingsNav },
 };
+const adRoutes = new Set(['index', 'nutrition', 'activity']);
+const TAB_WIDTH = 66;
 
-export function BottomNavigation() {
-  const path = usePathname();
+/** Tab bar for the swipeable section pager; Settings stays pinned on the right. */
+export function BottomNavigation({ state, emitter, navigateToTab }: MaterialTopTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { preferences = DEFAULT_PREFERENCES } = useTrackers();
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [scrollMetrics, setScrollMetrics] = useState({ contentWidth: 0, viewportWidth: 0, offset: 0 });
   const overflow = useMemo(() => horizontalOverflowState(scrollMetrics), [scrollMetrics]);
+  const activeRoute = state.routes[state.index];
+  const sections = state.routes.filter((route) => route.name !== 'settings');
+  const settings = state.routes.find((route) => route.name === 'settings');
+  const activeSection = sections.findIndex((route) => route.key === activeRoute?.key);
+
+  // Keep the active tab in view when a swipe lands on a section that is scrolled off the bar.
+  const { offset, viewportWidth } = scrollMetrics;
+  useEffect(() => {
+    if (activeSection < 0 || !viewportWidth) return;
+    const left = activeSection * TAB_WIDTH;
+    if (left < offset) scrollRef.current?.scrollTo({ x: left, animated: true });
+    else if (left + TAB_WIDTH > offset + viewportWidth) scrollRef.current?.scrollTo({ x: left + TAB_WIDTH - viewportWidth, animated: true });
+  }, [activeSection, viewportWidth]); // eslint-disable-line react-hooks/exhaustive-deps -- only follow tab changes, not manual bar scrolling
+
+  const press = (key: string) => {
+    selectionHaptic();
+    const event = emitter.emit({ type: 'tabPress', target: key, canPreventDefault: true });
+    if (!event.defaultPrevented) navigateToTab(key);
+  };
   const setViewportWidth = (event: LayoutChangeEvent) => {
-    const viewportWidth = event.nativeEvent.layout.width;
-    setScrollMetrics((current) => ({ ...current, viewportWidth }));
+    const width = event.nativeEvent.layout.width;
+    setScrollMetrics((current) => ({ ...current, viewportWidth: width }));
   };
   const setContentWidth = (contentWidth: number) => setScrollMetrics((current) => ({ ...current, contentWidth }));
   const setOffset = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offset = Math.max(0, event.nativeEvent.contentOffset.x);
-    setScrollMetrics((current) => ({ ...current, offset }));
+    const x = Math.max(0, event.nativeEvent.contentOffset.x);
+    setScrollMetrics((current) => ({ ...current, offset: x }));
   };
-  return <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-    <View style={styles.bar}>
-      <View style={styles.moduleViewport} onLayout={setViewportWidth}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moduleScroll} contentContainerStyle={styles.moduleContent} onContentSizeChange={setContentWidth} onScroll={setOffset} scrollEventThrottle={32}>
-          <Tab href="/" label="Home" icon="home" color={colors.accent} active={path === '/'} />
-          {normalizeNavigationOrder(preferences.navigationOrder).filter((section) => preferences.visibleSections[section]).map((section) => {
-            const tab = navigationTabs[section];
-            return <Tab key={section} {...tab} active={tab.active(path)} />;
-          })}
-        </ScrollView>
-        {overflow.canScrollLeft && <ScrollCue side="left" />}
-        {overflow.canScrollRight && <ScrollCue side="right" />}
+  return <View>
+    {activeRoute && adRoutes.has(activeRoute.name) && <HomeAdBanner />}
+    <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <View style={styles.bar}>
+        <View style={styles.moduleViewport} onLayout={setViewportWidth}>
+          <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.moduleScroll} contentContainerStyle={styles.moduleContent} onContentSizeChange={setContentWidth} onScroll={setOffset} scrollEventThrottle={32}>
+            {sections.map((route) => <Tab key={route.key} name={route.name} active={route.key === activeRoute?.key} onPress={() => press(route.key)} />)}
+          </ScrollView>
+          {overflow.canScrollLeft && <ScrollCue side="left" />}
+          {overflow.canScrollRight && <ScrollCue side="right" />}
+        </View>
+        {settings && <View style={styles.settingsSlot}><Tab name="settings" active={settings.key === activeRoute?.key} onPress={() => press(settings.key)} /></View>}
       </View>
-      <View style={styles.settingsSlot}><Tab href="/settings" label="Settings" icon="settings" color={colors.settingsNav} active={path.startsWith('/settings')} /></View>
     </View>
   </View>;
 }
@@ -79,14 +100,17 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/supplements' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
-  return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
+function Tab({ name, active, onPress }: { name: string; active: boolean; onPress: () => void }) {
+  const tab = tabDetails[name];
+  if (!tab) return null;
+  return <Pressable accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: active }} onPress={onPress} style={styles.tab}>
     <View style={styles.iconWell}>
-      {/* SVG pill: Android drops borderRadius on this view inside the tab Link. */}
-      {active && <Svg style={StyleSheet.absoluteFill} viewBox="0 0 52 30"><Rect x="0" y="0" width="52" height="30" rx="15" fill={color} fillOpacity={0.16} /></Svg>}
-      <Image source={navigationIcons[icon]} style={[styles.icon, !active && styles.iconInactive]} resizeMode="contain" accessible={false} /></View>
-    <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
-  </Pressable></Link>;
+      {/* SVG pill: Android drops borderRadius on this view. */}
+      {active && <Svg style={StyleSheet.absoluteFill} viewBox="0 0 52 30"><Rect x="0" y="0" width="52" height="30" rx="15" fill={tab.color} fillOpacity={0.16} /></Svg>}
+      <Image source={navigationIcons[tab.icon]} style={[styles.icon, !active && styles.iconInactive]} resizeMode="contain" accessible={false} />
+    </View>
+    <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{tab.label}</Text>
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -99,7 +123,7 @@ const styles = StyleSheet.create({
   scrollCueLeft: { left: 0 },
   scrollCueRight: { right: 0 },
   settingsSlot: { width: 70, borderLeftWidth: 1, borderLeftColor: colors.border },
-  tab: { width: 66, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  tab: { width: TAB_WIDTH, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3 },
   iconWell: { width: 52, height: 30, alignItems: 'center', justifyContent: 'center' },
   icon: { width: 30, height: 30 },
   iconInactive: { opacity: 0.55 },

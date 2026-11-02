@@ -29,9 +29,9 @@ type Filter = 'active' | 'as_needed' | 'archived';
 type TimeDraft = { hour: string; minute: string; period: Meridiem };
 const DAYS = [{ id: 1, label: 'Sun' }, { id: 2, label: 'Mon' }, { id: 3, label: 'Tue' }, { id: 4, label: 'Wed' }, { id: 5, label: 'Thu' }, { id: 6, label: 'Fri' }, { id: 7, label: 'Sat' }];
 const PARTS = ['Overnight', 'Morning', 'Afternoon', 'Evening'] as const;
-const supplementIcon = require('../../assets/images/medication-supplement-icon.png');
-const morningIcon = require('../../assets/images/medication-morning-icon.png');
-const eveningIcon = require('../../assets/images/medication-evening-icon.png');
+const supplementIcon = require('../../../assets/images/medication-supplement-icon.png');
+const morningIcon = require('../../../assets/images/medication-morning-icon.png');
+const eveningIcon = require('../../../assets/images/medication-evening-icon.png');
 
 export default function SupplementsScreen() {
   const { medications = [], medicationEvents = [], supplementStacks = [], customNutrients = [], saveSupplement, archiveSupplement,

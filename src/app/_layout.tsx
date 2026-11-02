@@ -1,5 +1,5 @@
 import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, useFonts } from '@expo-google-fonts/manrope';
-import { router, Stack, usePathname } from 'expo-router';
+import { Href, router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,9 +7,7 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, BackHandler, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
 
 import { AppLockScreen } from '@/components/app-lock-screen';
-import { BottomNavigation } from '@/components/bottom-navigation';
 import { LocalSaveStatus } from '@/components/local-save-status';
-import { HomeAdBanner } from '@/components/home-ad-banner';
 import { PlayUpdatePrompt } from '@/components/play-update-prompt';
 import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
@@ -40,8 +38,6 @@ function AppShell() {
   const lastBackPress = useRef(0);
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/supplements', '/activity', '/routes', '/activity-map', '/activity-routes', '/workouts', '/settings'];
-  const showBottomNavigation = mainTabs.includes(pathname);
   useEffect(() => {
     if (pathname !== '/') lastBackPress.current = 0;
     if (Platform.OS !== 'android' || privateContent || !mainSectionPaths.has(pathname)) return;
@@ -49,7 +45,7 @@ function AppShell() {
       const now = Date.now();
       if (pathname !== '/') {
         lastBackPress.current = now;
-        router.replace('/');
+        router.replace('/' as Href);
         ToastAndroid.show('Press Back again to exit Reclaim', ToastAndroid.SHORT);
         return true;
       }
@@ -82,8 +78,7 @@ function AppShell() {
             headerShadowVisible: false,
             headerTitleStyle: { fontFamily: font.semibold, fontSize: 17 },
           }}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="habits" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="dashboard-edit" options={{ title: 'Edit dashboard' }} />
           <Stack.Screen name="history" options={{ title: 'Habit history' }} />
           <Stack.Screen name="manage" options={{ title: 'Trackers' }} />
@@ -94,12 +89,6 @@ function AppShell() {
           <Stack.Screen name="water-form" options={{ title: 'Water habit setup' }} />
           <Stack.Screen name="water-history" options={{ title: 'Water history' }} />
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
-          <Stack.Screen name="weight" options={{ headerShown: false }} />
-          <Stack.Screen name="nutrition" options={{ headerShown: false }} />
-          <Stack.Screen name="supplements" options={{ headerShown: false }} />
-          <Stack.Screen name="activity" options={{ headerShown: false }} />
-          <Stack.Screen name="routes" options={{ headerShown: false }} />
-          <Stack.Screen name="workouts" options={{ headerShown: false }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
           <Stack.Screen name="workout-routines" options={{ title: 'Routines' }} />
@@ -118,13 +107,10 @@ function AppShell() {
           <Stack.Screen name="nutrition-meal-form" options={{ title: 'Saved meal' }} />
           <Stack.Screen name="nutrition-meal-groups" options={{ title: 'Edit meal groups' }} />
           <Stack.Screen name="nutrition-settings" options={{ title: 'Macros' }} />
-          <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
         </Stack>
         <LocalSaveStatus errorsOnly />
         <PlayUpdatePrompt active={!privateContent} />
-        {['/', '/nutrition', '/activity'].includes(pathname) && !privateContent && <HomeAdBanner />}
-        {showBottomNavigation && <BottomNavigation />}
       </View>
       {(!ready || locked) && <AppLockScreen loading={!ready} />}
     </>

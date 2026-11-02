@@ -36,7 +36,7 @@ export default function SavedRoutesScreen() {
       const durationLabel = `${Math.floor(seconds / 3600)}h ${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}m ${String(seconds % 60).padStart(2, '0')}s`;
       const paceLabel = paceSeconds === null ? '—' : `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, '0')} /mi`;
       return <View key={route.id} style={styles.route}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.push(`/activity-map?routeId=${encodeURIComponent(route.id)}` as Href)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.navigate(`/routes?routeId=${encodeURIComponent(route.id)}` as Href)}>
           <RouteMapPreview points={route.points} mapStyle={mapStyle} />
           <Text style={styles.name}>{routeDisplayName(route)}</Text>
           <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
