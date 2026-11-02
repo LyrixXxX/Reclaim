@@ -19,13 +19,22 @@ import { formatMiles } from '@/lib/activity-units';
 import { getMapKey, loadMapStyle } from '@/lib/activity-maps';
 import { localDateKey } from '@/lib/progress';
 import { readRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
-import { compassDirection, directionArrowCoordinates, usableCompassHeading } from '@/lib/route-compass';
+import { compassDirection, directionArrowCoordinates, headingDelta, smoothHeading, usableCompassHeading } from '@/lib/route-compass';
 import { getRouteForecast, gpsAccuracyBars, type RouteForecast } from '@/lib/route-weather';
 import { clearFinishedRoute, finishRoute, isRouteRecording, pauseRoute, readActiveRoute, readPendingRoute, resumeRoute, startRoute, ActiveRoute } from '@/lib/activity-recording';
 import { ActivityPoint, ActivityRoute } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useAds } from '@/state/ads-context';
 import { colors, layout, spacing, font } from '@/theme';
+
+// Follow mode: how long the heading takes to settle (phones report ~18 readings a second that
+// swing ±15° while still), how often the camera moves (linear eases of the same length chain
+// into continuous motion), the turn the camera ignores, and how long a brief low-accuracy
+// dropout keeps the last good heading instead of flickering back to the dot.
+const HEADING_SETTLE_MS = 800;
+const FOLLOW_DEADBAND_DEGREES = 3;
+const FOLLOW_FRAME_MS = 250;
+const HEADING_HOLD_MS = 3000;
 
 type MapCamera = React.ComponentRef<typeof Camera>;
 type MapSurface = React.ComponentRef<typeof Map>;
@@ -65,6 +74,9 @@ export default function ActivityMapScreen() {
   const headingRef = useRef<number | null>(null);
   const lastHeadingCameraRef = useRef({ degrees: -1, time: 0 });
   const lastCompassDisplayRef = useRef({ degrees: -1, accuracy: -1, time: 0 });
+  const lastGoodHeadingRef = useRef(0);
+  const lastHeadingReadingRef = useRef(0);
+  const lastCameraCenterRef = useRef<[number, number] | null>(null);
   const [mapMode, setMapMode] = useState<'map' | 'follow'>('map');
   const [mapZoom, setMapZoom] = useState(15);
   const [compass, setCompass] = useState<{ heading: number; accuracy: number; trueNorth: boolean } | null>(null);
@@ -131,7 +143,7 @@ export default function ActivityMapScreen() {
         setGpsFixTime(location.timestamp);
         updateForecast(location.coords.latitude, location.coords.longitude);
         setLocationMessage('');
-        if (followingRef.current) cameraRef.current?.easeTo({ center: coordinate, ...(mapModeRef.current === 'follow' && headingRef.current !== null ? { bearing: headingRef.current } : {}), duration: 400 });
+        if (followingRef.current && !(mapModeRef.current === 'follow' && headingRef.current !== null)) cameraRef.current?.easeTo({ center: coordinate, duration: 400 });
       });
       if (cancelled) locationSubscription.remove();
     })().catch(() => { if (!cancelled) setLocationMessage('Could not get your location. Tap Re-Center to try again.'); });
@@ -152,23 +164,25 @@ export default function ActivityMapScreen() {
         if (cancelled || AppState.currentState !== 'active') return;
         const subscription = await Location.watchHeadingAsync((reading) => {
           if (cancelled) return;
-          const heading = usableCompassHeading(reading);
-          if (heading === null) { headingRef.current = null; setCompass(null); setCompassNeedsCalibration(true); return; }
+          const raw = usableCompassHeading(reading);
+          const now = Date.now();
+          if (raw === null) {
+            if (headingRef.current !== null && now - lastGoodHeadingRef.current < HEADING_HOLD_MS) return;
+            headingRef.current = null; setCompass(null); setCompassNeedsCalibration(true); return;
+          }
+          lastGoodHeadingRef.current = now;
+          // Time-based blend, so the settle time is the same whatever rate the sensor reports at.
+          const elapsed = Math.min(1000, now - (lastHeadingReadingRef.current || now));
+          lastHeadingReadingRef.current = now;
+          const heading = smoothHeading(headingRef.current, raw, 1 - Math.exp(-elapsed / HEADING_SETTLE_MS));
           headingRef.current = heading;
           setCompassNeedsCalibration(false);
-          const now = Date.now();
           const displayed = lastCompassDisplayRef.current;
-          const displayChange = Math.abs(((heading - displayed.degrees + 540) % 360) - 180);
-          if (displayChange >= 2 || reading.accuracy !== displayed.accuracy || now - displayed.time >= 1000) {
+          if (displayed.degrees < 0 || Math.abs(headingDelta(displayed.degrees, heading)) >= 3 || reading.accuracy !== displayed.accuracy || now - displayed.time >= 1000) {
             setCompass({ heading, accuracy: reading.accuracy, trueNorth: reading.trueHeading >= 0 });
             lastCompassDisplayRef.current = { degrees: heading, accuracy: reading.accuracy, time: now };
           }
           setCompassUnavailable(false);
-          const last = lastHeadingCameraRef.current;
-          const change = Math.abs(((heading - last.degrees + 540) % 360) - 180);
-          if (!followingRef.current || !positionRef.current || change < 2 || (now - last.time < 450 && change < 8)) return;
-          cameraRef.current?.easeTo({ center: positionRef.current, bearing: heading, duration: 350 });
-          lastHeadingCameraRef.current = { degrees: heading, time: now };
         }, () => { if (!cancelled) setCompassUnavailable(true); });
         if (cancelled || AppState.currentState !== 'active') subscription.remove();
         else headingSubscription = subscription;
@@ -176,11 +190,25 @@ export default function ActivityMapScreen() {
       finally { starting = false; }
     };
     void startHeading();
+    // One camera driver for Follow mode: steady linear eases toward the smoothed heading and the
+    // latest fix, instead of every compass reading and GPS fix interrupting each other.
+    const followTimer = setInterval(() => {
+      const heading = headingRef.current;
+      const center = positionRef.current;
+      if (!followingRef.current || !center || heading === null) return;
+      const last = lastHeadingCameraRef.current;
+      const lastCenter = lastCameraCenterRef.current;
+      const moved = !lastCenter || lastCenter[0] !== center[0] || lastCenter[1] !== center[1];
+      if (!moved && last.degrees >= 0 && Math.abs(headingDelta(last.degrees, heading)) < FOLLOW_DEADBAND_DEGREES) return;
+      cameraRef.current?.easeTo({ center, bearing: heading, duration: FOLLOW_FRAME_MS, easing: 'linear' });
+      lastHeadingCameraRef.current = { degrees: heading, time: Date.now() };
+      lastCameraCenterRef.current = center;
+    }, FOLLOW_FRAME_MS);
     const appSubscription = AppState.addEventListener('change', (status) => {
       if (status === 'active') void startHeading();
       else { headingSubscription?.remove(); headingSubscription = undefined; }
     });
-    return () => { cancelled = true; headingSubscription?.remove(); appSubscription.remove(); };
+    return () => { cancelled = true; clearInterval(followTimer); headingSubscription?.remove(); appSubscription.remove(); };
   }, [mapMode, active?.id, selected]));
   const withBusy = async (action: () => Promise<void>) => {
     if (busy) return;
@@ -259,6 +287,7 @@ export default function ActivityMapScreen() {
     setCompassNeedsCalibration(false);
     lastHeadingCameraRef.current = { degrees: -1, time: 0 };
     lastCompassDisplayRef.current = { degrees: -1, accuracy: -1, time: 0 };
+    lastCameraCenterRef.current = null;
     followingRef.current = true;
     if (next === 'map') { headingRef.current = null; setCompass(null); }
     if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: next === 'follow' ? headingRef.current ?? 0 : 0, duration: 400 });
@@ -367,7 +396,8 @@ export default function ActivityMapScreen() {
     >
       <Camera ref={cameraRef} initialViewState={cameraStart ?? { center: mapCenter, zoom: 15 }} />
       {line && <GeoJSONSource id="activity-route" data={line}><Layer id="activity-line" type="line" paint={{ 'line-color': colors.activityNav, 'line-width': 4 }} /></GeoJSONSource>}
-      {currentPoint && !directionArrow && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} /></GeoJSONSource>}
+      {/* The dot stays mounted and fades under the heading arrow; swapping sources flickered. */}
+      {currentPoint && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-opacity': directionArrow ? 0 : 1, 'circle-stroke-opacity': directionArrow ? 0 : 1 }} /></GeoJSONSource>}
       {directionArrow && <GeoJSONSource id="activity-heading-arrow" data={directionArrow}><Layer id="activity-heading-fill" type="fill" paint={{ 'fill-color': colors.activityNav, 'fill-opacity': 1 }} /><Layer id="activity-heading-outline" type="line" paint={{ 'line-color': '#FFFFFF', 'line-width': 2 }} /></GeoJSONSource>}
     </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={[styles.buttonText, styles.buttonTextOnFill]}>Retry map</Text></Pressable>}</View>}
     {active && !selectedRoute && mapMode === 'follow' && <View style={styles.compassPill}>
@@ -500,8 +530,8 @@ const styles = StyleSheet.create({
   // Map controls: dark translucent discs with thin icons, stacked where the thumb is.
   controlStack: { position: 'absolute', right: 12, top: 12, gap: 8 },
   mapButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.surface}E6` },
-  compassPill: { position: 'absolute', left: 12, top: 12, maxWidth: '70%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: `${colors.surface}E6` },
-  compassText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
+  compassPill: { position: 'absolute', left: 12, top: 12, maxWidth: '70%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: `${colors.surface}E6` },
+  compassText: { flexShrink: 1, color: colors.text, fontSize: 12, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
   attribution: { position: 'absolute', left: 10, bottom: 6, paddingVertical: 2 },
   attributionText: { color: '#5E6A70', fontSize: 11, fontFamily: font.medium },
   compassWarning: { color: colors.danger, fontSize: 11, fontFamily: font.bold },
