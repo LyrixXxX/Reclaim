@@ -18,19 +18,23 @@ const paths = {
   chevronLeft: ['m15 18-6-6 6-6'],
   plus: ['M5 12h14', 'M12 5v14'],
   sliders: ['M10 5H3', 'M12 19H3', 'M14 3v4', 'M16 17v4', 'M21 12h-9', 'M21 19h-5', 'M21 5h-7', 'M8 10v4', 'M8 12H3'],
+  expand: ['M15 3h6v6', 'M9 21H3v-6', 'M21 3l-7 7', 'M3 21l7-7'],
+  heading: ['M12 2 19 21 12 17 5 21 12 2z'],
+  locate: ['M2 12h3', 'M19 12h3', 'M12 2v3', 'M12 19v3'],
   shield: ['M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'],
 } as const;
 
 const circles: Partial<Record<IconName, [number, number, number][]>> = {
   weight: [[12, 5, 3]],
   settings: [[12, 12, 3]],
+  locate: [[12, 12, 7], [12, 12, 1.5]],
 };
 
 export type IconName = keyof typeof paths;
 
-export function Icon({ name, size = 22, color = colors.text, strokeWidth = 1.9 }: { name: IconName; size?: number; color?: string; strokeWidth?: number }) {
-  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+export function Icon({ name, size = 22, color = colors.text, strokeWidth = 1.9, fill = 'none' }: { name: IconName; size?: number; color?: string; strokeWidth?: number; fill?: string }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
     {paths[name].map((d) => <Path key={d} d={d} />)}
-    {circles[name]?.map(([cx, cy, r]) => <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />)}
+    {circles[name]?.map(([cx, cy, r]) => <Circle key={`${cx}-${cy}-${r}`} cx={cx} cy={cy} r={r} />)}
   </Svg>;
 }

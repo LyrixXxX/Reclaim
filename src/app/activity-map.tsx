@@ -2,9 +2,10 @@ import { Camera, GeoJSONSource, Layer, Map, type StyleSpecification } from '@map
 import * as Location from 'expo-location';
 import { Href, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Alert, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/icon';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { routeDisplayName } from '@/components/activity-route-details';
@@ -29,19 +30,6 @@ import { colors, layout, spacing, font } from '@/theme';
 type MapCamera = React.ComponentRef<typeof Camera>;
 type MapSurface = React.ComponentRef<typeof Map>;
 type MapViewport = { center: [number, number]; zoom: number; bearing: number; pitch: number };
-const MAP_CONTROL_SIZE = 48;
-const MAP_ART_VISIBLE_SIZE = 37;
-function MapControlArtwork({ control }: { control: 'expand' | 'recenter' }) {
-  const artwork = control === 'expand' ? { centerX: 433.5, centerY: 454.5, extent: 574 } : { centerX: 1319, centerY: 448.5, extent: 658 };
-  const scale = MAP_ART_VISIBLE_SIZE / artwork.extent;
-  return <Image accessible={false} source={require('../../assets/images/route-map-controls-black.png')} resizeMode="stretch" style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: MAP_CONTROL_SIZE / 2 - artwork.centerX * scale, top: MAP_CONTROL_SIZE / 2 - artwork.centerY * scale }} />;
-}
-function MapModeArtwork({ following }: { following: boolean }) {
-  // The supplied artwork has the filled arrow on the left and outline on the right.
-  const artwork = following ? { centerX: 483, centerY: 439.5, extent: 604 } : { centerX: 1277, centerY: 441, extent: 613 };
-  const scale = 38 / artwork.extent;
-  return <Image accessible={false} source={require('../../assets/images/route-map-mode-arrows.png')} resizeMode="stretch" style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: MAP_CONTROL_SIZE / 2 - artwork.centerX * scale, top: MAP_CONTROL_SIZE / 2 - artwork.centerY * scale }} />;
-}
 export default function ActivityMapScreen() {
   const { showCompletionAd } = useAds();
   const { activityRoutes = [], weightEntries = [], saveActivityRoute, setSectionVisibility } = useTrackers();
@@ -382,16 +370,18 @@ export default function ActivityMapScreen() {
       {currentPoint && !directionArrow && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} /></GeoJSONSource>}
       {directionArrow && <GeoJSONSource id="activity-heading-arrow" data={directionArrow}><Layer id="activity-heading-fill" type="fill" paint={{ 'fill-color': colors.activityNav, 'fill-opacity': 1 }} /><Layer id="activity-heading-outline" type="line" paint={{ 'line-color': '#FFFFFF', 'line-width': 2 }} /></GeoJSONSource>}
     </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={[styles.buttonText, styles.buttonTextOnFill]}>Retry map</Text></Pressable>}</View>}
-    {active && !selectedRoute && <View style={styles.navigationControls}>
-      <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.navigationButton}><MapModeArtwork following={mapMode === 'follow'} /></Pressable>
-      {mapMode === 'follow' && <View style={styles.compassBadge}><Text style={styles.compassText}>{compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>{compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}</View>}
+    {active && !selectedRoute && mapMode === 'follow' && <View style={styles.compassPill}>
+      <Icon name="heading" size={12} color={colors.accent} fill={colors.accent} strokeWidth={1.5} />
+      <Text style={styles.compassText} numberOfLines={1}>Follow · {compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>
+      {compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}
     </View>}
-    {expanded ? <View pointerEvents="none" style={styles.mapHint}><Text style={styles.mapHintText}>Drag with one finger · pinch to zoom{active ? ' · Re-Center resumes following' : ''}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel="Expand map for one-finger navigation" onPress={openExpandedMap} style={styles.expandMapButton}><MapControlArtwork control="expand" /></Pressable>}
-    <Pressable accessibilityRole="button" accessibilityLabel="Re-center map on my location" onPress={recenter} style={styles.recenter}><MapControlArtwork control="recenter" /></Pressable>
-    {style && mapCenter && !mapError && <View pointerEvents="box-none" style={styles.mapAttributionRow}>
-      <Text style={styles.mapLibreLabel}>MapLibre</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Map attribution and information" onPress={showMapAttribution} hitSlop={8} style={styles.mapAttributionButton}><Text style={styles.mapAttributionIcon}>i</Text></Pressable>
-    </View>}
+    <View style={styles.controlStack}>
+      {!expanded && <Pressable accessibilityRole="button" accessibilityLabel="Expand map for one-finger navigation" onPress={openExpandedMap} style={styles.mapButton}><Icon name="expand" size={18} strokeWidth={1.8} /></Pressable>}
+      {active && !selectedRoute && <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.mapButton}><Icon name="heading" size={18} strokeWidth={1.8} color={mapMode === 'follow' ? colors.accent : colors.text} fill={mapMode === 'follow' ? colors.accent : 'none'} /></Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Re-center map on my location" onPress={recenter} style={styles.mapButton}><Icon name="locate" size={18} strokeWidth={1.8} /></Pressable>
+    </View>
+    {expanded && <View pointerEvents="none" style={styles.mapHint}><Text style={styles.mapHintText}>Drag with one finger · pinch to zoom{active ? ' · Re-Center resumes following' : ''}</Text></View>}
+    {style && mapCenter && !mapError && <Pressable accessibilityRole="button" accessibilityLabel="Map attribution and information" onPress={showMapAttribution} hitSlop={8} style={styles.attribution}><Text style={styles.attributionText}>MapLibre ⓘ</Text></Pressable>}
   </View>;
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled={!!active || mapExpanded} contentContainerStyle={styles.content}>
     <MainScreenHeader title="Routes" subtitle="Record walks, hikes, and runs with GPS." accent={colors.activityNav} action={<Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Settings</Text></Pressable>} />
@@ -464,7 +454,7 @@ function routeGeoJSON(points: ActivityPoint[]) {
   for (const point of points) segments.set(point.segment ?? 0, [...(segments.get(point.segment ?? 0) ?? []), [point.longitude, point.latitude]]);
   return { type: 'Feature' as const, properties: {}, geometry: { type: 'MultiLineString' as const, coordinates: [...segments.values()].filter((segment) => segment.length > 1) } };
 }
-function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={[styles.buttonText, !secondary && !danger && styles.buttonTextOnFill]}>{label}</Text></Pressable>; }
+function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={[styles.buttonText, !secondary && styles.buttonTextOnFill]}>{label}</Text></Pressable>; }
 function Metric({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) { return <View style={[styles.metric, compact && styles.compactMetric]}><Text style={styles.metricLabel}>{label}</Text><Text style={[styles.metricValue, compact && styles.compactMetricValue]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text></View>; }
 function StatusRow({ label, value }: { label: string; value: string }) { return <View style={styles.statusRow}><Text style={styles.body}>{label}</Text><Text style={styles.statusValue}>{value}</Text></View>; }
 function formatClock(ms: number) {
@@ -507,16 +497,13 @@ const styles = StyleSheet.create({
   conditionDetail: { color: colors.textDim, fontSize: 11 , fontFamily: font.regular},
   map: { flex: 1 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 26 },
-  mapAttributionRow: { position: 'absolute', left: 8, right: 8, bottom: 4, height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mapLibreLabel: { color: '#526265', fontSize: 13, fontFamily: font.semibold, textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
-  mapAttributionButton: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#208D9E', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9F8F4CC' },
-  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontFamily: font.semibold, lineHeight: 19, textAlign: 'center' },
-  recenter: { position: 'absolute', right: 16, top: 16, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  expandMapButton: { position: 'absolute', left: 12, bottom: 44, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  navigationControls: { position: 'absolute', left: 12, right: MAP_CONTROL_SIZE + 28, top: 16, alignItems: 'flex-start', gap: 6 },
-  navigationButton: { width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  compassBadge: { maxWidth: '100%', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: '#10191CDD' },
+  // Map controls: dark translucent discs with thin icons, stacked where the thumb is.
+  controlStack: { position: 'absolute', right: 12, top: 12, gap: 8 },
+  mapButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.surface}E6` },
+  compassPill: { position: 'absolute', left: 12, top: 12, maxWidth: '70%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: `${colors.surface}E6` },
   compassText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
+  attribution: { position: 'absolute', left: 10, bottom: 6, paddingVertical: 2 },
+  attributionText: { color: '#5E6A70', fontSize: 11, fontFamily: font.medium },
   compassWarning: { color: colors.danger, fontSize: 11, fontFamily: font.bold },
   mapHint: { position: 'absolute', left: 12, bottom: 42, right: 12, alignItems: 'center' },
   mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 , fontFamily: font.regular},
