@@ -15,7 +15,7 @@ import { taperQuitPhase } from '@/lib/taper-quit';
 import { DayOutcome, HistoricalEntry, TrackerId } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 const OUTCOMES: { value: DayOutcome; label: string; hint: string }[] = [
   { value: 'stayed_on_plan', label: 'Stayed on plan', hint: 'A successful day' },
@@ -132,7 +132,7 @@ export default function HistoryScreen() {
         <View style={styles.calendar}>
           <View style={styles.monthHeader}>
             <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(shiftMonth(month, -1))} style={styles.monthButton}>
-              <Icon name="chevronLeft" size={20} color={colors.textMuted} />
+              <Chevron direction="left" color={colors.textMuted} />
             </Pressable>
             <Text style={styles.monthTitle}>
               {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
@@ -143,7 +143,7 @@ export default function HistoryScreen() {
               disabled={isCurrentMonth(month)}
               onPress={() => setMonth(shiftMonth(month, 1))}
               style={[styles.monthButton, isCurrentMonth(month) && styles.disabled]}>
-              <Icon name="chevronRight" size={20} color={colors.textMuted} />
+              <Chevron color={colors.textMuted} />
             </Pressable>
           </View>
           <View style={styles.weekRow}>

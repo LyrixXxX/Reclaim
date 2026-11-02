@@ -6,7 +6,7 @@ import { formatLocalStartDate } from '@/lib/date-format';
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { Tracker } from '@/models/tracker';
 import { colors, layout, spacing, type, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 export function ReductionCard({ tracker }: { tracker: Tracker }) {
   const baseline = tracker.baseline ?? 0;
@@ -46,7 +46,7 @@ export function ReductionCard({ tracker }: { tracker: Tracker }) {
             <Text style={styles.valueLabel}>CURRENT</Text>
             <Text style={[styles.current, { color: tracker.color }]}>{current}</Text>
           </View>
-          <Icon name="chevronRight" size={20} color={colors.textMuted} />
+          <Chevron color={colors.textMuted} />
         </View>
 
         <View style={styles.track}>

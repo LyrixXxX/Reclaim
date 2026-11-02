@@ -17,6 +17,7 @@ import { formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from '@/l
 import { estimateTrackerSavings, formatSavings } from '@/lib/habit-savings';
 import { useNow } from '@/hooks/use-now';
 import { localDateKey } from '@/lib/progress';
+import { Chevron } from '@/components/icon';
 
 export default function HabitsScreen() {
   const { deleted } = useLocalSearchParams<{ deleted?: string }>();
@@ -85,7 +86,7 @@ export default function HabitsScreen() {
 
         {view === 'quit' && <View style={styles.summaryCard}>
           <Pressable accessibilityRole="button" accessibilityLabel="Habits overview" accessibilityState={{ expanded: summaryExpanded }} onPress={() => setSummaryExpanded((current) => !current)} style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Your progress</Text><Text style={styles.summaryChevron}>{summaryExpanded ? '⌃' : '⌄'}</Text>
+            <Text style={styles.summaryTitle}>Your progress</Text><Chevron direction={summaryExpanded ? 'up' : 'down'} color={colors.habitsNav} />
           </Pressable>
           {summaryExpanded && <View style={styles.summaryBody}>
             <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total time saved</Text><Text style={styles.summaryValue}>{totalQuitDays.toLocaleString()} {totalQuitDays === 1 ? 'day' : 'days'}</Text></View>
@@ -215,7 +216,6 @@ const styles = StyleSheet.create({
   summaryCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, marginBottom: 18, overflow: 'hidden' },
   summaryHeader: { minHeight: 54, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryTitle: { color: colors.text, fontSize: 17, fontFamily: font.semibold },
-  summaryChevron: { color: colors.habitsNav, fontSize: 24, fontFamily: font.bold },
   summaryBody: { borderTopWidth: 1, borderTopColor: colors.border, padding: 18, gap: 18 },
   summaryMetric: { flex: 1, gap: 5 },
   summaryLabel: { color: colors.textMuted, fontSize: 11, fontFamily: font.bold },

@@ -5,7 +5,7 @@ import { exerciseModeOn, habitProgress, habitStreak, templateConfig } from '@/li
 import { localDateKey } from '@/lib/progress';
 import { ActivityRoute, GoodHabitLog, Tracker } from '@/models/tracker';
 import { colors, layout, spacing, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 export function GoodHabitTemplateCard({ tracker, logs, routes }: { tracker: Tracker; logs: GoodHabitLog[]; routes: ActivityRoute[] }) {
   const config = templateConfig(tracker.habitTemplate);
@@ -13,7 +13,7 @@ export function GoodHabitTemplateCard({ tracker, logs, routes }: { tracker: Trac
   const progress = habitProgress(tracker, logs, routes);
   const unit = tracker.habitTemplate === 'exercise' ? exerciseModeOn(tracker, localDateKey()) === 'minutes' ? 'minutes' : 'workouts' : config.unit;
   return <Link href={{ pathname: '/tracker/[id]', params: { id: tracker.id } }} asChild><Pressable accessibilityRole="button" style={styles.card}>
-    <View style={styles.row}><GoodHabitIcon type={tracker.habitTemplate} size={58} /><View style={styles.copy}><Text style={styles.name}>{tracker.name}</Text><Text style={styles.meta}>{progress.amount % 1 ? progress.amount.toFixed(1) : progress.amount} / {progress.goal} {unit} · this {config.period}</Text></View><Icon name="chevronRight" size={20} color={colors.textMuted} /></View>
+    <View style={styles.row}><GoodHabitIcon type={tracker.habitTemplate} size={58} /><View style={styles.copy}><Text style={styles.name}>{tracker.name}</Text><Text style={styles.meta}>{progress.amount % 1 ? progress.amount.toFixed(1) : progress.amount} / {progress.goal} {unit} · this {config.period}</Text></View><Chevron color={colors.textMuted} /></View>
     <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }} style={styles.track}><View style={[styles.fill, { width: `${progress.percent}%` }]} /></View><Text style={styles.meta}>{progress.percent}% · {habitStreak(tracker, logs, routes)} {config.period === 'week' ? 'weeks' : 'days'} consistent · Tap to review</Text>
   </Pressable></Link>;
 }

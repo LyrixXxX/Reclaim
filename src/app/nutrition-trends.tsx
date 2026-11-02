@@ -8,7 +8,7 @@ import { NutritionMetric } from '@/lib/nutrition';
 import { buildNutritionReport, MacroMode, macroColors, macroShare, ReportRange, ReportSummary, reportNumber, reportValue } from '@/lib/nutrition-report';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 const macros = [{ metric: 'carbs', name: 'Carbs' }, { metric: 'protein', name: 'Protein' }, { metric: 'fat', name: 'Fat' }] as const;
 export default function NutritionTrendsScreen() {
@@ -35,7 +35,7 @@ export default function NutritionTrendsScreen() {
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <Text style={styles.eyebrow}>YOUR NUTRITION, OVER TIME</Text>
     <View style={styles.ranges}><RangeSelector options={[{ value: 'week', label: '7 day' }, { value: 'month', label: '30 day' }, { value: 'year', label: '365 day' }, { value: 'all', label: 'All' }]} value={range} onChange={(value) => { setRange(value); setOffset(0); }} accent={colors.nutritionNav} /></View>
-    <View style={styles.navigation}>{range !== 'all' && <Pressable accessibilityRole="button" accessibilityLabel="Previous period" onPress={() => setOffset((value) => value - 1)} style={styles.arrow}><Icon name="chevronLeft" size={20} color={colors.textMuted} /></Pressable>}<Text style={styles.period}>{report.label}</Text>{range !== 'all' && <Pressable accessibilityRole="button" accessibilityLabel="Next period" accessibilityState={{ disabled: offset === 0 }} disabled={offset === 0} onPress={() => setOffset((value) => Math.min(0, value + 1))} style={[styles.arrow, offset === 0 && styles.disabled]}><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable>}</View>
+    <View style={styles.navigation}>{range !== 'all' && <Pressable accessibilityRole="button" accessibilityLabel="Previous period" onPress={() => setOffset((value) => value - 1)} style={styles.arrow}><Chevron direction="left" color={colors.textMuted} /></Pressable>}<Text style={styles.period}>{report.label}</Text>{range !== 'all' && <Pressable accessibilityRole="button" accessibilityLabel="Next period" accessibilityState={{ disabled: offset === 0 }} disabled={offset === 0} onPress={() => setOffset((value) => Math.min(0, value + 1))} style={[styles.arrow, offset === 0 && styles.disabled]}><Chevron color={colors.textMuted} /></Pressable>}</View>
     <Text style={styles.explanation}>Charts update as you log, including today. Summary averages and comparisons use completed days through yesterday. Missing days are not zero; a logged day may contain only some of your meals.</Text>
     {report.isCurrent && <View style={styles.today}><Text style={styles.eyebrow}>TODAY</Text><Text style={styles.todayCalories}>{report.today.entryCount ? `${reportNumber(report.today.calories, 0)} kcal` : 'No food logged today'}</Text>{report.today.entryCount > 0 && <Text style={styles.description}>{reportNumber(report.today.carbsGrams)}g carbs · {reportNumber(report.today.proteinGrams)}g protein · {reportNumber(report.today.fatGrams)}g fat · {reportNumber(report.today.fiberGrams)}g fiber</Text>}</View>}
     <Card title="Nutrition overview" description={`${report.summary.loggedDays} of ${report.summary.elapsedDays} elapsed days logged`}>

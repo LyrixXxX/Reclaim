@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Icon } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { routeDisplayName } from '@/components/activity-route-details';
@@ -438,7 +438,7 @@ export default function ActivityMapScreen() {
     {active && <View style={styles.card}><Text style={styles.cardTitle}>Current activity</Text><StatusRow label="Activity type" value={active.kind.charAt(0).toUpperCase() + active.kind.slice(1)} /><StatusRow label="GPS" value={gpsStatus} /><StatusRow label="Distance" value={formatMiles(activeDistance)} /><StatusRow label="Elapsed time" value={formatClock(activeDuration)} /><StatusRow label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><StatusRow label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /></View>}
     <SavedAdConfirmation visible={savedConfirmation} title="Route saved" subject="Your route" onContinue={() => { setSavedConfirmation(false); void showCompletionAd('route'); }} />
     {mapExpanded && !pending && <Modal visible animationType="slide" onRequestClose={closeExpandedMap}><SafeAreaView style={styles.expandedSafe} edges={['top', 'bottom']}>
-      <View style={styles.expandedHeader}><Pressable accessibilityRole="button" accessibilityLabel="Back to route screen" onPress={closeExpandedMap} style={styles.closeMapButton}><Text style={styles.buttonText}>‹ Back to route</Text></Pressable><Text style={styles.expandedTitle} numberOfLines={1}>{active ? `${active.kind.toUpperCase()} · ${formatMiles(activeDistance)}` : selectedRoute ? routeDisplayName(selectedRoute) : 'Routes map'}</Text></View>
+      <View style={styles.expandedHeader}><Pressable accessibilityRole="button" accessibilityLabel="Back to route screen" onPress={closeExpandedMap} style={styles.closeMapButton}><Chevron direction="left" size={18} color={colors.text} /><Text style={styles.buttonText}>Back to route</Text></Pressable><Text style={styles.expandedTitle} numberOfLines={1}>{active ? `${active.kind.toUpperCase()} · ${formatMiles(activeDistance)}` : selectedRoute ? routeDisplayName(selectedRoute) : 'Routes map'}</Text></View>
       {renderMapPanel(true)}
     </SafeAreaView></Modal>}
     <Modal visible={weightPrompt} transparent animationType="fade" onRequestClose={() => setWeightPrompt(false)}><View style={styles.modalShade}><View style={styles.card}><Text style={styles.cardTitle}>Weight for this route</Text><Text style={styles.body}>No saved weight is available. Enter one for an approximate calorie estimate. This will not add a Weight entry.</Text><TextInput accessibilityLabel="Route weight" keyboardType="decimal-pad" value={weightDraft} onChangeText={setWeightDraft} placeholder="Weight" placeholderTextColor={colors.textDim} style={styles.input} /><View style={styles.row}>{(['lb', 'kg'] as const).map((unit) => <Pressable key={unit} onPress={() => setWeightUnit(unit)} style={[styles.smallButton, weightUnit === unit && styles.selected]}><Text style={styles.buttonText}>{unit}</Text></Pressable>)}</View><Button label="Start Route" onPress={beginWithEnteredWeight} /><Button label="Cancel" onPress={() => setWeightPrompt(false)} secondary /></View></View></Modal>
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   expandedSafe: { flex: 1, backgroundColor: colors.background },
   expandedHeader: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface },
   expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontFamily: font.semibold, textAlign: 'right' },
-  closeMapButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
+  closeMapButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   expandedMap: { flex: 1, position: 'relative', backgroundColor: colors.surfaceRaised },
   conditions: { flexDirection: 'row', gap: 8 },
   conditionHalf: { flex: 1, minWidth: 0, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, gap: 4 },

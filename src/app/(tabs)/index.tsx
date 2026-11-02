@@ -25,7 +25,7 @@ import { fromKg } from '@/lib/workouts';
 import { ActivityRoute, DashboardWidget, DashboardWidgetId, StepDay, WorkoutSession } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { card, colors, layout, radius, type, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
 
 const destinations: Record<DashboardWidgetId, string> = { nutrition: '/nutrition', medications: '/', cpap: '/', weight: '/weight', bloodPressure: '/', labs: '/', habits: '/habits', activity: '/activity', quickActions: '/' };
 const accents: Record<DashboardWidgetId, string> = { nutrition: colors.nutritionNav, medications: colors.healthNav, cpap: colors.weightNav, weight: colors.activityNav, bloodPressure: colors.healthNav, labs: colors.healthNav, habits: colors.habitsNav, activity: colors.activityNav, quickActions: colors.accent };
@@ -69,7 +69,7 @@ export default function DashboardScreen() {
     <Header />
     <View style={styles.heading}><View style={styles.headingText}><Text style={styles.greeting}>{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text><Text accessibilityRole="header" style={styles.date}>{greeting(now)}</Text></View><Link href={'/dashboard-edit' as Href} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit dashboard" style={styles.edit}><Icon name="sliders" size={19} color={colors.text} /></Pressable></Link></View>
 
-    {overview.attention.length > 0 && <View style={styles.attentionPanel}><View style={styles.panelHeading}><Text style={styles.attentionTitle}>Needs attention</Text><Text style={styles.attentionCount}>{overview.attention.length} {overview.attention.length === 1 ? 'item' : 'items'}</Text></View>{overview.attention.map((item) => <Link key={item.id} href={item.href as Href} asChild><Pressable accessibilityRole="button" style={styles.attentionRow}><View style={styles.attentionText}><Text style={styles.attentionItemTitle}>{item.title}</Text><Text style={styles.caption}>{item.detail}</Text></View><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable></Link>)}</View>}
+    {overview.attention.length > 0 && <View style={styles.attentionPanel}><View style={styles.panelHeading}><Text style={styles.attentionTitle}>Needs attention</Text><Text style={styles.attentionCount}>{overview.attention.length} {overview.attention.length === 1 ? 'item' : 'items'}</Text></View>{overview.attention.map((item) => <Link key={item.id} href={item.href as Href} asChild><Pressable accessibilityRole="button" style={styles.attentionRow}><View style={styles.attentionText}><Text style={styles.attentionItemTitle}>{item.title}</Text><Text style={styles.caption}>{item.detail}</Text></View><Chevron color={colors.textMuted} /></Pressable></Link>)}</View>}
 
     {hasProgress && <View style={styles.progressPanel}>
       <View style={styles.panelHeading}><Text style={styles.progressTitle}>Today’s progress</Text><Text style={styles.panelCount}>{overview.goalCount ? `${overview.reachedCount} of ${overview.goalCount} goals` : 'Today at a glance'}</Text></View>
@@ -98,7 +98,7 @@ export default function DashboardScreen() {
     {trainingOverviewVisibleOnHome(preferences) && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />}
 
     {mindfulness && mindfulnessProgress && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${mindfulness.displayName || mindfulness.name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(mindfulness.id)}` as Href)} style={styles.mindfulnessCard}>
-      <View style={styles.mindfulnessTop}><GoodHabitIcon type="mindfulness" size={54} /><View style={styles.mindfulnessCopy}><Text style={styles.cardTitle}>{mindfulness.displayName || mindfulness.name}</Text><Text style={styles.caption}>{mindfulness.mindfulnessVisualMode === 'quiet' ? 'Quiet Zen' : 'Breathing guide'} · Tap to start a session</Text></View><Icon name="chevronRight" size={20} color={colors.textMuted} /></View>
+      <View style={styles.mindfulnessTop}><GoodHabitIcon type="mindfulness" size={54} /><View style={styles.mindfulnessCopy}><Text style={styles.cardTitle}>{mindfulness.displayName || mindfulness.name}</Text><Text style={styles.caption}>{mindfulness.mindfulnessVisualMode === 'quiet' ? 'Quiet Zen' : 'Breathing guide'} · Tap to start a session</Text></View><Chevron color={colors.textMuted} /></View>
       <Text style={styles.mindfulnessValue}>{Number(mindfulnessProgress.amount.toFixed(1))} / {mindfulnessProgress.goal} min today</Text><View style={styles.track}><View style={[styles.fill, { width: `${mindfulnessProgress.percent}%`, backgroundColor: goalColor(mindfulness.id, colors.habitsNav) }]} /></View>
     </Pressable>}
 
@@ -126,7 +126,7 @@ function TrainingOverviewHomeCard({ sessions, routes, unit, now }: { sessions: W
     { label: 'External-load volume', value: `${Math.round(fromKg(totals.volumeKg, unit)).toLocaleString()} ${unit}` },
   ];
   return <View style={styles.trainingCard}>
-    <Pressable accessibilityRole="button" accessibilityLabel="Open Workouts" onPress={() => router.push('/workouts' as Href)} style={styles.trainingHeading}><Text accessibilityRole="header" style={styles.trainingTitle}>Training overview</Text><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open Workouts" onPress={() => router.push('/workouts' as Href)} style={styles.trainingHeading}><Text accessibilityRole="header" style={styles.trainingTitle}>Training overview</Text><Chevron color={colors.textMuted} /></Pressable>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trainingRangeScroll} contentContainerStyle={styles.trainingRanges}>{(Object.keys(trainingRanges) as DashboardRange[]).map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: range === item }} onPress={() => setRange(item)} style={[styles.trainingRange, range === item && styles.trainingRangeSelected]}><Text style={[styles.trainingRangeText, range === item && styles.trainingRangeTextSelected]}>{trainingRanges[item]}</Text></Pressable>)}</ScrollView>
     <View style={styles.trainingStats}>{stats.map((stat) => <View key={stat.label} style={styles.trainingStat}><Text style={styles.trainingStatLabel}>{stat.label}</Text><Text style={styles.trainingStatValue} numberOfLines={1} adjustsFontSizeToFit>{stat.value}</Text></View>)}</View>
     <Text style={styles.caption}>Strength comes from completed workouts; cardio comes from saved routes.</Text>
@@ -134,7 +134,7 @@ function TrainingOverviewHomeCard({ sessions, routes, unit, now }: { sessions: W
 }
 
 function JourneyList({ title, items }: { title: string; items: HomeJourney[] }) {
-  return <View style={styles.journeyList}><Text style={styles.journeyGroup}>{title}</Text>{items.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => router.push(item.href as Href)} style={styles.journeyRow}><View style={{ flex: 1 }}><Text style={styles.journeyName}>{item.title}</Text><Text style={styles.caption}>{item.timeframe}</Text></View><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable>)}</View>;
+  return <View style={styles.journeyList}><Text style={styles.journeyGroup}>{title}</Text>{items.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => router.push(item.href as Href)} style={styles.journeyRow}><View style={{ flex: 1 }}><Text style={styles.journeyName}>{item.title}</Text><Text style={styles.caption}>{item.timeframe}</Text></View><Chevron color={colors.textMuted} /></Pressable>)}</View>;
 }
 
 function ProgressTile({ title, value, detail, progress, color, valueColor, href }: { title: string; value: string; detail: string; progress: number; color: string; valueColor?: string; href: string }) {
@@ -148,7 +148,7 @@ function DashboardCard({ widget, content, overview, week, width }: { widget: Das
     : widget.id === 'activity' && overview.stepProgress ? (overview.stepProgress.count ?? 0) / overview.stepProgress.target
       : null;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={() => router.push(destinations[widget.id] as Href)} style={[styles.dashboardCard, { width }]}>
-    <View style={styles.cardHeader}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle} numberOfLines={2}>{title}</Text></View><Icon name="chevronRight" size={20} color={colors.textMuted} /></View>
+    <View style={styles.cardHeader}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle} numberOfLines={2}>{title}</Text></View><Chevron color={colors.textMuted} /></View>
     <Text style={[styles.cardValue, content.calorieStatus && { color: content.calorieStatus === 'over' ? colors.danger : colors.success }]} numberOfLines={2} adjustsFontSizeToFit>{content.value}</Text>
     <Text style={styles.caption} numberOfLines={widget.expanded ? 3 : 2}>{content.caption}</Text>
     {widget.expanded && <>{progress !== null && <View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, progress * 100))}%`, backgroundColor: color }]} /></View>}{widget.id === 'activity' && week.slots.some((slot) => slot.count !== undefined) && <MiniBars slots={week.slots} color={color} />}{content.trend && content.trend.length > 1 && <MiniTrend points={content.trend} label={content.trendLabel!} color={color} />}{content.rows.slice(0, 3).map((row, index) => <View key={index} style={styles.dataRow}><Text style={styles.rowLabel} numberOfLines={2}>{row.label}</Text><Text style={styles.rowValue} numberOfLines={2}>{row.value}</Text></View>)}</>}

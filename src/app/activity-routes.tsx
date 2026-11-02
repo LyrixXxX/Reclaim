@@ -13,6 +13,7 @@ import { getMapKey } from '@/lib/activity-maps';
 import { formatMiles } from '@/lib/activity-units';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 export default function SavedRoutesScreen() {
   const { activityRoutes = [], saveActivityRoute, deleteActivityRoute } = useTrackers();
@@ -42,7 +43,7 @@ export default function SavedRoutesScreen() {
           <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
           <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} elapsed · {movingMs == null ? 'Moving time unavailable' : `${Math.round(movingMs / 60_000)} min moving`} · {paceLabel} {movingMs == null ? 'overall pace' : 'moving pace'}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
-          <Text style={styles.open}>View on map ›</Text>
+          <View style={styles.openRow}><Text style={styles.open}>View on map</Text><Chevron size={16} color={colors.activityNav} /></View>
         </Pressable>
         <View style={styles.actions}>
           <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit details</Text></Pressable>
@@ -54,6 +55,7 @@ export default function SavedRoutesScreen() {
 }
 
 const styles = StyleSheet.create({
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 9 },
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 60 },
   empty: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
@@ -62,7 +64,7 @@ const styles = StyleSheet.create({
   date: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 3 },
   stats: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
   notes: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 19, marginTop: 8 },
-  open: { color: colors.activityNav, fontSize: 12, fontFamily: font.semibold, marginTop: 9 },
+  open: { color: colors.activityNav, fontSize: 12, fontFamily: font.semibold },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   action: { flex: 1, padding: 12, alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
   actionText: { color: colors.text, fontFamily: font.bold },

@@ -8,6 +8,7 @@ import { BUILTIN_EXERCISES, makeWorkoutExercise, newId } from '@/lib/workouts';
 import { ExerciseEquipment, ExerciseMeasurement, MuscleGroup, StrengthExercise, WorkoutRoutine } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const equipment: ExerciseEquipment[] = ['machine', 'barbell', 'dumbbell', 'cable', 'bodyweight', 'other'];
@@ -73,7 +74,7 @@ export default function WorkoutRoutines() {
       <WorkoutInput label="Routine notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything to remember" />
       <WorkoutCard><WorkoutText>Assigned days (optional) · routines can be started any day</WorkoutText><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{weekdays.map((day, index) => <Chip key={day} label={day} selected={!!editing.weekdays?.includes(index)} onPress={() => setEditing((old) => old ? { ...old, weekdays: old.weekdays?.includes(index) ? old.weekdays.filter((item) => item !== index) : [...(old.weekdays ?? []), index].sort() } : old)} />)}</View></WorkoutCard>
       <WorkoutCard><WorkoutText>Add an exercise</WorkoutText><WorkoutInput label="Search library" value={search} onChangeText={setSearch} placeholder="Name, muscle, or equipment" />
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }} onPress={() => setFiltersExpanded((expanded) => !expanded)} style={{ minHeight: 44, borderRadius: 11, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: colors.surfaceRaised }}><Text style={{ color: colors.text, fontFamily: font.semibold }}>{filtersExpanded ? 'Hide filters' : 'Show filters'}{activeFilterCount ? ` · ${activeFilterCount} active` : ''} {filtersExpanded ? '⌃' : '⌄'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }} onPress={() => setFiltersExpanded((expanded) => !expanded)} style={{ minHeight: 44, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised }}><Text style={{ color: colors.text, fontFamily: font.semibold }}>{filtersExpanded ? 'Hide filters' : 'Show filters'}{activeFilterCount ? ` · ${activeFilterCount} active` : ''}</Text><Chevron direction={filtersExpanded ? 'up' : 'down'} size={18} /></Pressable>
         {filtersExpanded && <>
           <WorkoutText>Filter by muscle</WorkoutText><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{(['all', ...MUSCLE_GROUPS] as const).map((item) => <Chip key={item} label={item} selected={searchMuscle === item} onPress={() => setSearchMuscle(item)} />)}</View>
           <WorkoutText>Filter by equipment</WorkoutText><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{(['all', ...equipment] as const).map((item) => <Chip key={item} label={item} selected={searchEquipment === item} onPress={() => setSearchEquipment(item)} />)}</View>

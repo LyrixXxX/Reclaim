@@ -16,6 +16,8 @@ const paths = {
   settings: ['M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'],
   chevronRight: ['m9 18 6-6-6-6'],
   chevronLeft: ['m15 18-6-6 6-6'],
+  chevronUp: ['m18 15-6-6-6 6'],
+  chevronDown: ['m6 9 6 6 6-6'],
   plus: ['M5 12h14', 'M12 5v14'],
   sliders: ['M10 5H3', 'M12 19H3', 'M14 3v4', 'M16 17v4', 'M21 12h-9', 'M21 19h-5', 'M21 5h-7', 'M8 10v4', 'M8 12H3'],
   expand: ['M15 3h6v6', 'M9 21H3v-6', 'M21 3l-7 7', 'M3 21l7-7'],
@@ -37,4 +39,11 @@ export function Icon({ name, size = 22, color = colors.text, strokeWidth = 1.9, 
     {paths[name].map((d) => <Path key={d} d={d} />)}
     {circles[name]?.map(([cx, cy, r]) => <Circle key={`${cx}-${cy}-${r}`} cx={cx} cy={cy} r={r} />)}
   </Svg>;
+}
+
+const chevronIcons = { right: 'chevronRight', left: 'chevronLeft', up: 'chevronUp', down: 'chevronDown' } as const;
+
+/** The one chevron used across the app: links, list rows, pagers, and expand/collapse toggles. */
+export function Chevron({ direction = 'right', size = 20, color = colors.textMuted }: { direction?: keyof typeof chevronIcons; size?: number; color?: string }) {
+  return <Icon name={chevronIcons[direction]} size={size} color={color} strokeWidth={2.2} />;
 }

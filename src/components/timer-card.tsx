@@ -10,7 +10,7 @@ import { formatLocalStartDate } from '@/lib/date-format';
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { completedCalendarDays, roundedNextCheckpoint } from '@/lib/taper-quit';
 import { colors, layout, spacing, type, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phaseStartLabel, modeLabel = 'ABSTINENT', expanded = true }: { tracker: Tracker; phaseStart?: string; phasePrecision?: DatePrecision; phaseStartLabel?: string; modeLabel?: string; expanded?: boolean }) {
   const now = useNow();
@@ -22,7 +22,7 @@ export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phase
           <View style={[styles.icon, { backgroundColor: `${tracker.color}1F` }]}><Text style={[styles.iconText, { color: tracker.color }]}>{tracker.icon}</Text></View>
           <View style={styles.metadata}><Text style={styles.name}>{trackerDisplayName(tracker)}</Text><Text style={styles.mode}>{modeLabel}</Text><Text style={styles.startDate}>Set a quit date to start this timer.</Text></View>
         </View>
-        <Icon name="chevronRight" size={20} color={colors.textMuted} />
+        <Chevron color={colors.textMuted} />
       </View>
     </Pressable>
   </Link>;
@@ -48,7 +48,7 @@ export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phase
               </Text>
             </View>
           </View>
-          <Icon name="chevronRight" size={20} color={colors.textMuted} />
+          <Chevron color={colors.textMuted} />
         </View>
 
         <View style={styles.timer}>

@@ -10,6 +10,7 @@ import { latestRouteWeightKg } from '@/lib/activity';
 import { StrengthSet, WorkoutExercise, WorkoutSession, WorkoutSetDraft } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 const clock = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 export default function WorkoutSessionScreen() {
@@ -131,7 +132,7 @@ export default function WorkoutSessionScreen() {
       const draft = selectDraft(entry);
       const previous = [...workoutSessions].reverse().flatMap((item) => item.exercises).find((item) => item.exerciseId === entry.exerciseId && item.sets.length)?.sets.at(-1);
       return <View key={entry.id} onLayout={(event) => { exerciseOffsets.current[entry.id] = event.nativeEvent.layout.y; }}><WorkoutCard>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name}, ${isExpanded ? 'collapse' : 'expand'}`} onPress={() => setExpanded((old) => ({ ...old, [entry.id]: !isExpanded }))}><WorkoutTitle>{index + 1}. {entry.name} {isExpanded ? '⌃' : '⌄'}</WorkoutTitle><WorkoutText>{entry.primaryMuscle} · {entry.equipment} · {entry.sets.length} completed sets</WorkoutText></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name}, ${isExpanded ? 'collapse' : 'expand'}`} onPress={() => setExpanded((old) => ({ ...old, [entry.id]: !isExpanded }))}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ flex: 1 }}><WorkoutTitle>{index + 1}. {entry.name}</WorkoutTitle></View><Chevron direction={isExpanded ? 'up' : 'down'} /></View><WorkoutText>{entry.primaryMuscle} · {entry.equipment} · {entry.sets.length} completed sets</WorkoutText></Pressable>
         {isExpanded && <>
           {entry.sets.map((set, setIndex) => <View key={set.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ flex: 1 }}><WorkoutRow title={`Set ${setIndex + 1} · ${setAmountLabel(set, entry.measurementType)} · ${loggedWeightLabel(set, entry.equipment, settings.weightUnit, entry.measurementType)}`} subtitle={`${set.kind}${set.durationMs !== undefined ? ` · ${clock(set.durationMs)} measured` : ''}${set.notes ? ` · ${set.notes}` : ''} · tap to edit`} onPress={() => editSet(entry, set)} /></View><Pressable accessibilityRole="button" accessibilityLabel={`Move set ${setIndex + 1} up`} disabled={setIndex === 0} onPress={() => moveSet(entry, setIndex, -1)} style={{ minWidth: 42, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.workoutsNav, opacity: setIndex === 0 ? 0.35 : 1 }}>↑</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Move set ${setIndex + 1} down`} disabled={setIndex === entry.sets.length - 1} onPress={() => moveSet(entry, setIndex, 1)} style={{ minWidth: 42, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.workoutsNav, opacity: setIndex === entry.sets.length - 1 ? 0.35 : 1 }}>↓</Text></Pressable></View>)}
           <WorkoutText>{editing?.exerciseId === entry.id ? 'Edit completed set' : `Next set · ${entry.sets.length + 1}`}</WorkoutText>

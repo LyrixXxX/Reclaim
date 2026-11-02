@@ -7,7 +7,7 @@ import { localDateKey } from '@/lib/progress';
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { HistoricalEntry, Tracker } from '@/models/tracker';
 import { colors, layout, spacing, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 export function HabitCard({ tracker, entries, onLog }: { tracker: Tracker; entries: HistoricalEntry[]; onLog: () => void }) {
   const progress = habitPeriodProgress(tracker, entries);
@@ -22,7 +22,7 @@ export function HabitCard({ tracker, entries, onLog }: { tracker: Tracker; entri
         <View style={styles.top}>
           <View style={[styles.icon, { backgroundColor: `${tracker.color}1F` }]}><Text style={[styles.iconText, { color: tracker.color }]}>{tracker.icon}</Text></View>
           <View style={styles.copy}><Text style={styles.name}>{trackerDisplayName(tracker)}</Text><Text style={styles.goal}>{tracker.frequencyCount}× per {tracker.frequencyPeriod}</Text></View>
-          <Icon name="chevronRight" size={20} color={colors.textMuted} />
+          <Chevron color={colors.textMuted} />
         </View>
         <View style={styles.stats}>
           <View><Text style={styles.label}>THIS {progress.period.toUpperCase()}</Text><Text style={styles.value}>{progress.amount}<Text style={styles.valueMuted}> / {progress.goal}</Text></Text></View>

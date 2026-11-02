@@ -6,6 +6,7 @@ import { trackerDisplayName } from '@/lib/tracker-management';
 import { taperQuitPhase } from '@/lib/taper-quit';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 export default function ManageTrackersScreen() {
   const { trackers, taperSteps = [] } = useTrackers();
@@ -38,7 +39,7 @@ export default function ManageTrackersScreen() {
                   {tracker.displayName && <Text style={styles.actualName}>{tracker.name}</Text>}
                   <Text style={styles.mode}>{taperQuitPhase(tracker, taperSteps) ? 'QUIT AFTER TAPER' : modeLabel(tracker.mode)}</Text>
                 </View>
-                <Text style={styles.edit}>Edit ›</Text>
+                <View style={styles.editRow}><Text style={styles.edit}>Edit</Text><Chevron size={16} /></View>
               </Pressable>
             </Link>
           ))}
@@ -47,7 +48,7 @@ export default function ManageTrackersScreen() {
         <Link href="/archived" asChild>
           <Pressable accessibilityRole="button" style={styles.archiveLink}>
             <Text style={styles.archiveText}>Archived trackers</Text>
-            <Text style={styles.archiveCount}>{archivedCount} ›</Text>
+            <View style={styles.editRow}><Text style={styles.archiveCount}>{archivedCount}</Text><Chevron size={16} /></View>
           </Pressable>
         </Link>
       </ScrollView>
@@ -62,6 +63,7 @@ function modeLabel(mode: string) {
 }
 
 const styles = StyleSheet.create({
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 680, alignSelf: 'center', padding: spacing.lg, paddingBottom: 40 },
   eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.5, fontFamily: font.semibold, marginTop: 14 },

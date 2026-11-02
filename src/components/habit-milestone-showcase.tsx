@@ -3,7 +3,7 @@ import { Image, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, Scrol
 
 import { HABIT_MILESTONES, HabitMilestone } from '@/lib/habit-milestones';
 import { colors, layout, spacing, font } from '@/theme';
-import { Icon } from '@/components/icon';
+import { Chevron } from '@/components/icon';
 
 const BADGES = [
   require('../../assets/images/milestone-day.png'),
@@ -26,8 +26,8 @@ export function HabitMilestoneShowcase({ awards }: { awards: HabitMilestone[] })
     <View style={styles.headingRow}>
       <Text style={styles.heading}>Milestone showcase</Text>
       <View style={styles.carouselControls}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous achievements" onPress={() => moveCarousel(-1)} style={styles.carouselArrow}><Icon name="chevronLeft" size={20} color={colors.textMuted} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="More achievements" onPress={() => moveCarousel(1)} style={styles.carouselArrow}><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous achievements" onPress={() => moveCarousel(-1)} style={styles.carouselArrow}><Chevron direction="left" color={colors.textMuted} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="More achievements" onPress={() => moveCarousel(1)} style={styles.carouselArrow}><Chevron color={colors.textMuted} /></Pressable>
       </View>
     </View>
     <Text style={styles.explanation}>Achievements stay earned. Tap a badge to see its dates.</Text>
