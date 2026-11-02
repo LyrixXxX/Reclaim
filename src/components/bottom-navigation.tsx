@@ -1,10 +1,9 @@
 import { Href, Link, usePathname } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ImageSourcePropType, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { Icon, IconName } from '@/components/icon';
 import { colors, font } from '@/theme';
 import { DEFAULT_PREFERENCES, normalizeNavigationOrder } from '@/lib/preferences';
 import { selectionHaptic } from '@/lib/haptics';
@@ -12,7 +11,22 @@ import { horizontalOverflowState } from '@/lib/navigation';
 import { useTrackers } from '@/state/tracker-context';
 import { NavigationSection } from '@/models/tracker';
 
-const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts' | '/supplements'; label: string; icon: IconName; color: string; active: (path: string) => boolean }> = {
+type NavIconName = 'home' | 'steps' | 'routes' | 'habits' | 'weight' | 'nutrition' | 'workouts' | 'supplements' | 'settings';
+
+// Illustrated 144px artwork, drawn at 30pt; inactive tabs are dimmed.
+const navigationIcons: Record<NavIconName, ImageSourcePropType> = {
+  home: require('../../assets/images/nav/home.png'),
+  steps: require('../../assets/images/nav/steps.png'),
+  routes: require('../../assets/images/nav/routes.png'),
+  habits: require('../../assets/images/nav/habits.png'),
+  weight: require('../../assets/images/nav/weight.png'),
+  nutrition: require('../../assets/images/nav/nutrition.png'),
+  workouts: require('../../assets/images/nav/workouts.png'),
+  supplements: require('../../assets/images/nav/supplements.png'),
+  settings: require('../../assets/images/nav/settings.png'),
+};
+
+const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts' | '/supplements'; label: string; icon: NavIconName; color: string; active: (path: string) => boolean }> = {
   activity: { href: '/activity', label: 'Steps', icon: 'steps', color: colors.activityNav, active: (path) => path === '/activity' },
   routes: { href: '/routes', label: 'Routes', icon: 'routes', color: colors.activityNav, active: (path) => path === '/routes' || path === '/activity-map' || path === '/activity-routes' },
   goals: { href: '/habits', label: 'Habits', icon: 'habits', color: colors.habitsNav, active: (path) => path === '/habits' },
@@ -65,12 +79,12 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/supplements' | '/settings'; label: string; icon: IconName; color: string; active: boolean }) {
+function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/supplements' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
     <View style={styles.iconWell}>
       {/* SVG pill: Android drops borderRadius on this view inside the tab Link. */}
       {active && <Svg style={StyleSheet.absoluteFill} viewBox="0 0 52 30"><Rect x="0" y="0" width="52" height="30" rx="15" fill={color} fillOpacity={0.16} /></Svg>}
-      <Icon name={icon} size={22} color={active ? color : colors.textDim} strokeWidth={active ? 2.1 : 1.8} /></View>
+      <Image source={navigationIcons[icon]} style={[styles.icon, !active && styles.iconInactive]} resizeMode="contain" accessible={false} /></View>
     <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
   </Pressable></Link>;
 }
@@ -87,6 +101,8 @@ const styles = StyleSheet.create({
   settingsSlot: { width: 70, borderLeftWidth: 1, borderLeftColor: colors.border },
   tab: { width: 66, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3 },
   iconWell: { width: 52, height: 30, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 30, height: 30 },
+  iconInactive: { opacity: 0.55 },
   label: { color: colors.textDim, fontSize: 11, fontFamily: font.semibold },
   labelActive: { color: colors.text, fontFamily: font.bold },
 });
