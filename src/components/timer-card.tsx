@@ -9,7 +9,8 @@ import { elapsedParts, nextCheckpoint } from '@/lib/progress';
 import { formatLocalStartDate } from '@/lib/date-format';
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { completedCalendarDays, roundedNextCheckpoint } from '@/lib/taper-quit';
-import { colors, layout, spacing, type } from '@/theme';
+import { colors, layout, spacing, type, font } from '@/theme';
+import { Icon } from '@/components/icon';
 
 export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phaseStartLabel, modeLabel = 'ABSTINENT', expanded = true }: { tracker: Tracker; phaseStart?: string; phasePrecision?: DatePrecision; phaseStartLabel?: string; modeLabel?: string; expanded?: boolean }) {
   const now = useNow();
@@ -21,7 +22,7 @@ export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phase
           <View style={[styles.icon, { backgroundColor: `${tracker.color}1F` }]}><Text style={[styles.iconText, { color: tracker.color }]}>{tracker.icon}</Text></View>
           <View style={styles.metadata}><Text style={styles.name}>{trackerDisplayName(tracker)}</Text><Text style={styles.mode}>{modeLabel}</Text><Text style={styles.startDate}>Set a quit date to start this timer.</Text></View>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Icon name="chevronRight" size={20} color={colors.textMuted} />
       </View>
     </Pressable>
   </Link>;
@@ -47,7 +48,7 @@ export function TimerCard({ tracker, phaseStart, phasePrecision = 'exact', phase
               </Text>
             </View>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Icon name="chevronRight" size={20} color={colors.textMuted} />
         </View>
 
         <View style={styles.timer}>
@@ -84,17 +85,17 @@ const styles = StyleSheet.create({
   identity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   metadata: { flex: 1 },
   icon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  iconText: { fontSize: 21, fontWeight: '600' },
-  name: { color: colors.text, fontSize: 16, fontWeight: '600' },
-  mode: { ...type.micro, color: colors.textMuted, letterSpacing: 1.1, fontWeight: '600', marginTop: 4 },
-  startDate: { ...type.metadata, color: colors.textMuted, fontWeight: '600', marginTop: 4 },
-  chevron: { color: colors.textDim, fontSize: 28, fontWeight: '300' },
+  iconText: { fontSize: 21, fontFamily: font.semibold },
+  name: { color: colors.text, fontSize: 16, fontFamily: font.semibold },
+  mode: { ...type.micro, color: colors.textMuted, letterSpacing: 1.1, fontFamily: font.semibold, marginTop: 4 },
+  startDate: { ...type.metadata, color: colors.textMuted, fontFamily: font.semibold, marginTop: 4 },
+  chevron: { color: colors.textDim, fontSize: 28, fontFamily: font.regular },
   timer: { flexDirection: 'row', alignItems: 'baseline', marginTop: 22 },
-  days: { color: colors.text, fontSize: 44, letterSpacing: -1.5, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  daysLabel: { color: colors.textMuted, fontSize: 15, fontWeight: '600', marginLeft: 7 },
-  clock: { color: colors.textMuted, fontSize: 15, fontWeight: '600', marginLeft: 'auto', fontVariant: ['tabular-nums'] },
-  rounded: { ...type.micro, color: colors.textMuted, fontWeight: '700', letterSpacing: 1, marginLeft: 'auto' },
-  savings: { color: colors.success, fontSize: 12, fontWeight: '600', marginTop: 10 },
+  days: { color: colors.text, fontSize: 44, letterSpacing: -1.5, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
+  daysLabel: { color: colors.textMuted, fontSize: 15, fontFamily: font.semibold, marginLeft: 7 },
+  clock: { color: colors.textMuted, fontSize: 15, fontFamily: font.semibold, marginLeft: 'auto', fontVariant: ['tabular-nums'] },
+  rounded: { ...type.micro, color: colors.textMuted, fontFamily: font.bold, letterSpacing: 1, marginLeft: 'auto' },
+  savings: { color: colors.success, fontSize: 12, fontFamily: font.semibold, marginTop: 10 },
   checkpoint: {
     marginTop: 20,
     paddingTop: 16,
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  checkpointLabel: { ...type.micro, color: colors.textMuted, letterSpacing: 1, fontWeight: '600' },
-  checkpointTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 4 },
-  countdown: { color: colors.text, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  checkpointLabel: { ...type.micro, color: colors.textMuted, letterSpacing: 1, fontFamily: font.semibold },
+  checkpointTitle: { color: colors.textMuted, fontSize: 12, fontFamily: font.bold, marginTop: 4 },
+  countdown: { color: colors.text, fontSize: 13, fontFamily: font.bold, fontVariant: ['tabular-nums'] },
 });

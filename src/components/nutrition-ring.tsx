@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { colors, type } from '@/theme';
+import { colors, type, font } from '@/theme';
 
 export function NutritionRing({ label, value, goal, color, unit = 'g', large = false, compact = false }: { label: string; value: number; goal: number; color: string; unit?: string; large?: boolean; compact?: boolean }) {
   const size = large ? 148 : compact ? 80 : 112;
@@ -28,7 +28,7 @@ export function NutritionRing({ label, value, goal, color, unit = 'g', large = f
 const format = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
 const styles = StyleSheet.create({
   wrap: { width: '50%', alignItems: 'center', paddingVertical: 8, minWidth: 0 }, largeWrap: { width: '100%', paddingVertical: 5 }, compactWrap: { width: '33.333%', paddingVertical: 5 },
-  center: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }, percent: { color: colors.text, fontSize: 20, fontWeight: '700' }, largePercent: { fontSize: 32 }, centerLabel: { ...type.micro, color: colors.textMuted, marginTop: 2 },
-  label: { fontSize: 12, fontWeight: '700', marginTop: 6 }, amount: { color: colors.text, fontSize: 13, fontWeight: '700', marginTop: 3 }, largeAmount: { fontSize: 18 }, goal: { color: colors.textMuted, fontWeight: '600' },
-  compactPercent: { fontSize: 16 }, compactCenterLabel: { fontSize: 7, marginTop: 0 }, compactLabel: { fontSize: 11, marginTop: 6 }, compactAmount: { fontSize: 11, textAlign: 'center' },
+  center: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }, percent: { color: colors.text, fontSize: 20, fontFamily: font.bold }, largePercent: { fontSize: 32}, centerLabel: { ...type.micro, color: colors.textMuted, marginTop: 2 },
+  label: { fontSize: 12, fontFamily: font.bold, marginTop: 6 }, amount: { color: colors.text, fontSize: 13, fontFamily: font.bold, marginTop: 3 }, largeAmount: { fontSize: 18}, goal: { color: colors.textMuted, fontFamily: font.semibold },
+  compactPercent: { fontSize: 16}, compactCenterLabel: { fontSize: 7, marginTop: 0 }, compactLabel: { fontSize: 11, marginTop: 6 }, compactAmount: { fontSize: 11, textAlign: 'center' },
 });

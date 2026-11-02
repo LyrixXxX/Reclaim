@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 import { HistoricalEntry, TrackerId } from '@/models/tracker';
 import { localDateKey } from '@/lib/progress';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 
 type Props = {
@@ -113,10 +113,10 @@ const styles = StyleSheet.create({
     borderRadius: layout.radius,
     padding: spacing.lg,
   },
-  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.5, fontWeight: '600' },
-  title: { color: colors.text, fontSize: 23, fontWeight: '600', marginTop: 8 },
-  body: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
-  label: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontWeight: '600', marginTop: 22, marginBottom: 8 },
+  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.5, fontFamily: font.semibold },
+  title: { color: colors.text, fontSize: 23, fontFamily: font.semibold, marginTop: 8 },
+  body: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  label: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontFamily: font.semibold, marginTop: 22, marginBottom: 8 },
   dateRow: { flexDirection: 'row', gap: 8 },
   dateInput: {
     flex: 1,
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   stepButton: { width: 46, height: 46, borderRadius: 13, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  stepText: { color: colors.text, fontSize: 21 },
-  error: { color: colors.danger, fontSize: 11, marginTop: 7 },
+  stepText: { color: colors.text, fontSize: 21 , fontFamily: font.regular},
+  error: { color: colors.danger, fontSize: 11, fontFamily: font.regular, marginTop: 7 },
   noteInput: {
     minHeight: 78,
     color: colors.text,
@@ -145,10 +145,10 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: 'row', gap: 10, marginTop: 22 },
   primary: { flex: 1, backgroundColor: colors.accent, borderRadius: 13, paddingVertical: 14, alignItems: 'center' },
-  primaryText: { color: colors.background, fontSize: 13, fontWeight: '600' },
+  primaryText: { color: colors.background, fontSize: 13, fontFamily: font.semibold },
   secondary: { flex: 1, backgroundColor: colors.surfaceRaised, borderRadius: 13, paddingVertical: 14, alignItems: 'center' },
-  secondaryText: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  secondaryText: { color: colors.text, fontSize: 13, fontFamily: font.bold },
   disabled: { opacity: 0.4 },
   deleteRecord: { alignItems: 'center', paddingTop: 18 },
-  deleteRecordText: { color: colors.danger, fontSize: 12, fontWeight: '700' },
+  deleteRecordText: { color: colors.danger, fontSize: 12, fontFamily: font.bold },
 });

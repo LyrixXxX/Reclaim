@@ -3,7 +3,7 @@ import { LayoutChangeEvent, NativeSyntheticEvent, StyleSheet, Text, View, ViewPr
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { RecoveryPoint } from '@/lib/recovery';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, font } from '@/theme';
 
 const HEIGHT = 190;
 const PAD = { top: 16, right: 12, bottom: 28, left: 34 };
@@ -139,15 +139,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  tooltipDate: { color: colors.textDim, fontSize: 11, textAlign: 'center' },
-  tooltipValue: { color: colors.text, fontSize: 11, fontWeight: '700', marginTop: 2 },
-  hint: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: -3 },
+  tooltipDate: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center' },
+  tooltipValue: { color: colors.text, fontSize: 11, fontFamily: font.bold, marginTop: 2 },
+  hint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: -3 },
   empty: {
     height: HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  emptyBody: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 7 },
+  emptyTitle: { color: colors.text, fontSize: 15, fontFamily: font.bold },
+  emptyBody: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, textAlign: 'center', marginTop: 7 },
 });

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ActivityRoute } from '@/models/tracker';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, font } from '@/theme';
 
 export function routeDisplayName(route: ActivityRoute) {
   return route.name?.trim() || (route.kind === 'hike' ? 'Hike' : route.kind === 'walk' ? 'Walk' : route.kind === 'run' ? 'Run' : 'Route');
@@ -45,13 +45,13 @@ function RouteDetailsEditor({ route, onClose, onSave }: { route: ActivityRoute; 
 const styles = StyleSheet.create({
   shade: { flex: 1, justifyContent: 'center', padding: spacing.lg, backgroundColor: '#000000AA' },
   card: { width: '100%', maxWidth: 480, alignSelf: 'center', padding: spacing.lg, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '600' },
-  help: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 8 },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginTop: 16, marginBottom: 6 },
-  input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 },
+  title: { color: colors.text, fontSize: 22, fontFamily: font.semibold },
+  help: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 19, marginTop: 8 },
+  label: { color: colors.textMuted, fontSize: 12, fontFamily: font.bold, marginTop: 16, marginBottom: 6 },
+  input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 , fontFamily: font.regular},
   notes: { minHeight: 90, textAlignVertical: 'top' },
   primary: { marginTop: 20, padding: 14, alignItems: 'center', borderRadius: 12, backgroundColor: colors.activityNav },
-  primaryText: { color: colors.background, fontWeight: '600' },
+  primaryText: { color: colors.background, fontFamily: font.semibold },
   secondary: { marginTop: 8, padding: 12, alignItems: 'center' },
-  secondaryText: { color: colors.textMuted, fontWeight: '700' },
+  secondaryText: { color: colors.textMuted, fontFamily: font.bold },
 });

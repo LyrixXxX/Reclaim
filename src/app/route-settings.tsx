@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { readRouteAutoPauseEnabled, setRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
 import { notifyRouteMile, readRouteMileAlertsEnabled, setRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function RouteSettingsScreen() {
   const [mileAlerts, setMileAlerts] = useState(false);
@@ -57,15 +57,15 @@ export default function RouteSettingsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 60, gap: spacing.md },
-  title: { color: colors.text, fontSize: 27, fontWeight: '700' },
-  intro: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  title: { color: colors.text, fontSize: 27, fontFamily: font.bold },
+  intro: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   copy: { flex: 1, gap: 5 },
-  settingTitle: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  description: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
+  settingTitle: { color: colors.text, fontSize: 17, fontFamily: font.semibold },
+  description: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
   divider: { height: 1, backgroundColor: colors.border },
-  note: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
+  note: { color: colors.textDim, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
   testButton: { alignSelf: 'flex-start', borderColor: colors.activityNav, borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 10 },
-  testButtonText: { color: colors.text, fontSize: 12, fontWeight: '600' },
+  testButtonText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
 });

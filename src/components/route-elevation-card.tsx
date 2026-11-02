@@ -4,7 +4,7 @@ import Svg, { Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { routeElevation } from '@/lib/route-elevation';
 import { ActivityPoint } from '@/models/tracker';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 const FEET_PER_METER = 3.28084;
 const HEIGHT = 150;
@@ -43,9 +43,9 @@ export function RouteElevationCard({ points }: { points: ActivityPoint[] }) {
 
 const styles = StyleSheet.create({
   card: { marginTop: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  title: { color: colors.text, fontSize: 16, fontWeight: '600', marginBottom: 10 },
+  title: { color: colors.text, fontSize: 16, fontFamily: font.semibold, marginBottom: 10 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginTop: 8 },
-  label: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  value: { color: colors.text, fontSize: 15, fontWeight: '600', marginTop: 3 },
-  note: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 12 },
+  label: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold },
+  value: { color: colors.text, fontSize: 15, fontFamily: font.semibold, marginTop: 3 },
+  note: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 16, marginTop: 12 },
 });

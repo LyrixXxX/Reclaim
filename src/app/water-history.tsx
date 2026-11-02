@@ -7,7 +7,7 @@ import { localDateKey } from '@/lib/progress';
 import { WaterUnit, validWaterDate, waterDisplayAmount, waterGoalOn, waterToOunces, waterTotalOn } from '@/lib/water-habit';
 import { WaterLog } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function WaterHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,6 +49,6 @@ export default function WaterHistoryScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 50, gap: 14 },
-  title: { color: colors.text, fontSize: 26, fontWeight: '700' }, body: { color: colors.textMuted, fontSize: 13, lineHeight: 20 }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 17, gap: 10 }, sectionTitle: { color: colors.text, fontSize: 17, fontWeight: '600' }, label: { color: colors.textDim, fontSize: 11, fontWeight: '600' },
-  input: { color: colors.text, minHeight: 50, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 13, fontSize: 16 }, error: { color: colors.danger, fontSize: 13 }, button: { minHeight: 48, backgroundColor: colors.habitsNav, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, buttonText: { color: colors.background, fontWeight: '700', fontSize: 15 }, secondary: { minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: colors.text, fontWeight: '600' }, row: { flexDirection: 'row', gap: 10 }, action: { flex: 1, minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, selected: { borderColor: colors.habitsNav, backgroundColor: colors.accentSoft },
+  title: { color: colors.text, fontSize: 26, fontFamily: font.bold }, body: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20 }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 17, gap: 10 }, sectionTitle: { color: colors.text, fontSize: 17, fontFamily: font.semibold }, label: { color: colors.textDim, fontSize: 11, fontFamily: font.semibold },
+  input: { color: colors.text, minHeight: 50, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 13, fontSize: 16 , fontFamily: font.regular}, error: { color: colors.danger, fontSize: 13 , fontFamily: font.regular}, button: { minHeight: 48, backgroundColor: colors.habitsNav, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, buttonText: { color: colors.background, fontFamily: font.bold, fontSize: 15 }, secondary: { minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: colors.text, fontFamily: font.semibold }, row: { flexDirection: 'row', gap: 10 }, action: { flex: 1, minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, selected: { borderColor: colors.habitsNav, backgroundColor: colors.accentSoft },
 });

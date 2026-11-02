@@ -6,7 +6,7 @@ import { PrivacyContent } from '@/components/privacy-content';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { ONBOARDING_AREAS, OnboardingSetupDraft, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight } from '@/lib/onboarding';
 import { OnboardingArea } from '@/models/tracker';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 type Props = {
   selected: OnboardingArea[];
@@ -158,24 +158,24 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.xl },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 38 },
-  icon: { width: 46, height: 46, borderRadius: 12 }, brandName: { color: colors.text, fontSize: 16, fontWeight: '700', letterSpacing: 2 },
-  step: { color: colors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 2 },
-  title: { color: colors.text, fontSize: 34, lineHeight: 39, fontWeight: '700', marginTop: 12 },
-  body: { color: colors.textMuted, fontSize: 15, lineHeight: 23, marginTop: 14 },
+  icon: { width: 46, height: 46, borderRadius: 12 }, brandName: { color: colors.text, fontSize: 16, fontFamily: font.bold, letterSpacing: 2 },
+  step: { color: colors.accent, fontSize: 11, fontFamily: font.bold, letterSpacing: 2 },
+  title: { color: colors.text, fontSize: 34, lineHeight: 39, fontFamily: font.bold, marginTop: 12 },
+  body: { color: colors.textMuted, fontSize: 15, fontFamily: font.regular, lineHeight: 23, marginTop: 14 },
   info: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 28 },
-  infoTitle: { color: colors.text, fontSize: 16, fontWeight: '600' }, infoText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
-  group: { color: colors.accent, fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginTop: 27, marginBottom: 10 },
+  infoTitle: { color: colors.text, fontSize: 16, fontFamily: font.semibold }, infoText: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  group: { color: colors.accent, fontSize: 11, fontFamily: font.semibold, letterSpacing: 1.2, marginTop: 27, marginBottom: 10 },
   choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 74, padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginBottom: 9 },
-  choiceSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, choiceBody: { flex: 1 }, choiceTitle: { color: colors.text, fontSize: 15, fontWeight: '600' }, choiceDescription: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  check: { width: 25, height: 25, borderRadius: 8, borderWidth: 1, borderColor: colors.textDim, alignItems: 'center', justifyContent: 'center' }, checkSelected: { backgroundColor: colors.accent, borderColor: colors.accent }, checkMark: { color: colors.background, fontSize: 17, fontWeight: '700' },
-  help: { color: colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 16 }, reviewCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 24 }, reviewHeading: { marginTop: 20 }, reviewText: { color: colors.textMuted, fontSize: 14, lineHeight: 23, marginTop: 10 },
-  primary: { minHeight: 54, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: 15, marginTop: 25 }, primaryText: { color: colors.background, fontSize: 15, fontWeight: '700' }, secondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 8 }, secondaryText: { color: colors.textMuted, fontSize: 14, fontWeight: '700' }, error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginTop: 18 }, disabled: { opacity: .6 },
-  aiButton: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.nutritionNav, borderRadius: 15, marginTop: 24, paddingHorizontal: 16 }, aiButtonText: { color: colors.background, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  choiceSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, choiceBody: { flex: 1 }, choiceTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold }, choiceDescription: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18, marginTop: 4 },
+  check: { width: 25, height: 25, borderRadius: 8, borderWidth: 1, borderColor: colors.textDim, alignItems: 'center', justifyContent: 'center' }, checkSelected: { backgroundColor: colors.accent, borderColor: colors.accent }, checkMark: { color: colors.background, fontSize: 17, fontFamily: font.bold },
+  help: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 19, marginTop: 16 }, reviewCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 24 }, reviewHeading: { marginTop: 20 }, reviewText: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 23, marginTop: 10 },
+  primary: { minHeight: 54, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: 15, marginTop: 25 }, primaryText: { color: colors.background, fontSize: 15, fontFamily: font.bold }, secondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 8 }, secondaryText: { color: colors.textMuted, fontSize: 14, fontFamily: font.bold }, error: { color: colors.danger, fontSize: 13, fontFamily: font.regular, lineHeight: 19, marginTop: 18 }, disabled: { opacity: .6 },
+  aiButton: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.nutritionNav, borderRadius: 15, marginTop: 24, paddingHorizontal: 16 }, aiButtonText: { color: colors.background, fontSize: 16, fontFamily: font.bold, textAlign: 'center' },
   privacyClose: { minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, margin: spacing.lg, borderRadius: 14 },
-  fieldLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 22, marginBottom: 8 },
-  input: { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, minHeight: 54, paddingHorizontal: 16, fontSize: 18 },
+  fieldLabel: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, marginTop: 22, marginBottom: 8 },
+  input: { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, minHeight: 54, paddingHorizontal: 16, fontSize: 18 , fontFamily: font.regular},
   unitRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   unitButton: { minWidth: 80, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
   unitSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  unitText: { color: colors.text, fontWeight: '600' },
+  unitText: { color: colors.text, fontFamily: font.semibold },
 });

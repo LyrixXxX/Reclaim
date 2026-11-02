@@ -9,7 +9,7 @@ import { checklistOn, exerciseModeOn, exerciseRegimenOn, goalOn, GOOD_HABIT_TEMP
 import { localDateKey } from '@/lib/progress';
 import { generateTrackerId, TrackerDraft, validateTrackerDraft } from '@/lib/tracker-management';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function GoodHabitForm() {
   const { type, id } = useLocalSearchParams<{ type?: string; id?: string }>();
@@ -63,11 +63,11 @@ export default function GoodHabitForm() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 50, gap: 12 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 15, padding: 15, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, heroText: { flex: 1 }, title: { color: colors.text, fontSize: 22, fontWeight: '700' }, help: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  label: { color: colors.text, fontSize: 15, fontWeight: '600', marginTop: 10 }, input: { minHeight: 54, color: colors.text, fontSize: 18, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14 },
-  step: { flexDirection: 'row', gap: 8, alignItems: 'center' }, stepInput: { flex: 1 }, remove: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }, removeText: { color: colors.danger, fontSize: 27 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 15, padding: 15, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, heroText: { flex: 1 }, title: { color: colors.text, fontSize: 22, fontFamily: font.bold }, help: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 19 },
+  label: { color: colors.text, fontSize: 15, fontFamily: font.semibold, marginTop: 10 }, input: { minHeight: 54, color: colors.text, fontSize: 18, fontFamily: font.regular, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14 },
+  step: { flexDirection: 'row', gap: 8, alignItems: 'center' }, stepInput: { flex: 1 }, remove: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }, removeText: { color: colors.danger, fontSize: 27 , fontFamily: font.regular},
   reminder: { flexDirection: 'row', gap: 8 }, reminderInput: { flex: 1 }, period: { minWidth: 52, minHeight: 54, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, selected: { borderColor: colors.habitsNav, backgroundColor: colors.accentSoft },
-  secondary: { minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: colors.habitsNav, fontWeight: '600' }, primary: { minHeight: 54, backgroundColor: colors.habitsNav, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: colors.background, fontWeight: '700', fontSize: 16 }, error: { color: colors.danger, fontSize: 13 },
+  secondary: { minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: colors.habitsNav, fontFamily: font.semibold }, primary: { minHeight: 54, backgroundColor: colors.habitsNav, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: colors.background, fontFamily: font.bold, fontSize: 16 }, error: { color: colors.danger, fontSize: 13 , fontFamily: font.regular},
   management: { marginTop: 20, padding: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 15, gap: 12 },
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { minWidth: 100, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 12 }, regimen: { gap: 8, padding: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }, dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 }, day: { minWidth: 40, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 9 }, preset: { flexDirection: 'row', alignItems: 'center', gap: 3 }, presetInput: { width: 62, paddingHorizontal: 8 },
 });

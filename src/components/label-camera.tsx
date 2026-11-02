@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { frameCrop, labelFrame, type Size } from '@/lib/label-camera-frame';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export type FramedLabelPhoto = { uri: string; base64: string; mimeType: 'image/jpeg' };
 
@@ -70,18 +70,18 @@ export function LabelCamera({ visible, label, onCancel, onConfirm }: { visible: 
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background, padding: 20, gap: 12 },
-  title: { color: colors.text, fontSize: 25, fontWeight: '600' },
-  help: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  title: { color: colors.text, fontSize: 25, fontFamily: font.semibold },
+  help: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 20 },
   choices: { flexDirection: 'row', gap: 10 },
   choice: { flex: 1, alignItems: 'center', padding: 15, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.surface },
   selected: { borderColor: colors.accent },
-  buttonText: { color: colors.text, fontWeight: '700' },
+  buttonText: { color: colors.text, fontFamily: font.bold },
   preview: { flex: 1, overflow: 'hidden', borderRadius: 16, backgroundColor: '#080808' },
-  frame: { position: 'absolute', borderWidth: 3, borderColor: '#C8F55B', borderRadius: 12 },
+  frame: { position: 'absolute', borderWidth: 3, borderColor: colors.accent, borderRadius: 12 },
   permission: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 15 },
   actions: { flexDirection: 'row', gap: 10 },
-  confirm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 13, backgroundColor: '#C8F55B' },
-  confirmText: { color: '#101510', fontWeight: '600' },
+  confirm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 13, backgroundColor: colors.accent },
+  confirmText: { color: '#101510', fontFamily: font.semibold },
   disabled: { opacity: 0.5 },
   error: { color: '#FF8888' },
 });

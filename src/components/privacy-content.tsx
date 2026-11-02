@@ -1,7 +1,7 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from '@/lib/privacy-policy';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export function PrivacyContent() {
   const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/';
@@ -19,10 +19,10 @@ export function PrivacyContent() {
 
 const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 48 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '700' },
-  intro: { color: colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 12 },
+  title: { color: colors.text, fontSize: 28, fontFamily: font.bold },
+  intro: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21, marginTop: 8, marginBottom: 12 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 16, marginTop: 12 },
-  heading: { color: colors.text, fontSize: 16, fontWeight: '600' },
-  body: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
-  footer: { color: colors.textDim, fontSize: 11, lineHeight: 17, marginTop: 22 },
+  heading: { color: colors.text, fontSize: 16, fontFamily: font.semibold },
+  body: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  footer: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginTop: 22 },
 });

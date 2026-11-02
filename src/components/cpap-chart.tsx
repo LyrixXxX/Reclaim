@@ -5,7 +5,7 @@ import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { CpapTrendMetric, CpapTrendPoint, CpapTrendRange, cpapAxisLabelIndices, cpapTrendAxis, cpapTrendDescription, cpapTrendPoints, formatCpapMetricValue } from '@/lib/cpap';
 import { CpapChartPeriod, cpapPeriodDataAxis, cpapCalendarPoints } from '@/lib/cpap-calendar';
 import { CpapReading } from '@/models/tracker';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 const CHART_HEIGHT = 158;
 const LEFT = 36;
@@ -56,4 +56,4 @@ function PointDetail({ point, metric, suffix }: { point: CpapTrendPoint; metric:
 
 function formatDetailDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
 
-const styles = StyleSheet.create({ wrapper: { width: '100%', marginBottom: 10 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }, title: { color: colors.textMuted, fontSize: 11, fontWeight: '600' }, aggregation: { color: colors.textMuted, fontSize: 11 }, detail: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: -5, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.surfaceRaised }, detailDate: { color: colors.textMuted, fontSize: 11, flex: 1 }, detailValue: { color: colors.text, fontSize: 11, fontWeight: '600' }, detailCount: { color: colors.textMuted, fontSize: 11 }, empty: { minHeight: 96, alignItems: 'center', justifyContent: 'center' }, muted: { color: colors.textMuted, fontSize: 12 } });
+const styles = StyleSheet.create({ wrapper: { width: '100%', marginBottom: 10 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }, title: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold }, aggregation: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular}, detail: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: -5, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.surfaceRaised }, detailDate: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, flex: 1 }, detailValue: { color: colors.text, fontSize: 11, fontFamily: font.semibold }, detailCount: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular}, empty: { minHeight: 96, alignItems: 'center', justifyContent: 'center' }, muted: { color: colors.textMuted, fontSize: 12 , fontFamily: font.regular} });

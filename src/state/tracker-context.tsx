@@ -5,7 +5,7 @@ import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
 import { validateNutrientSelection } from '@/lib/nutrient-totals';
@@ -470,8 +470,8 @@ export function TrackerProvider({ children }: PropsWithChildren) {
 
 const storageStyles = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', padding: 28, gap: 16, backgroundColor: colors.background },
-  title: { color: colors.text, fontWeight: '700', fontSize: 16 },
-  text: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  title: { color: colors.text, fontFamily: font.bold, fontSize: 16 },
+  text: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   button: { padding: 16, borderRadius: 16, backgroundColor: colors.surfaceRaised },
 });
 

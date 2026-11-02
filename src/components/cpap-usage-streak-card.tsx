@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CpapUsageStreakStats } from '@/lib/cpap';
-import { colors, layout, spacing, type } from '@/theme';
+import { colors, layout, spacing, type, font } from '@/theme';
 
 export function CpapUsageStreakCard({ stats }: { stats: CpapUsageStreakStats }) {
   const status = statusContent(stats);
@@ -46,17 +46,17 @@ function formatDate(value: string) {
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 14 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  eyebrow: { ...type.micro, color: colors.textMuted, fontWeight: '700', letterSpacing: 1 },
+  eyebrow: { ...type.micro, color: colors.textMuted, fontFamily: font.bold, letterSpacing: 1 },
   status: { borderRadius: 999, backgroundColor: colors.surfaceRaised, paddingHorizontal: 9, paddingVertical: 5 },
   statusActive: { backgroundColor: colors.accentSoft },
-  statusText: { ...type.micro, color: colors.textMuted, fontWeight: '700', letterSpacing: .7 },
+  statusText: { ...type.micro, color: colors.textMuted, fontFamily: font.bold, letterSpacing: .7 },
   statusTextActive: { color: colors.accent },
-  value: { color: colors.text, fontSize: 36, fontWeight: '700', marginTop: 10, fontVariant: ['tabular-nums'] },
-  valueUnit: { color: colors.textMuted, fontSize: 16 },
-  message: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 4 },
+  value: { color: colors.text, fontSize: 36, fontFamily: font.bold, marginTop: 10, fontVariant: ['tabular-nums'] },
+  valueUnit: { color: colors.textMuted, fontSize: 16 , fontFamily: font.regular},
+  message: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginTop: 4 },
   metrics: { flexDirection: 'row', borderTopColor: colors.border, borderTopWidth: 1, marginTop: 15, paddingTop: 13 },
   metric: { flex: 1, alignItems: 'center' },
-  metricValue: { color: colors.text, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  metricLabel: { ...type.micro, color: colors.textMuted, fontWeight: '700', marginTop: 3 },
+  metricValue: { color: colors.text, fontSize: 17, fontFamily: font.bold, fontVariant: ['tabular-nums'] },
+  metricLabel: { ...type.micro, color: colors.textMuted, fontFamily: font.bold, marginTop: 3 },
   note: { ...type.micro, color: colors.textMuted, textAlign: 'center', marginTop: 13 },
 });

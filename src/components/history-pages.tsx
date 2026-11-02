@@ -1,7 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { historyPage, initialHistoryPage } from '@/lib/history-pages';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export function HistoryPages<T>({ items, children, startAt = 'first', pageSize }: { items: readonly T[]; children: (page: T[]) => ReactNode; startAt?: 'first' | 'last'; pageSize?: number }) {
   const [requestedPage, setPage] = useState(() => initialHistoryPage(items.length, startAt, pageSize));
@@ -19,5 +19,5 @@ export function HistoryPages<T>({ items, children, startAt = 'first', pageSize }
 }
 
 const styles = StyleSheet.create({
-  controls: { paddingVertical: 12, gap: 8 }, summary: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' }, buttons: { flexDirection: 'row', gap: 10 }, button: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 12 }, label: { color: colors.text, fontSize: 14, fontWeight: '700' }, disabled: { opacity: .35 },
+  controls: { paddingVertical: 12, gap: 8 }, summary: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18, textAlign: 'center' }, buttons: { flexDirection: 'row', gap: 10 }, button: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 12 }, label: { color: colors.text, fontSize: 14, fontFamily: font.bold }, disabled: { opacity: .35 },
 });

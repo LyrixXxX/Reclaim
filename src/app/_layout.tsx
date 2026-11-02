@@ -1,3 +1,4 @@
+import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, useFonts } from '@expo-google-fonts/manrope';
 import { router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
@@ -14,7 +15,7 @@ import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
 import { MonetizationProvider } from '@/state/monetization-context';
 import { AdsProvider } from '@/state/ads-context';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 import { consumePendingCaptureTarget } from '@/lib/pending-capture';
 import '@/lib/activity-recording';
 import { createStartupHandoff, startupFadeOptions, startupSurface } from '@/lib/startup';
@@ -28,6 +29,9 @@ const BACK_TO_EXIT_MS = 2000;
 const mainSectionPaths = new Set(['/', '/habits', '/weight', '/nutrition', '/supplements', '/activity', '/routes', '/activity-map', '/workouts', '/settings']);
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  // Keep the native splash up until the typeface is ready; fall back to system fonts on failure.
+  if (!fontsLoaded && !fontError) return null;
   return <View style={styles.shell} onLayout={handoffStartup}><StatusBar style="light" /><AppLockProvider><MonetizationProvider><AdsProvider><TrackerProvider><AppShell /></TrackerProvider></AdsProvider></MonetizationProvider></AppLockProvider></View>;
 }
 
@@ -76,7 +80,7 @@ function AppShell() {
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
             headerShadowVisible: false,
-            headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+            headerTitleStyle: { fontFamily: font.semibold, fontSize: 17 },
           }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="habits" options={{ headerShown: false }} />

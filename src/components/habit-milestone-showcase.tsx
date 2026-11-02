@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { Image, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { HABIT_MILESTONES, HabitMilestone } from '@/lib/habit-milestones';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
+import { Icon } from '@/components/icon';
 
 const BADGES = [
   require('../../assets/images/milestone-day.png'),
@@ -25,8 +26,8 @@ export function HabitMilestoneShowcase({ awards }: { awards: HabitMilestone[] })
     <View style={styles.headingRow}>
       <Text style={styles.heading}>Milestone showcase</Text>
       <View style={styles.carouselControls}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous achievements" onPress={() => moveCarousel(-1)} style={styles.carouselArrow}><Text style={styles.carouselArrowText}>‹</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="More achievements" onPress={() => moveCarousel(1)} style={styles.carouselArrow}><Text style={styles.carouselArrowText}>›</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous achievements" onPress={() => moveCarousel(-1)} style={styles.carouselArrow}><Icon name="chevronLeft" size={20} color={colors.textMuted} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="More achievements" onPress={() => moveCarousel(1)} style={styles.carouselArrow}><Icon name="chevronRight" size={20} color={colors.textMuted} /></Pressable>
       </View>
     </View>
     <Text style={styles.explanation}>Achievements stay earned. Tap a badge to see its dates.</Text>
@@ -62,27 +63,27 @@ function formatDate(value: string) {
 const styles = StyleSheet.create({
   section: { marginTop: spacing.lg },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  heading: { color: colors.text, fontSize: 21, fontWeight: '600', flexShrink: 1 },
-  explanation: { color: colors.textMuted, fontSize: 12, marginTop: 4, marginBottom: 12 },
+  heading: { color: colors.text, fontSize: 21, fontFamily: font.semibold, flexShrink: 1 },
+  explanation: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 4, marginBottom: 12 },
   carouselControls: { flexDirection: 'row', gap: 6 },
   carouselArrow: { width: 36, height: 36, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  carouselArrowText: { color: colors.habitsNav, fontSize: 28, lineHeight: 31, fontWeight: '700' },
+  carouselArrowText: { color: colors.habitsNav, fontSize: 28, lineHeight: 31, fontFamily: font.bold },
   carousel: { flexGrow: 0, height: 265 },
   list: { gap: 10, alignItems: 'flex-start', paddingBottom: 3 },
   card: { width: 152, height: 260, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: 9 },
   image: { width: 130, height: 145 },
   locked: { opacity: .28 },
-  label: { color: colors.textMuted, fontSize: 16, fontWeight: '700', marginTop: 1 },
-  subtitle: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 3 },
-  days: { color: colors.textMuted, fontSize: 11, marginTop: 5 },
-  count: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8, minHeight: 18 },
+  label: { color: colors.textMuted, fontSize: 16, fontFamily: font.bold, marginTop: 1 },
+  subtitle: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: 3 },
+  days: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, marginTop: 5 },
+  count: { color: colors.textMuted, fontSize: 14, fontFamily: font.semibold, marginTop: 8, minHeight: 18 },
   modalBackdrop: { flex: 1, backgroundColor: '#000B', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, alignItems: 'center', padding: 18, maxHeight: '75%' },
   modalImage: { width: 180, height: 190 },
-  modalTitle: { color: colors.text, fontSize: 22, fontWeight: '700', marginTop: 6 },
-  modalCopy: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 12 },
+  modalTitle: { color: colors.text, fontSize: 22, fontFamily: font.bold, marginTop: 6 },
+  modalCopy: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, textAlign: 'center', marginTop: 12 },
   dates: { alignSelf: 'stretch', marginTop: 8 },
   date: { color: colors.text, textAlign: 'center', paddingVertical: 7 },
   close: { backgroundColor: colors.surfaceRaised, borderRadius: 14, alignSelf: 'stretch', padding: 14, marginTop: 18 },
-  closeText: { color: colors.text, textAlign: 'center', fontWeight: '600' },
+  closeText: { color: colors.text, textAlign: 'center', fontFamily: font.semibold },
 });

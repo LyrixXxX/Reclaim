@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrackers } from '@/state/tracker-context';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export function LocalSaveStatus({ errorsOnly = false }: { errorsOnly?: boolean }) {
   const { saveStatus, retrySave } = useTrackers();
@@ -19,7 +19,7 @@ export function LocalSaveStatus({ errorsOnly = false }: { errorsOnly?: boolean }
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.surface },
   card: { padding: 16, gap: 8, backgroundColor: colors.surface, borderRadius: 16 },
-  title: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  description: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
+  title: { color: colors.text, fontSize: 14, fontFamily: font.bold },
+  description: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
   button: { backgroundColor: colors.surfaceRaised, padding: 12, borderRadius: 12, alignSelf: 'flex-start' },
 });

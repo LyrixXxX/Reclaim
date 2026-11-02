@@ -12,7 +12,7 @@ import { rasterMapStyle } from '@/lib/activity-map-style';
 import { getMapKey } from '@/lib/activity-maps';
 import { formatMiles } from '@/lib/activity-units';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function SavedRoutesScreen() {
   const { activityRoutes = [], saveActivityRoute, deleteActivityRoute } = useTrackers();
@@ -56,15 +56,15 @@ export default function SavedRoutesScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 60 },
-  empty: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  empty: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   route: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
-  name: { color: colors.text, fontSize: 18, fontWeight: '600', marginTop: 12 },
-  date: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
-  stats: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
-  notes: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 8 },
-  open: { color: colors.activityNav, fontSize: 12, fontWeight: '600', marginTop: 9 },
+  name: { color: colors.text, fontSize: 18, fontFamily: font.semibold, marginTop: 12 },
+  date: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 3 },
+  stats: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  notes: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 19, marginTop: 8 },
+  open: { color: colors.activityNav, fontSize: 12, fontFamily: font.semibold, marginTop: 9 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   action: { flex: 1, padding: 12, alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
-  actionText: { color: colors.text, fontWeight: '700' },
-  deleteText: { color: colors.danger, fontWeight: '700' },
+  actionText: { color: colors.text, fontFamily: font.bold },
+  deleteText: { color: colors.danger, fontFamily: font.bold },
 });

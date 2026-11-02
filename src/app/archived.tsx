@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function ArchivedTrackersScreen() {
   const { trackers, setArchived } = useTrackers();
@@ -42,18 +42,18 @@ export default function ArchivedTrackersScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 680, alignSelf: 'center', padding: spacing.lg },
-  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.4, fontWeight: '600', marginTop: 14 },
-  title: { color: colors.text, fontSize: 30, fontWeight: '700', marginTop: 8 },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 22 },
+  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.4, fontFamily: font.semibold, marginTop: 14 },
+  title: { color: colors.text, fontSize: 30, fontFamily: font.bold, marginTop: 8 },
+  subtitle: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8, marginBottom: 22 },
   empty: { alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: 30 },
-  emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  emptyBody: { color: colors.textMuted, fontSize: 12, marginTop: 7 },
+  emptyTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  emptyBody: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 7 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: spacing.md, marginBottom: 10 },
   icon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  iconText: { fontSize: 20, fontWeight: '600' },
+  iconText: { fontSize: 20, fontFamily: font.semibold },
   copy: { flex: 1 },
-  name: { color: colors.text, fontSize: 14, fontWeight: '600' },
-  meta: { color: colors.textDim, fontSize: 11, marginTop: 4 },
+  name: { color: colors.text, fontSize: 14, fontFamily: font.semibold },
+  meta: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, marginTop: 4 },
   restore: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 9 },
-  restoreText: { color: colors.accent, fontSize: 11, fontWeight: '600' },
+  restoreText: { color: colors.accent, fontSize: 11, fontFamily: font.semibold },
 });

@@ -5,7 +5,8 @@ import { reductionPercent } from '@/lib/progress';
 import { formatLocalStartDate } from '@/lib/date-format';
 import { trackerDisplayName } from '@/lib/tracker-management';
 import { Tracker } from '@/models/tracker';
-import { colors, layout, spacing, type } from '@/theme';
+import { colors, layout, spacing, type, font } from '@/theme';
+import { Icon } from '@/components/icon';
 
 export function ReductionCard({ tracker }: { tracker: Tracker }) {
   const baseline = tracker.baseline ?? 0;
@@ -45,7 +46,7 @@ export function ReductionCard({ tracker }: { tracker: Tracker }) {
             <Text style={styles.valueLabel}>CURRENT</Text>
             <Text style={[styles.current, { color: tracker.color }]}>{current}</Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <Icon name="chevronRight" size={20} color={colors.textMuted} />
         </View>
 
         <View style={styles.track}>
@@ -74,18 +75,18 @@ const styles = StyleSheet.create({
   identity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   metadata: { flex: 1 },
   icon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  iconText: { fontSize: 20, fontWeight: '600' },
-  name: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  iconText: { fontSize: 20, fontFamily: font.semibold },
+  name: { color: colors.text, fontSize: 16, fontFamily: font.semibold },
   unit: { ...type.micro, color: colors.textMuted, marginTop: 4 },
-  startDate: { ...type.metadata, color: colors.textMuted, fontWeight: '600', marginTop: 4 },
+  startDate: { ...type.metadata, color: colors.textMuted, fontFamily: font.semibold, marginTop: 4 },
   badge: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 99, marginLeft: 10 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
+  badgeText: { fontSize: 11, fontFamily: font.bold },
   values: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 24 },
-  valueLabel: { ...type.micro, color: colors.textMuted, letterSpacing: 1, fontWeight: '600' },
-  baseline: { color: colors.textMuted, fontSize: 27, fontWeight: '700', marginTop: 3 },
-  current: { fontSize: 31, fontWeight: '700', marginTop: 1 },
+  valueLabel: { ...type.micro, color: colors.textMuted, letterSpacing: 1, fontFamily: font.semibold },
+  baseline: { color: colors.textMuted, fontSize: 27, fontFamily: font.bold, marginTop: 3 },
+  current: { fontSize: 31, fontFamily: font.bold, marginTop: 1 },
   rule: { width: 1, height: 34, backgroundColor: colors.border, marginHorizontal: 22 },
-  chevron: { marginLeft: 'auto', color: colors.textDim, fontSize: 28 },
+  chevron: { marginLeft: 'auto', color: colors.textDim, fontSize: 28 , fontFamily: font.regular},
   track: { height: 6, backgroundColor: colors.border, borderRadius: 6, marginTop: 20, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 6 },
   target: { position: 'absolute', width: 2, height: 8, top: -1, backgroundColor: colors.text },

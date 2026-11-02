@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ProgressBar } from '@/components/progress-bar';
 import { liveDuration } from '@/lib/duration';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export function DurationProgress({ startedAt, now, color, compact = false }: { startedAt: string; now: number; color: string; compact?: boolean }) {
   const duration = liveDuration(startedAt, now);
@@ -22,7 +22,7 @@ export function DurationProgress({ startedAt, now, color, compact = false }: { s
 const styles = StyleSheet.create({
   container: { width: '100%', marginTop: 18 },
   compact: { marginTop: 16 },
-  fullDuration: { color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  fullDuration: { color: colors.text, fontSize: 16, lineHeight: 22, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
   compactSummary: { fontSize: 13, lineHeight: 18 },
   rows: { gap: 12, marginTop: 14 },
 });

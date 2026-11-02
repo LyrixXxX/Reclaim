@@ -6,7 +6,7 @@ import { useNow } from '@/hooks/use-now';
 import { RollingRange, rollingBounds } from '@/lib/rolling-range';
 
 import { HistoricalEntry } from '@/models/tracker';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 const HEIGHT = 170;
 const PAD = { top: 16, right: 12, bottom: 28, left: 34 };
@@ -50,6 +50,6 @@ export function ValueChart({ entries, color, unit }: { entries: HistoricalEntry[
 }
 
 const styles = StyleSheet.create({
-  wrapper: { width: '100%', minHeight: HEIGHT + 18 }, tooltip: { position: 'absolute', zIndex: 2, top: 3, alignSelf: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 }, tooltipText: { color: colors.text, fontSize: 11, fontWeight: '700' }, hint: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: -3 },
-  empty: { height: HEIGHT, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontSize: 13, fontWeight: '700' }, emptyBody: { color: colors.textMuted, fontSize: 11, marginTop: 6, textAlign: 'center' },
+  wrapper: { width: '100%', minHeight: HEIGHT + 18 }, tooltip: { position: 'absolute', zIndex: 2, top: 3, alignSelf: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 }, tooltipText: { color: colors.text, fontSize: 11, fontFamily: font.bold }, hint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: -3 },
+  empty: { height: HEIGHT, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontSize: 13, fontFamily: font.bold }, emptyBody: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, marginTop: 6, textAlign: 'center' },
 });

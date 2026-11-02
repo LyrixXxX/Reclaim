@@ -24,7 +24,7 @@ import { clearFinishedRoute, finishRoute, isRouteRecording, pauseRoute, readActi
 import { ActivityPoint, ActivityRoute } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useAds } from '@/state/ads-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 type MapCamera = React.ComponentRef<typeof Camera>;
 type MapSurface = React.ComponentRef<typeof Map>;
@@ -371,7 +371,7 @@ export default function ActivityMapScreen() {
       {line && <GeoJSONSource id="activity-route" data={line}><Layer id="activity-line" type="line" paint={{ 'line-color': colors.activityNav, 'line-width': 4 }} /></GeoJSONSource>}
       {currentPoint && !directionArrow && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} /></GeoJSONSource>}
       {directionArrow && <GeoJSONSource id="activity-heading-arrow" data={directionArrow}><Layer id="activity-heading-fill" type="fill" paint={{ 'fill-color': colors.activityNav, 'fill-opacity': 1 }} /><Layer id="activity-heading-outline" type="line" paint={{ 'line-color': '#FFFFFF', 'line-width': 2 }} /></GeoJSONSource>}
-    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={styles.buttonText}>Retry map</Text></Pressable>}</View>}
+    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={[styles.buttonText, styles.buttonTextOnFill]}>Retry map</Text></Pressable>}</View>}
     {active && !selectedRoute && <View style={styles.navigationControls}>
       <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.navigationButton}><MapModeArtwork following={mapMode === 'follow'} /></Pressable>
       {mapMode === 'follow' && <View style={styles.compassBadge}><Text style={styles.compassText}>{compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>{compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}</View>}
@@ -454,7 +454,7 @@ function routeGeoJSON(points: ActivityPoint[]) {
   for (const point of points) segments.set(point.segment ?? 0, [...(segments.get(point.segment ?? 0) ?? []), [point.longitude, point.latitude]]);
   return { type: 'Feature' as const, properties: {}, geometry: { type: 'MultiLineString' as const, coordinates: [...segments.values()].filter((segment) => segment.length > 1) } };
 }
-function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={styles.buttonText}>{label}</Text></Pressable>; }
+function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={[styles.buttonText, !secondary && !danger && styles.buttonTextOnFill]}>{label}</Text></Pressable>; }
 function Metric({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) { return <View style={[styles.metric, compact && styles.compactMetric]}><Text style={styles.metricLabel}>{label}</Text><Text style={[styles.metricValue, compact && styles.compactMetricValue]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text></View>; }
 function StatusRow({ label, value }: { label: string; value: string }) { return <View style={styles.statusRow}><Text style={styles.body}>{label}</Text><Text style={styles.statusValue}>{value}</Text></View>; }
 function formatClock(ms: number) {
@@ -473,67 +473,67 @@ const styles = StyleSheet.create({
   content: { maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
   settingsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   settingsButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontWeight: '600' },
-  eyebrow: { color: colors.activityNav, fontWeight: '600', letterSpacing: 2 },
-  body: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontFamily: font.semibold },
+  eyebrow: { color: colors.activityNav, fontFamily: font.semibold, letterSpacing: 2 },
+  body: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   card: { padding: 20, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 22, gap: 12 },
   recordingShell: { padding: 14, backgroundColor: colors.surface, borderColor: colors.activityNav, borderWidth: 1, borderRadius: 22, gap: 12, overflow: 'hidden' },
   idleShell: { gap: 12 },
   recordingCard: { gap: 12 },
   recordingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  recordingStatus: { color: colors.danger, fontSize: 13, fontWeight: '600' },
+  recordingStatus: { color: colors.danger, fontSize: 13, fontFamily: font.semibold },
   statusWarning: { color: colors.textMuted },
   fullMap: { marginHorizontal: -spacing.lg, height: 380, position: 'relative', backgroundColor: colors.surfaceRaised },
   recordingMap: { marginHorizontal: 0, height: 340, borderRadius: 16, overflow: 'hidden', borderColor: colors.border, borderWidth: 1 },
   expandedSafe: { flex: 1, backgroundColor: colors.background },
   expandedHeader: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface },
-  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '600', textAlign: 'right' },
+  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontFamily: font.semibold, textAlign: 'right' },
   closeMapButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   expandedMap: { flex: 1, position: 'relative', backgroundColor: colors.surfaceRaised },
   conditions: { flexDirection: 'row', gap: 8 },
   conditionHalf: { flex: 1, minWidth: 0, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, gap: 4 },
-  conditionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  conditionValue: { color: colors.activityNav, fontSize: 19, fontWeight: '600' }, signalBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 26 }, signalBar: { width: 7, borderRadius: 2, backgroundColor: colors.border }, signalBarOn: { backgroundColor: colors.activityNav },
-  conditionDetail: { color: colors.textDim, fontSize: 11 },
+  conditionLabel: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold },
+  conditionValue: { color: colors.activityNav, fontSize: 19, fontFamily: font.semibold }, signalBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 26 }, signalBar: { width: 7, borderRadius: 2, backgroundColor: colors.border }, signalBarOn: { backgroundColor: colors.activityNav },
+  conditionDetail: { color: colors.textDim, fontSize: 11 , fontFamily: font.regular},
   map: { flex: 1 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 26 },
   mapAttributionRow: { position: 'absolute', left: 8, right: 8, bottom: 4, height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mapLibreLabel: { color: '#526265', fontSize: 13, fontWeight: '600', textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
+  mapLibreLabel: { color: '#526265', fontSize: 13, fontFamily: font.semibold, textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
   mapAttributionButton: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#208D9E', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9F8F4CC' },
-  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontWeight: '600', lineHeight: 19, textAlign: 'center' },
+  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontFamily: font.semibold, lineHeight: 19, textAlign: 'center' },
   recenter: { position: 'absolute', right: 16, top: 16, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   expandMapButton: { position: 'absolute', left: 12, bottom: 44, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   navigationControls: { position: 'absolute', left: 12, right: MAP_CONTROL_SIZE + 28, top: 16, alignItems: 'flex-start', gap: 6 },
   navigationButton: { width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   compassBadge: { maxWidth: '100%', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: '#10191CDD' },
-  compassText: { color: colors.text, fontSize: 12, fontWeight: '600' },
-  compassWarning: { color: colors.danger, fontSize: 11, fontWeight: '700' },
+  compassText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
+  compassWarning: { color: colors.danger, fontSize: 11, fontFamily: font.bold },
   mapHint: { position: 'absolute', left: 12, bottom: 42, right: 12, alignItems: 'center' },
-  mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 },
+  mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 , fontFamily: font.regular},
   retry: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.activityNav },
   routeControls: { gap: 10 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   recordingMetrics: { flexDirection: 'row', gap: 8 },
   metric: { width: '48%', flexGrow: 1, padding: 12, backgroundColor: colors.surface, borderRadius: 12 },
   compactMetric: { width: 0, minWidth: 0, flexGrow: 1, alignItems: 'center', paddingHorizontal: 4, backgroundColor: colors.surfaceRaised },
-  compactMetricValue: { fontSize: 16 },
+  compactMetricValue: { fontSize: 16},
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 9 },
-  statusValue: { color: colors.activityNav, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-  metricLabel: { color: colors.textMuted, fontSize: 12 },
-  metricValue: { color: colors.text, fontSize: 18, fontWeight: '600' },
-  cardTitle: { color: colors.text, fontSize: 20, fontWeight: '600' },
-  timer: { color: colors.text, fontSize: 36, fontWeight: '700', textAlign: 'center' },
-  timerCaption: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: -12 },
-  big: { color: colors.activityNav, fontSize: 42, fontWeight: '600' },
+  statusValue: { color: colors.activityNav, fontSize: 14, fontFamily: font.bold, textAlign: 'right' },
+  metricLabel: { color: colors.textMuted, fontSize: 12 , fontFamily: font.regular},
+  metricValue: { color: colors.text, fontSize: 18, fontFamily: font.semibold },
+  cardTitle: { color: colors.text, fontSize: 20, fontFamily: font.semibold },
+  timer: { color: colors.text, fontSize: 36, fontFamily: font.bold, textAlign: 'center' },
+  timerCaption: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, textAlign: 'center', marginTop: -12 },
+  big: { color: colors.activityNav, fontSize: 42, fontFamily: font.semibold },
   stepRing: { alignSelf: 'center', width: 164, height: 164, alignItems: 'center', justifyContent: 'center' },
   ringLabel: { position: 'absolute', alignItems: 'center' },
   stepHistoryRow: { paddingVertical: 10, borderTopColor: colors.border, borderTopWidth: 1 },
   button: { backgroundColor: colors.activityNav, padding: 15, borderRadius: 14, alignItems: 'center' },
   secondary: { backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   dangerButton: { backgroundColor: colors.danger },
-  buttonText: { color: colors.text, fontWeight: '600' },
-  note: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
-  deleteText: { color: colors.danger, fontSize: 12, paddingTop: 8 },
+  buttonText: { color: colors.text, fontFamily: font.semibold }, buttonTextOnFill: { color: colors.background, fontFamily: font.bold },
+  note: { color: colors.textDim, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
+  deleteText: { color: colors.danger, fontSize: 12, fontFamily: font.regular, paddingTop: 8 },
   input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14 },
   row: { flexDirection: 'row', gap: 8 },
   smallButton: { flex: 1, padding: 10, backgroundColor: colors.surfaceRaised, alignItems: 'center', borderRadius: 10 },

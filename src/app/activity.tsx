@@ -15,7 +15,7 @@ import { DEFAULT_PREFERENCES } from '@/lib/preferences';
 import { readTodaySteps, StepResult } from '@/lib/activity-steps';
 import { StepDay } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 export default function ActivityOverview() {
   const { stepGoals = [], saveStepGoal, preferences = DEFAULT_PREFERENCES, setSectionVisibility } = useTrackers();
@@ -64,15 +64,15 @@ export default function ActivityOverview() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.muted}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>; }
-function Action({ label, onPress, secondary }: { label: string; onPress: () => void; secondary?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, secondary && styles.secondary]}><Text style={styles.actionText}>{label}</Text></Pressable>; }
+function Action({ label, onPress, secondary }: { label: string; onPress: () => void; secondary?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, secondary && styles.secondary]}><Text style={[styles.actionText, !secondary && { color: colors.background }]}>{label}</Text></Pressable>; }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
-  eyebrow: { color: colors.activityNav, fontWeight: '700', letterSpacing: 2 }, card: { padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
-  title: { color: colors.text, fontSize: 20, fontWeight: '700' }, muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18 }, stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  ring: { width: 164, height: 164, alignItems: 'center', justifyContent: 'center' }, ringLabel: { position: 'absolute', alignItems: 'center' }, big: { color: colors.activityNav, fontSize: 29, fontWeight: '700' }, goalBox: { flex: 1, gap: 8 }, goalText: { color: colors.activityNav, fontWeight: '700', fontSize: 15 },
-  metrics: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, metric: { flexGrow: 1, flexBasis: 90, backgroundColor: colors.surfaceRaised, padding: 12, borderRadius: 13 }, metricValue: { color: colors.text, fontWeight: '700', fontSize: 16, marginTop: 4 },
-  input: { color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 9 }, action: { backgroundColor: colors.activityNav, minHeight: 46, justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 13 }, secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 }, actionText: { color: colors.text, fontWeight: '700' },
-  chart: { height: 130, flexDirection: 'row', gap: 8, alignItems: 'flex-end' }, chartSlot: { flex: 1, alignItems: 'center', gap: 6 }, barTrack: { width: '100%', height: 105, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.border }, bar: { width: '100%', backgroundColor: colors.activityNav, borderTopLeftRadius: 4, borderTopRightRadius: 4 }, dayLabel: { color: colors.textMuted, fontSize: 11 },
-  dayName: { color: colors.text, fontWeight: '600', fontSize: 14 }, historyRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 10 },
+  eyebrow: { color: colors.activityNav, fontFamily: font.bold, letterSpacing: 2 }, card: { padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
+  title: { color: colors.text, fontSize: 20, fontFamily: font.bold }, muted: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18 }, stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ring: { width: 164, height: 164, alignItems: 'center', justifyContent: 'center' }, ringLabel: { position: 'absolute', alignItems: 'center' }, big: { color: colors.activityNav, fontSize: 29, fontFamily: font.bold }, goalBox: { flex: 1, gap: 8 }, goalText: { color: colors.activityNav, fontFamily: font.bold, fontSize: 15 },
+  metrics: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, metric: { flexGrow: 1, flexBasis: 90, backgroundColor: colors.surfaceRaised, padding: 12, borderRadius: 13 }, metricValue: { color: colors.text, fontFamily: font.bold, fontSize: 16, marginTop: 4 },
+  input: { color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 9 }, action: { backgroundColor: colors.activityNav, minHeight: 46, justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 13 }, secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 }, actionText: { color: colors.text, fontFamily: font.bold },
+  chart: { height: 130, flexDirection: 'row', gap: 8, alignItems: 'flex-end' }, chartSlot: { flex: 1, alignItems: 'center', gap: 6 }, barTrack: { width: '100%', height: 105, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.border }, bar: { width: '100%', backgroundColor: colors.activityNav, borderTopLeftRadius: 4, borderTopRightRadius: 4 }, dayLabel: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular},
+  dayName: { color: colors.text, fontFamily: font.semibold, fontSize: 14 }, historyRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 10 },
 });

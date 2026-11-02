@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { canApplyUnlockResult, canStartBiometricUnlock, PIN_MAX_LENGTH, type AppLockLifecycleState } from '@/lib/app-lock';
 import { useAppLock } from '@/state/app-lock-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 import { BrandedLoading } from '@/components/branded-loading';
 
 export function AppLockScreen({ loading = false }: { loading?: boolean }) {
@@ -122,20 +122,20 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg },
   brand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 34 },
   mark: { width: 48, height: 48, borderRadius: 12 },
-  wordmark: { color: colors.text, fontSize: 18, fontWeight: '700', letterSpacing: 4 },
+  wordmark: { color: colors.text, fontSize: 18, fontFamily: font.bold, letterSpacing: 4 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg },
-  eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '700', marginTop: 10 },
-  copy: { color: colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 8 },
-  input: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 14, color: colors.text, fontSize: 20, fontWeight: '600', letterSpacing: 8, marginTop: 22, minHeight: 56, paddingHorizontal: 16, textAlign: 'center' },
-  message: { color: colors.danger, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' },
+  eyebrow: { color: colors.accent, fontSize: 11, fontFamily: font.bold, letterSpacing: 1.5 },
+  title: { color: colors.text, fontSize: 28, fontFamily: font.bold, marginTop: 10 },
+  copy: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 19, marginTop: 8 },
+  input: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 14, color: colors.text, fontSize: 20, fontFamily: font.semibold, letterSpacing: 8, marginTop: 22, minHeight: 56, paddingHorizontal: 16, textAlign: 'center' },
+  message: { color: colors.danger, fontSize: 11, fontFamily: font.regular, lineHeight: 16, marginTop: 10, textAlign: 'center' },
   primary: { alignItems: 'center', backgroundColor: colors.accent, borderRadius: 14, marginTop: 16, paddingVertical: 15 },
-  primaryText: { color: colors.background, fontSize: 13, fontWeight: '700' },
+  primaryText: { color: colors.background, fontSize: 13, fontFamily: font.bold },
   secondary: { alignItems: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 10, paddingVertical: 14 },
-  secondaryText: { color: colors.text, fontSize: 12, fontWeight: '600' },
+  secondaryText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.8 },
   loading: { alignItems: 'center', gap: 14 },
-  loadingText: { color: colors.textMuted, fontSize: 12 },
-  footer: { color: colors.textDim, fontSize: 11, lineHeight: 15, marginTop: 22, textAlign: 'center' },
+  loadingText: { color: colors.textMuted, fontSize: 12 , fontFamily: font.regular},
+  footer: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 15, marginTop: 22, textAlign: 'center' },
 });

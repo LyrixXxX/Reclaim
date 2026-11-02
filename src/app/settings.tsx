@@ -19,7 +19,7 @@ import { MONETIZATION_ENABLED, PURCHASES_ENABLED, TEST_ADS_ENABLED } from '@/lib
 import { NavigationSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useMonetization } from '@/state/monetization-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
 
 const sections: { id: NavigationSection; label: string; description: string }[] = [
   { id: 'goals', label: 'Habits', description: 'Habits you are quitting, reducing, or building.' },
@@ -180,26 +180,26 @@ function messageFrom(error: unknown) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingBottom: 50 },
-  section: { color: colors.text, fontSize: 18, fontWeight: '600', marginTop: 26, marginBottom: 10 },
+  section: { color: colors.text, fontSize: 18, fontFamily: font.semibold, marginTop: 26, marginBottom: 10 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, overflow: 'hidden' },
   backupCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg },
-  backupTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  backupText: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 6 },
+  backupTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
+  backupText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginTop: 6 },
   primary: { backgroundColor: colors.settingsNav, borderRadius: 14, alignItems: 'center', paddingVertical: 14, marginTop: 16 },
-  primaryText: { color: colors.background, fontSize: 12, fontWeight: '700' },
+  primaryText: { color: colors.background, fontSize: 12, fontFamily: font.bold },
   secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 14, alignItems: 'center', paddingVertical: 14, marginTop: 10 },
   privacyPolicyLink: { marginBottom: spacing.md },
-  secondaryText: { color: colors.text, fontSize: 12, fontWeight: '600' },
+  secondaryText: { color: colors.text, fontSize: 12, fontFamily: font.semibold },
   disabled: { opacity: 0.55 },
-  privacy: { color: colors.textDim, fontSize: 11, lineHeight: 14, marginTop: 12 },
+  privacy: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 14, marginTop: 12 },
   row: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomColor: colors.border, borderBottomWidth: 1 },
-  navHint: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginBottom: 10 },
+  navHint: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginBottom: 10 },
   dragHandle: { alignItems: 'center', justifyContent: 'center', width: 40, height: 48, borderRadius: 10, backgroundColor: colors.surfaceRaised, zIndex: 1 },
-  dragText: { color: colors.textMuted, fontSize: 18, fontWeight: '600' },
+  dragText: { color: colors.textMuted, fontSize: 18, fontFamily: font.semibold },
   rowBody: { flex: 1 },
-  rowTitle: { color: colors.text, fontSize: 13, fontWeight: '600' },
-  rowText: { color: colors.textMuted, fontSize: 11, lineHeight: 15, marginTop: 3 },
+  rowTitle: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
+  rowText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 15, marginTop: 3 },
   notice: { backgroundColor: colors.accentSoft, borderRadius: 14, padding: 14, marginTop: 20 },
-  noticeTitle: { color: colors.accent, fontSize: 11, fontWeight: '600' },
-  noticeText: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  noticeTitle: { color: colors.accent, fontSize: 11, fontFamily: font.semibold },
+  noticeText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 16, marginTop: 4 },
 });

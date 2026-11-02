@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LayoutChangeEvent, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export type WorkoutChartPoint = { id: string; date: string; value: number };
 
@@ -25,7 +25,7 @@ export function WorkoutTrendChart({ points, unit, onSelect }: { points: WorkoutC
       {plotted.map((point) => <Circle key={point.id} cx={point.x} cy={point.y} r={20} fill="transparent" stroke="transparent" onPress={() => { setSelectedId(point.id); onSelect?.(point); }} />)}
       {plotted.map((point) => <Circle key={`${point.id}-marker`} cx={point.x} cy={point.y} r={point.id === selected.id ? 6 : 5} fill={point.id === selected.id ? colors.workoutsNav : colors.surfaceRaised} stroke={colors.workoutsNav} strokeWidth={2} onPress={() => { setSelectedId(point.id); onSelect?.(point); }} />)}
     </Svg>
-    <Text style={{ color: colors.text, textAlign: 'center', fontWeight: '700' }}>{new Date(selected.date).toLocaleDateString()} · {Math.round(selected.value * 10) / 10} {unit}</Text>
+    <Text style={{ color: colors.text, textAlign: 'center', fontFamily: font.bold }}>{new Date(selected.date).toLocaleDateString()} · {Math.round(selected.value * 10) / 10} {unit}</Text>
     {onSelect && <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 4 }}>Tap a point to inspect its workout below.</Text>}
   </View>;
 }
