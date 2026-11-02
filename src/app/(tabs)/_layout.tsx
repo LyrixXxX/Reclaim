@@ -26,8 +26,7 @@ export default function TabsLayout() {
     screenOptions={{ lazy: true, lazyPreloadDistance: 1, sceneStyle: { backgroundColor: colors.background } }}>
     <TopTabs.Screen name="index" />
     {normalizeNavigationOrder(preferences.navigationOrder).map((section) => <TopTabs.Protected key={section} guard={!!preferences.visibleSections[section]}>
-      {/* The route map pans horizontally, so paging there would fight the map. */}
-      <TopTabs.Screen name={sectionRoutes[section]} options={section === 'routes' ? { swipeEnabled: false } : undefined} />
+      <TopTabs.Screen name={sectionRoutes[section]} />
     </TopTabs.Protected>)}
     <TopTabs.Screen name="settings" />
   </TopTabs>;

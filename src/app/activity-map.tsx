@@ -1,6 +1,6 @@
 import { Camera, GeoJSONSource, Layer, Map, type StyleSpecification } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import { Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Href, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -70,6 +70,7 @@ export default function ActivityMapScreen() {
   const viewportRef = useRef<MapViewport | null>(null);
   const [cameraStart, setCameraStart] = useState<MapViewport | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const navigation = useNavigation();
   const followingRef = useRef(true);
   const positionRef = useRef<[number, number] | null>(null);
   const mapModeRef = useRef<'map' | 'follow'>('map');
@@ -292,6 +293,12 @@ export default function ActivityMapScreen() {
     const calorieDuration = pending.movingMs === undefined ? activityDurationMs(pending) : pending.movingMs;
     setPending({ ...pending, kind: choice, estimatedCalories: estimatedRouteCalories(pending.distanceMeters, calorieDuration, pending.estimateWeightKg, choice) ?? undefined });
   };
+  // Page swiping in the section pager only conflicts with a pannable map: the expanded map, or a
+  // route being recorded. The collapsed idle map ignores drags, so sections can swipe past it.
+  // nestedScrollEnabled on the page follows the same rule: on Android it swallows page swipes.
+  useEffect(() => {
+    navigation.setOptions({ swipeEnabled: !active && !mapExpanded });
+  }, [navigation, active, mapExpanded]);
   useEffect(() => {
     if (!routeId || routeId === handledRouteId.current || !activityRoutes.some((route) => route.id === routeId)) return;
     handledRouteId.current = routeId;
@@ -347,6 +354,9 @@ export default function ActivityMapScreen() {
   const renderMapPanel = (expanded: boolean) => <View style={expanded ? styles.expandedMap : [styles.fullMap, active && styles.recordingMap]}>
     {style && mapCenter && !mapError ? <Map
       ref={mapRef}
+      // Once loaded the map takes input focus, and the section pager then spends its next touch
+      // reclaiming focus, so the first swipe off Routes would do nothing.
+      focusable={false}
       style={styles.map}
       mapStyle={style}
       compass={false}
@@ -383,7 +393,7 @@ export default function ActivityMapScreen() {
       <Pressable accessibilityRole="button" accessibilityLabel="Map attribution and information" onPress={showMapAttribution} hitSlop={8} style={styles.mapAttributionButton}><Text style={styles.mapAttributionIcon}>i</Text></Pressable>
     </View>}
   </View>;
-  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled contentContainerStyle={styles.content}>
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled={!!active || mapExpanded} contentContainerStyle={styles.content}>
     <MainScreenHeader title="Routes" subtitle="Record walks, hikes, and runs with GPS." accent={colors.activityNav} action={<Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Settings</Text></Pressable>} />
     {pending ? <View style={styles.card}><Text style={styles.cardTitle}>Route completed 🎉</Text><Text style={styles.body}>{new Date(pending.endedAt).toLocaleString(undefined, { hour12: true })}</Text><RoutePreview points={pending.points} /><View style={styles.metrics}><Metric label="Distance" value={formatMiles(pending.distanceMeters)} /><Metric label="Elapsed time" value={formatDuration(activityDurationMs(pending))} /><Metric label="Moving time" value={pending.movingMs === undefined ? '—' : formatDuration(pending.movingMs)} /><Metric label="Moving pace" value={formatPace(pending.movingMs === undefined ? null : averagePaceMinPerMile(pending.distanceMeters, pending.movingMs))} /><Metric label="Stopped time" value={pending.stoppedMs === undefined ? "—" : formatDuration(pending.stoppedMs)} /><Metric label="Overall pace" value={formatPace(averagePaceMinPerMile(pending.distanceMeters, activityDurationMs(pending)))} /><Metric label="Est. calories" value={pending.estimatedCalories == null ? '—' : `${pending.estimatedCalories} kcal`} /><Metric label="Route Steps" value={pending.routeSteps === undefined ? '—' : pending.routeSteps.toLocaleString()} /></View><Text style={styles.note}>Elapsed time excludes manual pauses. Unclassified GPS time is not counted as movement.</Text><Text style={styles.body}>Route name</Text><TextInput accessibilityLabel="Route name" value={routeName} onChangeText={setRouteName} maxLength={120} placeholder={pending.kind === 'route' ? 'Route' : pending.kind} placeholderTextColor={colors.textDim} style={styles.input} /><Text style={styles.body}>Activity type</Text><View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} onPress={() => changePendingKind(choice)} style={[styles.smallButton, pending.kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View><Text style={styles.body}>Notes (optional)</Text><TextInput accessibilityLabel="Route notes" value={routeNotes} onChangeText={setRouteNotes} maxLength={2000} multiline placeholder="Anything you want to remember" placeholderTextColor={colors.textDim} style={[styles.input, { minHeight: 80 }]} /><View style={styles.row}><View style={{ flex: 1 }}><Button label="Save route" onPress={savePending} /></View><View style={{ flex: 1 }}><Button label="Discard" onPress={discardPending} secondary /></View></View></View> : null}
     {!pending && <View style={active ? styles.recordingShell : styles.idleShell}>
