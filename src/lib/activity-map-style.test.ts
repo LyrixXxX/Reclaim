@@ -1,4 +1,4 @@
-import { rasterMapStyle, rasterTileCoordinates, rasterTileUrl } from './activity-map-style';
+import { RASTER_MAX_ZOOM, rasterMapStyle, rasterTileCoordinates, rasterTileUrl } from './activity-map-style';
 
 test('builds a directly authenticated Stadia raster source with attribution', () => {
   expect(rasterTileUrl('a+b')).toContain('api_key=a%2Bb');
@@ -7,6 +7,13 @@ test('builds a directly authenticated Stadia raster source with attribution', ()
   if (source.type !== 'raster') throw new Error('Expected a raster source');
   expect(source.tiles?.[0]).toContain('api_key=a%2Bb');
   expect(source.attribution).toContain('OpenStreetMap');
+});
+
+test('caps tile requests at the deepest zoom Stadia serves', () => {
+  const source = rasterMapStyle('key').sources.stadia;
+  if (source.type !== 'raster') throw new Error('Expected a raster source');
+  expect(source.maxzoom).toBe(RASTER_MAX_ZOOM);
+  expect(RASTER_MAX_ZOOM).toBeLessThanOrEqual(20);
 });
 
 test('locates a valid tile at the dateline and latitude limits', () => {
