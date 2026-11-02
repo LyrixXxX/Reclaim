@@ -22,6 +22,7 @@ export type TrackerDraft = {
   habitLogStyle?: 'done' | 'count';
   habitTemplate?: Tracker['habitTemplate'];
   habitGoalValue?: string;
+  mindfulnessVisualMode?: 'breathing' | 'quiet';
   exerciseGoalMode?: 'times' | 'minutes';
   exerciseRegimenRows?: { id: string; label: string; days: number[] }[];
   producePresets?: number[];
@@ -71,6 +72,7 @@ export function validateTrackerDraft(draft: TrackerDraft): TrackerValidation {
         if (draft.exerciseRegimenRows && (draft.exerciseRegimenRows.length > 20 || new Set(draft.exerciseRegimenRows.map((row) => row.id)).size !== draft.exerciseRegimenRows.length || draft.exerciseRegimenRows.some((row) => !row.id || !row.label.trim() || row.days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)))) errors.exerciseRegimenRows = 'Use up to 20 uniquely named regimen rows with valid days.';
       }
       if (draft.habitTemplate === 'produce' && draft.producePresets && (draft.producePresets.length > 8 || draft.producePresets.some((value) => !Number.isFinite(value) || value <= 0 || value > 20))) errors.producePresets = 'Use up to eight valid serving shortcuts.';
+      if (draft.habitTemplate === 'mindfulness' && draft.mindfulnessVisualMode && !['breathing', 'quiet'].includes(draft.mindfulnessVisualMode)) errors.mindfulnessVisualMode = 'Choose a visual style.';
     } else {
       const count = Number(draft.frequencyCount);
       if (!Number.isInteger(count) || count < 1) errors.frequencyCount = 'Enter a whole number of at least 1.';
@@ -110,6 +112,7 @@ export function trackerFromDraft(draft: TrackerDraft, id: TrackerId, existing?: 
     habitTemplate: draft.mode === 'habit' ? draft.habitTemplate : undefined,
     habitGoalHistory: draft.mode === 'habit' && draft.habitTemplate && templateConfig(draft.habitTemplate) && !templateConfig(draft.habitTemplate)?.checklist
       ? reconcileDated(existing?.habitGoalHistory ?? [], Number(draft.habitGoalValue), localDateKey()) : existing?.habitGoalHistory,
+    mindfulnessVisualMode: draft.habitTemplate === 'mindfulness' ? draft.mindfulnessVisualMode ?? existing?.mindfulnessVisualMode ?? 'breathing' : existing?.mindfulnessVisualMode,
     exerciseGoalModes: draft.habitTemplate === 'exercise' ? reconcileExerciseModes(existing?.exerciseGoalModes ?? [], draft.exerciseGoalMode ?? 'times', localDateKey()) : existing?.exerciseGoalModes,
     exerciseRegimenHistory: draft.habitTemplate === 'exercise' ? reconcileRegimen(existing?.exerciseRegimenHistory ?? [], draft.exerciseRegimenRows ?? [], localDateKey()) : existing?.exerciseRegimenHistory,
     producePresets: draft.habitTemplate === 'produce' ? draft.producePresets ?? existing?.producePresets ?? [0.5, 1] : existing?.producePresets,

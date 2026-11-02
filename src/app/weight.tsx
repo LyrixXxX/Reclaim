@@ -1,7 +1,5 @@
 import { HistoryPages } from '@/components/history-pages';
-import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,41 +7,59 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { WeightChart } from '@/components/weight-chart';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { ActivityRoute, NutritionEntry, StepDay, WeightEntry, WeightTdeeProfile } from '@/models/tracker';
-import { parseWeightExport, weightHistoryChronological, weightStats } from '@/lib/weight';
+import { weightHistoryChronological, weightStats } from '@/lib/weight';
+import { shouldOfferWeightSaveAd } from '@/lib/ad-frequency';
+import { suggestedMacroUpdate, weightPounds } from '@/lib/macro-targets';
+import { goalForDate } from '@/lib/nutrition';
 import { readStepHistory } from '@/lib/activity-step-history';
 import { estimateDailyTdee, feetInchesFromCm, heightCmFromFeetInches, previousDayCalories, previousLocalDate, validTdeeProfile } from '@/lib/weight-tdee';
 import { dashboardDate } from '@/lib/dashboard-content';
 import { localDateKey } from '@/lib/progress';
 import { useTrackers } from '@/state/tracker-context';
+import { useAds } from '@/state/ads-context';
 import { colors, layout, spacing } from '@/theme';
 
 const numberValue = (value: string) => value.trim() ? Number(value) : null;
 
 export default function WeightScreen() {
   const { add } = useLocalSearchParams<{ add?: string }>();
-  const { weightEntries = [], nutritionEntries = [], activityRoutes = [], weightTdeeProfile, importWeightHistory, saveWeightEntry, deleteWeightEntry, saveWeightTdeeProfile } = useTrackers();
+  const { weightEntries = [], nutritionEntries = [], nutritionGoals = [], activityRoutes = [], weightTdeeProfile, macroUpdateDismissedWeightLb, saveWeightEntry, deleteWeightEntry, saveWeightTdeeProfile, dismissMacroUpdate } = useTrackers();
+  const { showCompletionAd } = useAds();
   const [editing, setEditing] = useState<WeightEntry | null>(null); const [formOpen, setFormOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stepDays, setStepDays] = useState<StepDay[]>([]);
-  const [showImport, setShowImport] = useState(false);
-  useFocusEffect(useCallback(() => { if (add === '1') { setEditing(null); setFormOpen(true); router.setParams({ add: '' }); } }, [add]));
+  useFocusEffect(useCallback(() => { if (add === '1') { setEditing(null); setFormOpen(true); router.setParams({ add: '' }); } }, [add, setEditing, setFormOpen]));
   const stats = useMemo(() => weightStats(weightEntries), [weightEntries]);
   const ordered = useMemo(() => weightHistoryChronological(weightEntries), [weightEntries]);
-  useEffect(() => { if (formOpen) readStepHistory().then(setStepDays).catch(() => setStepDays([])); }, [formOpen]);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    readStepHistory().then((days) => { if (active) setStepDays(days); }).catch(() => { if (active) setStepDays([]); });
+    return () => { active = false; };
+  }, []));
+  const latestWeight = ordered.at(-1);
+  const currentMacroGoal = goalForDate(nutritionGoals, localDateKey());
+  const tdee = useMemo(() => weightTdeeProfile && latestWeight
+    ? estimateDailyTdee({ profile: weightTdeeProfile, weighInDate: localDateKey(new Date()), weight: latestWeight.weight, unit: latestWeight.unit, steps: stepDays, routes: activityRoutes })
+    : null, [weightTdeeProfile, latestWeight, stepDays, activityRoutes]);
 
-  const chooseImport = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
-      if (result.canceled) return;
-      const parsed = parseWeightExport(await new File(result.assets[0].uri).text());
-      const existingDates = new Set(weightEntries.map((entry) => entry.date));
-      const newCount = parsed.entries.filter((entry) => !existingDates.has(entry.date)).length;
-      const duplicateCount = parsed.entries.length - newCount;
-      Alert.alert('Import weight history?', `${parsed.entries.length} valid entries found\n${newCount} new · ${duplicateCount} already in Reclaim\n\nYour original Weight Tracker data will not be changed.`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Import', onPress: () => { const summary = importWeightHistory(parsed); Alert.alert('Import complete', `${summary.added} entries added. ${summary.duplicates} duplicates safely skipped.`); } },
-      ]);
-    } catch (error) { Alert.alert('Could not import', error instanceof Error ? error.message : 'The selected file could not be read.'); }
+  const saveWeighIn = (entry: Omit<WeightEntry, 'id' | 'recordedAt'>) => {
+    const today = localDateKey();
+    const offerAd = shouldOfferWeightSaveAd(entry.date, today, !!editing, weightEntries.map((item) => item.date));
+    const macroUpdate = suggestedMacroUpdate(currentMacroGoal, entry, today, macroUpdateDismissedWeightLb);
+    saveWeightEntry(entry);
+    setFormOpen(false);
+    setTimeout(() => {
+      const promptMacroUpdate = () => {
+        if (!macroUpdate) return;
+        const pounds = weightPounds(entry.weight, entry.unit);
+        Alert.alert('Review updated macro split?', 'Your weight has changed by at least 2% since the last accepted split. Your calorie target will stay the same, and no macros change unless you review and save them.', [
+          { text: 'Not now', style: 'cancel', onPress: () => dismissMacroUpdate(pounds) },
+          { text: 'Review in Macros', onPress: () => router.push({ pathname: '/nutrition-settings', params: { reviewWeight: String(entry.weight), reviewUnit: entry.unit } }) },
+        ]);
+      };
+      if (offerAd) void showCompletionAd('weight').catch(() => undefined).then(promptMacroUpdate);
+      else promptMacroUpdate();
+    }, 300);
   };
 
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -53,19 +69,37 @@ export default function WeightScreen() {
       <Text style={styles.subtitle}>{dashboardDate(stats.latestDate)}</Text>
       <Text style={styles.heroValue}>{format(stats.current)} <Text style={styles.unit}>{ordered.at(-1)?.unit ?? 'lb'}</Text></Text>
       <View style={styles.stats}><Stat label="7-DAY AVG" value={format(stats.sevenDayAverage)} /><Stat label="CHANGE" value={`${stats.change > 0 ? '+' : ''}${format(stats.change)}`} /><Stat label="LOWEST" value={format(stats.lowest)} /></View>
-      <Text style={styles.subtitle}>Average: {stats.averageReadings} recorded {stats.averageReadings === 1 ? 'reading' : 'readings'} in the 7 days ending {dashboardDate(stats.latestDate)}. Missing days are excluded.</Text>
-    </View> : <View style={styles.hero}><Text style={styles.heroLabel}>WEIGHT HISTORY</Text><Text style={styles.empty}>Import your existing Weight Tracker history to get started.</Text></View>}
+<Text style={styles.subtitle}>Average: {stats.averageReadings} recorded {stats.averageReadings === 1 ? 'reading' : 'readings'} in the 7 days ending {dashboardDate(stats.latestDate)}. Missing days are excluded.</Text>
+    </View> : <View style={styles.hero}><Text style={styles.heroLabel}>WEIGHT HISTORY</Text><Text style={styles.empty}>Add your first weigh-in to get started.</Text></View>}
+    {currentMacroGoal && <Pressable accessibilityRole="button" accessibilityLabel="Weight and Macros. Open macro targets" onPress={() => router.push('/nutrition-settings')} style={macroLinkStyles.card}>
+      <Text style={macroLinkStyles.title}>Weight & Macros</Text>
+      <Text style={macroLinkStyles.detail}>{currentMacroGoal.macroMethod === 'calculated' && currentMacroGoal.calculation
+        ? `Current split uses ${Math.round(currentMacroGoal.calculation.sourceWeightLb * 10) / 10} lb · ${currentMacroGoal.fitnessGoal?.replace('-', ' ') ?? 'fitness goal'}.`
+        : 'Your calorie and macro targets are set manually; weigh-ins do not change them.'}</Text>
+      <Text style={macroLinkStyles.note}>{currentMacroGoal.macroMethod === 'calculated' && currentMacroGoal.fitnessGoal !== 'maintenance' ? 'A new weigh-in may offer a revised split. Nothing changes until you review and save it.' : 'Weigh-ins do not automatically change your Nutrition targets.'}</Text>
+      <Text style={macroLinkStyles.action}>Review in Macros ›</Text>
+    </Pressable>}
     <Pressable style={styles.primary} onPress={() => { setEditing(null); setFormOpen(true); }}><Text style={styles.primaryText}>+ Add Weigh-in</Text></Pressable>
     <Pressable style={styles.importButton} onPress={() => setSettingsOpen(true)}><Text style={styles.importText}>{weightTdeeProfile ? 'Edit TDEE estimate setup' : 'Set up TDEE estimate'}</Text></Pressable>
-    {!ordered.length && <Pressable style={styles.importButton} onPress={chooseImport}><Text style={styles.importText}>Import from Weight Tracker</Text></Pressable>}
+    {tdee ? <View style={tdeeStyles.card}>
+      <Text style={styles.heroLabel}>ESTIMATED DAILY ENERGY BURN</Text>
+      <Text style={tdeeStyles.total}>{tdee.total.toLocaleString()} <Text style={tdeeStyles.unit}>kcal</Text></Text>
+      <Text style={styles.subtitle}>Estimate for {dashboardDate(tdee.activityDate)} using your latest recorded weight. Not a measured burn or a nutrition goal.</Text>
+      <TdeeRow label="BMR (resting)" value={tdee.bmr} />
+      <TdeeRow label="Ordinary activity" value={tdee.ordinaryActivity} />
+      <TdeeRow label="Phone steps outside Routes" value={tdee.stepCalories} />
+      <TdeeRow label="Routes" value={tdee.routeCalories} />
+      <TdeeRow label="Food digestion estimate" value={tdee.foodDigestion} />
+      {tdee.stepStatus !== 'recorded' && <Text style={styles.subtitle}>{tdee.stepStatus === 'missing' ? 'No phone step data for this day; the estimate may be low.' : 'Phone step data for this day is incomplete.'}</Text>}
+    </View> : null}
     <WeightChart entries={weightEntries} />
     <Text style={styles.sectionTitle}>Weight history</Text><View style={styles.list}><HistoryPages key={ordered.length ? 'with-entries' : 'empty'} items={ordered} startAt="last">{(page) => page.map((entry) => <Pressable key={entry.id} onPress={() => { setEditing(entry); setFormOpen(true); }} style={styles.row}><View><Text style={styles.date}>{new Date(`${entry.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</Text><Text style={styles.meta}>{entry.caloriesEaten ?? '—'} eaten · {entry.estimatedBurn ?? '—'} burn{entry.source === 'health-connect' ? ` · Health Connect (${entry.sourceApp ?? 'connected app'})` : ''}</Text>{entry.notes ? <Text style={styles.note}>{entry.notes}</Text> : null}</View><Text style={styles.rowWeight}>{format(entry.weight)} {entry.unit}</Text></Pressable>)}</HistoryPages>{!ordered.length && <Text style={styles.empty}>No entries recorded yet.</Text>}</View>
-    {ordered.length > 0 && <>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: showImport }} onPress={() => setShowImport((value) => !value)} style={styles.importButton}><Text style={styles.importText}>Transfer from old Weight Tracker {showImport ? '−' : '+'}</Text></Pressable>
-      {showImport && <Pressable style={styles.importButton} onPress={chooseImport}><Text style={styles.importText}>Choose Weight Tracker export</Text></Pressable>}
-    </>}
     <Text style={styles.disclaimer}>Personal tracking only. Reclaim does not provide medical advice.</Text>
-  </ScrollView>{formOpen ? <WeightEntryModal entry={editing} nutritionEntries={nutritionEntries} routes={activityRoutes} steps={stepDays} profile={weightTdeeProfile} onClose={() => setFormOpen(false)} onSave={(entry) => { saveWeightEntry(entry); setFormOpen(false); }} onDelete={editing ? () => Alert.alert('Delete weigh-in?', `Remove the entry for ${editing.date}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => { deleteWeightEntry(editing.date, true); setFormOpen(false); } }]) : undefined} /> : null}{settingsOpen ? <TdeeSettingsModal profile={weightTdeeProfile} onClose={() => setSettingsOpen(false)} onSave={(profile) => { saveWeightTdeeProfile(profile); setSettingsOpen(false); }} /> : null}</SafeAreaView>;
+  </ScrollView>{formOpen ? <WeightEntryModal entry={editing} nutritionEntries={nutritionEntries} routes={activityRoutes} steps={stepDays} profile={weightTdeeProfile} onClose={() => setFormOpen(false)} onSave={saveWeighIn} onDelete={editing ? () => Alert.alert('Delete weigh-in?', `Remove the entry for ${editing.date}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => { deleteWeightEntry(editing.date, true); setFormOpen(false); } }]) : undefined} /> : null}{settingsOpen ? <TdeeSettingsModal profile={weightTdeeProfile} onClose={() => setSettingsOpen(false)} onSave={(profile) => { saveWeightTdeeProfile(profile); setSettingsOpen(false); }} /> : null}</SafeAreaView>;
+}
+
+function TdeeRow({ label, value }: { label: string; value: number }) {
+  return <View style={tdeeStyles.row}><Text style={tdeeStyles.rowLabel}>{label}</Text><Text style={tdeeStyles.rowValue}>{value.toLocaleString()} kcal</Text></View>;
 }
 
 function WeightEntryModal({ entry, nutritionEntries, routes, steps, profile, onClose, onSave, onDelete }: {
@@ -139,6 +173,22 @@ function TdeeSettingsModal({ profile, onClose, onSave }: { profile?: WeightTdeeP
 function Stat({ label, value }: { label: string; value: string }) { return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>; }
 const format = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
 const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingBottom: 36 }, eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.7, fontWeight: '800', marginTop: 24 }, title: { color: colors.text, fontSize: 38, fontWeight: '900', marginTop: 8 }, subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 }, hero: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 24 }, heroLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1.2, fontWeight: '800' }, heroValue: { color: colors.text, fontSize: 44, fontWeight: '900', marginTop: 8 }, unit: { color: colors.textMuted, fontSize: 18 }, stats: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, marginTop: 16, paddingTop: 14 }, stat: { flex: 1, alignItems: 'center' }, statValue: { color: colors.text, fontSize: 16, fontWeight: '800' }, statLabel: { color: colors.textDim, fontSize: 8, fontWeight: '800', marginTop: 4 }, primary: { backgroundColor: colors.accent, borderRadius: 15, paddingVertical: 15, alignItems: 'center', marginTop: 14 }, primaryText: { color: colors.background, fontWeight: '900', fontSize: 13 }, importButton: { borderColor: colors.border, borderWidth: 1, backgroundColor: colors.surface, borderRadius: 15, paddingVertical: 14, alignItems: 'center', marginTop: 10 }, importText: { color: colors.text, fontWeight: '800', fontSize: 12 }, sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '800', marginTop: 26, marginBottom: 10 }, list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, paddingHorizontal: spacing.md }, row: { minHeight: 64, flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }, date: { color: colors.text, fontSize: 13, fontWeight: '800' }, meta: { color: colors.textMuted, fontSize: 10, marginTop: 4 }, note: { color: colors.textMuted, fontSize: 10, marginTop: 4 }, rowWeight: { color: colors.text, fontSize: 15, fontWeight: '900' }, empty: { color: colors.textMuted, fontSize: 12, lineHeight: 19, paddingVertical: 18 }, disclaimer: { color: colors.textDim, fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 24 }, modal: { flex: 1, backgroundColor: colors.background }, modalContent: { flexGrow: 1, width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: 24 }, modalTitle: { color: colors.text, fontSize: 28, fontWeight: '900', marginBottom: 10 }, fieldLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 12, marginBottom: 5 }, input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.text, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 }, notes: { minHeight: 88, textAlignVertical: 'top' }, cancel: { borderColor: colors.border, borderWidth: 1, borderRadius: 15, paddingVertical: 14, alignItems: 'center', marginTop: 10 }, cancelText: { color: colors.text, fontWeight: '800' }, delete: { alignItems: 'center', paddingVertical: 14, marginTop: 18 }, deleteText: { color: colors.danger, fontSize: 12, fontWeight: '700' } });
+const macroLinkStyles = StyleSheet.create({
+  card: { backgroundColor: colors.surface, borderColor: colors.weightNav, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 14 },
+  title: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  detail: { color: colors.text, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  note: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },
+  action: { color: colors.weightNav, fontSize: 12, fontWeight: '900', marginTop: 10 },
+});
+const tdeeStyles = StyleSheet.create({
+  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg, marginTop: 14 },
+  total: { color: colors.text, fontSize: 32, fontWeight: '900', marginTop: 8 },
+  unit: { color: colors.textMuted, fontSize: 16 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopColor: colors.border, borderTopWidth: 1, paddingVertical: 10 },
+  rowLabel: { color: colors.textMuted, fontSize: 12, flex: 1 },
+  rowValue: { color: colors.text, fontSize: 12, fontWeight: '800' },
+});
+
 const estimateStyles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, marginTop: 12 },
   title: { color: colors.weightNav, fontSize: 15, fontWeight: '800', marginBottom: 8 },

@@ -1,9 +1,9 @@
 import { PropsWithChildren, Ref } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, layout } from '@/theme';
 
-export function WorkoutPage({ children, scrollRef }: PropsWithChildren<{ scrollRef?: Ref<ScrollView> }>) { return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.page}>{children}</ScrollView></SafeAreaView>; }
+export function WorkoutPage({ children, scrollRef }: PropsWithChildren<{ scrollRef?: Ref<ScrollViewInstance> }>) { return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.page}>{children}</ScrollView></SafeAreaView>; }
 export function WorkoutCard({ children }: PropsWithChildren) { return <View style={styles.card}>{children}</View>; }
 export function WorkoutTitle({ children }: PropsWithChildren) { return <Text accessibilityRole="header" style={styles.title}>{children}</Text>; }
 export function WorkoutText({ children }: PropsWithChildren) { return <Text style={styles.text}>{children}</Text>; }

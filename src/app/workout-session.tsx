@@ -1,6 +1,6 @@
 import { Href, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Keyboard, Pressable, Text, View, type ScrollViewInstance } from 'react-native';
 import { WorkoutButton, WorkoutCard, WorkoutInput, WorkoutPage, WorkoutRow, WorkoutText, WorkoutTitle } from '@/components/workout-ui';
 import { cancelWorkoutRest, scheduleWorkoutRest } from '@/lib/workout-notifications';
 import { confirmationHaptic } from '@/lib/haptics';
@@ -24,7 +24,7 @@ export default function WorkoutSessionScreen() {
   const [manualType, setManualType] = useState<'active' | 'gross'>('active');
   const alertedRest = useRef<string | null>(null);
   const pendingSets = useRef(new Set<string>());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const exerciseOffsets = useRef<Record<string, number>>({});
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {

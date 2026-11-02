@@ -2,7 +2,7 @@ import { TrackerState } from '@/models/tracker';
 import { StepResult } from './activity-steps';
 import { goalForDate as stepGoalForDate } from './activity-step-history';
 import { exerciseCaloriesForDate } from './workouts';
-import { goalForDate as nutritionGoalForDate, macroCalories, nutritionTotals } from './nutrition';
+import { goalForDate as nutritionGoalForDate, nutritionCalorieTarget, nutritionTotals } from './nutrition';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
 import { formatMedicationTime } from './medications';
@@ -39,14 +39,14 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
     ? nutritionGoalForDate(state.nutritionGoals ?? [], today) : undefined;
   const nutrition = nutritionGoal ? {
     ...nutritionTotals(state.nutritionEntries ?? [], today),
-    budget: macroCalories(nutritionGoal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total,
+    budget: nutritionCalorieTarget(nutritionGoal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total,
   } : null;
   const nutritionReached = Boolean(nutrition && nutritionGoalReached(nutrition.calories, nutrition.budget, nutrition.entryCount));
 
   const hidden = new Set(preferences.hiddenHomeHabitIds ?? []);
   const currentWalkingIntervals = walking?.date === today ? walking.intervals : null;
   const phoneMinutes = currentWalkingIntervals ? walkingMinutesOutsideRoutes(currentWalkingIntervals, state.activityRoutes ?? [], walking?.activeRoute, now.getTime()) : 0;
-  const habitGoals: HomeHabitGoal[] = state.trackers.filter((tracker) => !tracker.archived && tracker.habitTemplate && !hidden.has(tracker.id)).flatMap((tracker) => {
+  const habitGoals: HomeHabitGoal[] = state.trackers.filter((tracker) => !tracker.archived && tracker.habitTemplate && tracker.habitTemplate !== 'mindfulness' && !hidden.has(tracker.id)).flatMap((tracker) => {
     const config = templateConfig(tracker.habitTemplate);
     if (!config && tracker.habitTemplate !== 'water') return [];
     const weekly = config?.period === 'week';

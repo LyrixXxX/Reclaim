@@ -1,11 +1,11 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, layout, spacing } from '@/theme';
 
-export function SavedAdConfirmation({ visible, adReady, onContinue }: { visible: boolean; adReady: boolean; onContinue: () => void }) {
+export function SavedAdConfirmation({ visible, onContinue, title = 'Saved', subject = 'Your entry' }: { visible: boolean; onContinue: () => void; title?: string; subject?: string }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onContinue}>
     <View style={styles.backdrop}><View style={styles.card}>
-      <Text style={styles.title}>Saved</Text>
-      <Text style={styles.body}>{adReady ? 'Your entry is saved. A test ad may appear when you continue.' : 'Your entry is saved.'}</Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{subject} is saved.</Text>
       <Pressable accessibilityRole="button" onPress={onContinue} style={styles.button}><Text style={styles.buttonText}>Continue</Text></Pressable>
     </View></View>
   </Modal>;

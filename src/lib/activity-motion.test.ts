@@ -45,3 +45,22 @@ test('slow uphill travel eventually qualifies without calling it a stop', () => 
   expect(state.movingMs).toBeGreaterThan(75_000);
   expect(state.stoppedMs).toBe(0);
 });
+
+test('steady phone-reported walking resumes a stop within two five-second fixes', () => {
+  const state = freshMotionState();
+  for (const second of [0, 5, 10, 15]) addMotionFix(state, { ...fix(second, 41.88, 15), speed: 0 });
+  expect(state.status).toBe('stopped');
+  addMotionFix(state, { ...fix(20, 41.88005, 15), speed: 1.1 });
+  expect(state.status).toBe('stopped');
+  addMotionFix(state, { ...fix(25, 41.88010, 15), speed: 1.1 });
+  expect(state.status).toBe('moving');
+  expect(state.stationaryIntervals).toHaveLength(1);
+});
+
+test('a brief speed spike without displacement does not resume a stop', () => {
+  const state = freshMotionState();
+  for (const second of [0, 5, 10, 15]) addMotionFix(state, { ...fix(second, 41.88, 15), speed: 0 });
+  addMotionFix(state, { ...fix(20, 41.880001, 15), speed: 1.2 });
+  addMotionFix(state, { ...fix(25, 41.88, 15), speed: 0 });
+  expect(state.status).not.toBe('moving');
+});

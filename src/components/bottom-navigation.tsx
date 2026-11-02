@@ -11,13 +11,14 @@ import { horizontalOverflowState } from '@/lib/navigation';
 import { useTrackers } from '@/state/tracker-context';
 import { NavigationSection } from '@/models/tracker';
 
-const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts'; label: string; icon: NavIconName; color: string; active: (path: string) => boolean }> = {
+const navigationTabs: Record<NavigationSection, { href: '/activity' | '/routes' | '/habits' | '/weight' | '/nutrition' | '/workouts' | '/supplements'; label: string; icon: NavIconName; color: string; active: (path: string) => boolean }> = {
   activity: { href: '/activity', label: 'Steps', icon: 'activity', color: colors.activityNav, active: (path) => path === '/activity' },
   routes: { href: '/routes', label: 'Routes', icon: 'routes', color: colors.activityNav, active: (path) => path === '/routes' || path === '/activity-map' || path === '/activity-routes' },
   goals: { href: '/habits', label: 'Habits', icon: 'habits', color: colors.habitsNav, active: (path) => path === '/habits' },
   weight: { href: '/weight', label: 'Weight', icon: 'weight', color: colors.weightNav, active: (path) => path.startsWith('/weight') },
   nutrition: { href: '/nutrition', label: 'Nutrition', icon: 'nutrition', color: colors.nutritionNav, active: (path) => path.startsWith('/nutrition') },
   workouts: { href: '/workouts', label: 'Workouts', icon: 'workouts', color: colors.workoutsNav, active: (path) => path.startsWith('/workout') },
+  supplements: { href: '/supplements', label: 'Supplements', icon: 'supplements', color: colors.habitsNav, active: (path) => path === '/supplements' },
 };
 
 export function BottomNavigation() {
@@ -64,9 +65,9 @@ function ScrollCue({ side }: { side: 'left' | 'right' }) {
   </View>;
 }
 
-type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'settings';
+type NavIconName = 'home' | 'habits' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'settings';
 
-function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
+function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/weight' | '/nutrition' | '/activity' | '/routes' | '/workouts' | '/supplements' | '/settings'; label: string; icon: NavIconName; color: string; active: boolean }) {
   return <Link href={href as Href} replace asChild><Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={selectionHaptic} style={styles.tab}>
     <NavIcon name={icon} active={active} />
     <Text style={[styles.label, active && { color }]}>{label}</Text>
@@ -74,11 +75,12 @@ function Tab({ href, label, icon, color, active }: { href: '/' | '/habits' | '/w
 }
 
 function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
+  if (name === 'supplements') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Image source={require('../../assets/images/supplements-navigation.png')} resizeMode="cover" style={styles.icon} /></View>;
   if (name === 'workouts') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Image source={require('../../assets/images/workouts-navigation.jpg')} resizeMode="cover" style={styles.icon} /></View>;
   if (name === 'routes') return <View style={[styles.icon, { opacity: active ? 1 : 0.58 }]} accessibilityElementsHidden><Image source={require('../../assets/images/maps-navigation.png')} resizeMode="cover" style={styles.icon} /></View>;
   const centers: Record<NavIconName, [number, number]> = {
     home: [267, 198], habits: [680, 198],
-    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], routes: [1096, 623], workouts: [1096, 623], settings: [1508, 623],
+    weight: [267, 623], nutrition: [680, 623], activity: [1096, 623], routes: [1096, 623], workouts: [1096, 623], supplements: [1096, 623], settings: [1508, 623],
   };
   const scale = 34 / 326;
   const [centerX, centerY] = centers[name];

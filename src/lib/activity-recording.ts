@@ -7,10 +7,13 @@ import { activeRouteDurationMs, estimatedRouteCalories, routeDistanceMeters, val
 import { nextMileAlert, notifyRouteMile } from './route-mile-alerts';
 import { addMotionFix, closeMotion, freshMotionState, motionTotals, MotionState, TimeInterval } from './activity-motion';
 import { canBridgeAutoPause, lostFixCoverage, nearbyRouteFix, plausibleRouteFix } from './route-continuity';
+import { readTodaySteps } from './activity-steps';
+import { localDateKey } from './progress';
+import { updateRouteSteps, type RouteStepState } from './route-steps';
 
 const TASK = 'reclaim-active-route';
 const KEY = 'reclaim:active-route:v1';
-export type ActiveRoute = { id: string; kind: ActivityRoute['kind']; startedAt: string; endedAt?: string; pausedAt?: string; pausedMs: number; segment: number; points: ActivityPoint[]; estimateWeightKg?: number; mileAlerts?: boolean; lastMileAlert?: number; autoPause?: boolean; autoPausedAt?: string; autoPauseIntervals?: TimeInterval[]; motion?: MotionState; manualPauseIntervals?: TimeInterval[]; lastReliableFix?: ActivityPoint; autoPauseCoverageBroken?: boolean; autoPauseResumePoints?: ActivityPoint[] };
+export type ActiveRoute = RouteStepState & { id: string; kind: ActivityRoute['kind']; startedAt: string; endedAt?: string; pausedAt?: string; pausedMs: number; segment: number; points: ActivityPoint[]; estimateWeightKg?: number; mileAlerts?: boolean; lastMileAlert?: number; lastMileAlertAttemptAt?: number; mileAlertError?: string; autoPause?: boolean; autoPausedAt?: string; autoPauseIntervals?: TimeInterval[]; motion?: MotionState; manualPauseIntervals?: TimeInterval[]; lastReliableFix?: ActivityPoint; autoPauseCoverageBroken?: boolean; autoPauseResumePoints?: ActivityPoint[] };
 
 export async function readActiveRoute(): Promise<ActiveRoute | null> {
   const raw = await AsyncStorage.getItem(KEY);
@@ -23,6 +26,11 @@ async function saveActiveRoute(route: ActiveRoute | null) {
   else await AsyncStorage.removeItem(KEY);
 }
 
+async function captureRouteSteps(route: ActiveRoute, reset = false) {
+  const result = await readTodaySteps(false);
+  updateRouteSteps(route, localDateKey(), result.status === 'available' ? result.count : undefined, reset);
+}
+
 TaskManager.defineTask(TASK, async ({ data, error }) => {
   if (error || !data) return;
   const route = await readActiveRoute();
@@ -31,7 +39,7 @@ TaskManager.defineTask(TASK, async ({ data, error }) => {
   let mileToNotify: number | null = null;
   for (const location of locations) {
     route.motion ??= freshMotionState();
-    const fix: ActivityPoint = { latitude: location.coords.latitude, longitude: location.coords.longitude, timestamp: location.timestamp, accuracy: location.coords.accuracy, segment: route.segment ?? 0 };
+    const fix: ActivityPoint = { latitude: location.coords.latitude, longitude: location.coords.longitude, timestamp: location.timestamp, accuracy: location.coords.accuracy, altitudeMeters: location.coords.altitude, altitudeAccuracyMeters: location.coords.altitudeAccuracy, segment: route.segment ?? 0 };
     const priorReliable = route.lastReliableFix;
     const plausible = plausibleRouteFix(priorReliable, fix);
     if (plausible) {
@@ -86,13 +94,24 @@ TaskManager.defineTask(TASK, async ({ data, error }) => {
         route.points.push(point);
         if (route.mileAlerts) {
           const crossed = nextMileAlert(routeDistanceMeters(route.points), route.lastMileAlert ?? 0);
-          if (crossed !== null) { route.lastMileAlert = crossed; mileToNotify = crossed; }
+          if (crossed !== null) mileToNotify = crossed;
         }
       }
     }
   }
-  if (locations.length) await saveActiveRoute(route);
-  if (mileToNotify !== null) await notifyRouteMile(mileToNotify, route.id).catch(() => undefined);
+  if (locations.length) { await captureRouteSteps(route); await saveActiveRoute(route); }
+  if (mileToNotify !== null && Date.now() - (route.lastMileAlertAttemptAt ?? 0) >= 30_000) {
+    try {
+      await notifyRouteMile(mileToNotify, route.id);
+      route.lastMileAlert = mileToNotify;
+      delete route.lastMileAlertAttemptAt;
+      delete route.mileAlertError;
+    } catch (error) {
+      route.lastMileAlertAttemptAt = Date.now();
+      route.mileAlertError = error instanceof Error ? error.message : 'Could not deliver the notification. Check Android notification settings.';
+    }
+    await saveActiveRoute(route);
+  }
 });
 
 async function startUpdates() {
@@ -122,10 +141,14 @@ export async function startRoute(kind: ActiveRoute['kind'], estimateWeightKg?: n
   if (!foreground.granted) throw new Error('Location access is needed to record a route.');
   const background = await Location.requestBackgroundPermissionsAsync();
   if (!background.granted) throw new Error('Allow background location so your route continues when the screen is locked.');
-  const notifications = await Notifications.getPermissionsAsync();
-  if (!notifications.granted) await Notifications.requestPermissionsAsync();
+  let notificationPermissionGranted = true;
+  if (mileAlerts) {
+    const notifications = await Notifications.getPermissionsAsync();
+    notificationPermissionGranted = notifications.granted || (notifications.canAskAgain && (await Notifications.requestPermissionsAsync()).granted);
+  }
   if (!await Location.hasServicesEnabledAsync()) throw new Error('Turn on phone location services before starting.');
-  const route: ActiveRoute = { id: `route-${Date.now()}`, kind, startedAt: new Date().toISOString(), pausedMs: 0, segment: 0, points: [], estimateWeightKg, mileAlerts, lastMileAlert: 0, autoPause, motion: freshMotionState(), manualPauseIntervals: [], autoPauseIntervals: [] };
+  const route: ActiveRoute = { id: `route-${Date.now()}`, kind, startedAt: new Date().toISOString(), pausedMs: 0, segment: 0, points: [], estimateWeightKg, mileAlerts, lastMileAlert: 0, mileAlertError: notificationPermissionGranted ? undefined : 'Allow Reclaim notifications in Android settings to receive mile alerts.', autoPause, motion: freshMotionState(), manualPauseIntervals: [], autoPauseIntervals: [] };
+  await captureRouteSteps(route, true);
   await saveActiveRoute(route);
   try { await startUpdates(); } catch (error) { await saveActiveRoute(null); throw error; }
   return route;
@@ -137,6 +160,7 @@ export async function pauseRoute(): Promise<ActiveRoute> {
   if (route.endedAt) throw new Error('Finish reviewing the completed route first.');
   if (!route.pausedAt) {
     await stopUpdates();
+    await captureRouteSteps(route);
     route.pausedAt = new Date().toISOString();
     if (route.autoPausedAt) {
       route.autoPauseIntervals ??= [];
@@ -163,6 +187,7 @@ export async function resumeRoute(): Promise<ActiveRoute> {
     route.segment = (route.segment ?? 0) + 1;
     delete route.lastReliableFix;
     delete route.pausedAt;
+    await captureRouteSteps(route, true);
     await saveActiveRoute(route);
   } else if (!await Location.hasStartedLocationUpdatesAsync(TASK)) {
     route.segment = (route.segment ?? 0) + 1;
@@ -178,6 +203,7 @@ export async function finishRoute(): Promise<ActivityRoute> {
   if (!route) throw new Error('No route is active.');
   if (route.endedAt) return completedRoute(route);
   await stopUpdates();
+  if (!route.pausedAt) await captureRouteSteps(route);
   route.endedAt = new Date().toISOString();
   if (route.autoPausedAt) {
     route.autoPauseIntervals ??= [];
@@ -196,7 +222,7 @@ function completedRoute(route: ActiveRoute): ActivityRoute {
   const activeMs = activeRouteDurationMs(route, Date.parse(endedAt));
   const times = motionTotals(route.motion, activeMs);
   const estimatedCalories = estimatedRouteCalories(distanceMeters, route.motion ? times.movingMs ?? 0 : activeMs, route.estimateWeightKg, route.kind);
-  const result: ActivityRoute = { id: route.id, kind: route.kind, startedAt: route.startedAt, endedAt, pausedMs, distanceMeters, points: route.points, movingMs: times.movingMs ?? undefined, stoppedMs: times.stoppedMs ?? undefined, unclassifiedMs: times.unclassifiedMs, manualPauseIntervals: [...(route.manualPauseIntervals ?? []), ...(route.pausedAt ? [{ startedAt: route.pausedAt, endedAt }] : [])], stationaryIntervals: route.motion?.stationaryIntervals ?? [], autoPauseIntervals: route.autoPauseIntervals ?? [], estimateWeightKg: route.estimateWeightKg, estimatedCalories: estimatedCalories ?? undefined };
+  const result: ActivityRoute = { id: route.id, kind: route.kind, startedAt: route.startedAt, endedAt, pausedMs, distanceMeters, points: route.points, movingMs: times.movingMs ?? undefined, stoppedMs: times.stoppedMs ?? undefined, unclassifiedMs: times.unclassifiedMs, manualPauseIntervals: [...(route.manualPauseIntervals ?? []), ...(route.pausedAt ? [{ startedAt: route.pausedAt, endedAt }] : [])], stationaryIntervals: route.motion?.stationaryIntervals ?? [], autoPauseIntervals: route.autoPauseIntervals ?? [], estimateWeightKg: route.estimateWeightKg, estimatedCalories: estimatedCalories ?? undefined, routeSteps: route.routeSteps, routeStepStatus: route.routeStepStatus };
   return result;
 }
 

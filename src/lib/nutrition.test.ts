@@ -1,6 +1,9 @@
 import { TrackerState } from '@/models/tracker';
 
 import {
+  applyMealBuilderSave,
+  applyMealGroupEdit,
+  applyNutritionLogBatch,
   extractServingWeightGrams,
   goalForDate,
   macroCalories,
@@ -10,6 +13,10 @@ import {
   nutritionTrendPoints,
   parseExplicitNutritionSummary,
   parseExplicitNutritionSummaries,
+  prepareNutritionLogBatch,
+  replaceLoggedMeal,
+  prepareSavedMeal,
+  removeMealGroup,
   removeSavedFood,
   removeSavedMeal,
   savedMealTotals,
@@ -18,12 +25,38 @@ import {
   upsertNutritionGoal,
   upsertSavedFood,
   upsertSavedMeal,
+  upsertMealGroup,
   validateAiNutritionResult,
 } from './nutrition';
 
 const nutrients = { carbsGrams: 20, proteinGrams: 10, fatGrams: 5, fiberGrams: 8 };
 
 describe('nutrition', () => {
+  test('meal-group editor rejects blank and duplicate names before updating state', () => {
+    const groups = [
+      { id: 'breakfast', name: 'Breakfast', sortOrder: 0, builtIn: true, archived: false },
+      { id: 'lunch', name: 'Lunch', sortOrder: 1, builtIn: true, archived: false },
+    ];
+    const custom = { id: 'custom', name: '  Pre-workout  ', sortOrder: 2, builtIn: false, archived: false };
+    expect(upsertMealGroup(groups, custom).map((group) => group.name)).toEqual(['Breakfast', 'Lunch', 'Pre-workout']);
+    expect(() => upsertMealGroup(groups, { ...custom, name: '   ' })).toThrow(/name/i);
+    expect(() => upsertMealGroup(groups, { ...custom, name: 'breakfast' })).toThrow(/already exists/i);
+    expect(groups).toHaveLength(2);
+    const state = { nutritionMealGroups: groups } as TrackerState;
+    expect(applyMealGroupEdit(state, { ...custom, name: 'breakfast' })).toBe(state);
+    expect(applyMealGroupEdit(state, custom).nutritionMealGroups).toHaveLength(3);
+  });
+  test('deletes only unused custom meal groups and preserves groups with food history', () => {
+    const builtIn = { id: 'breakfast', name: 'Breakfast', sortOrder: 0, builtIn: true, archived: false };
+    const unused = { id: 'unused', name: 'Unused', sortOrder: 1, builtIn: false, archived: false };
+    const used = { id: 'used', name: 'Used', sortOrder: 2, builtIn: false, archived: true };
+    const state = { nutritionMealGroups: [builtIn, unused, used], nutritionEntries: [{ mealGroupId: used.id }] } as TrackerState;
+    expect(removeMealGroup(state, builtIn.id)).toBe(state);
+    expect(removeMealGroup(state, used.id)).toBe(state);
+    expect(removeMealGroup(state, 'missing')).toBe(state);
+    expect(removeMealGroup(state, unused.id).nutritionMealGroups).toEqual([builtIn, used]);
+    expect(removeMealGroup(state, unused.id).nutritionEntries).toBe(state.nutritionEntries);
+  });
   test('derives calories from carbs, protein, and fat while excluding fiber', () => {
     expect(macroCalories(nutrients)).toBe(165);
     expect(macroCalories({ ...nutrients, fiberGrams: 100 })).toBe(165);
@@ -46,6 +79,22 @@ describe('nutrition', () => {
       statedCalories: 520,
       nutrients: { proteinGrams: 48, carbsGrams: 55, fatGrams: 14, fiberGrams: 8 },
     });
+  });
+
+  test('fills explicitly described cholesterol, sodium, and saturated fat', () => {
+    const item = parseExplicitNutritionSummary('Chicken bowl — 520 calories, 48g protein, 55g carbs, saturated fat 3g, total fat 14g, 8g fiber, cholesterol 70mg, sodium 0.6g');
+    expect(item?.nutrients).toMatchObject({ proteinGrams: 48, carbsGrams: 55, fatGrams: 14, fiberGrams: 8, extraNutrients: { fiber: 8, saturated_fat: 3, cholesterol: 70, sodium: 600 } });
+    expect(parseExplicitNutritionSummaries('Chicken bowl — 520 calories, 48g protein, 55g carbs, saturated fat 3g, total fat 14g, 8g fiber, cholesterol 70mg, sodium 0.6g')?.[0].nutrients.extraNutrients).toMatchObject({ saturated_fat: 3, cholesterol: 70, sodium: 600 });
+  });
+
+  test('leaves additional food details unknown when not supplied', () => {
+    const item = parseExplicitNutritionSummary('Chicken bowl — 520 calories, 48g protein, 55g carbs, 14g fat, 8g fiber');
+    expect(item?.nutrients.extraNutrients).toEqual({ fiber: 8 });
+  });
+
+  test('reads value-first extra details without confusing saturated and total fat', () => {
+    const item = parseExplicitNutritionSummary('Turkey wrap: 400 calories | 30g protein | 40g carbs | 2g saturated fat | 12g total fat | 4g fiber | 35mg cholesterol | 450mg sodium');
+    expect(item?.nutrients).toMatchObject({ fatGrams: 12, extraNutrients: { saturated_fat: 2, cholesterol: 35, sodium: 450 } });
   });
 
   test('leaves incomplete descriptions for Nutrition AI estimation', () => {
@@ -143,6 +192,45 @@ describe('nutrition', () => {
     expect(removeSavedMeal(meals, 'saved-meal-1', false)).toHaveLength(1);
     expect(removeSavedMeal(meals, 'saved-meal-1', true)).toHaveLength(0);
     expect(logged).toHaveLength(2);
+  });
+
+  test('saves a mixed-method meal and its log together without double-counting', () => {
+    const mealId = 'saved-mixed-meal';
+    const eventDate = '2026-10-28';
+    const items = [
+      { id: 'manual-item', name: 'Eggs', servingLabel: '2 eggs', amountMode: 'servings' as const, servings: 1, nutrients: { carbsGrams: 1, proteinGrams: 12, fatGrams: 10, fiberGrams: 0 } },
+      { id: 'scanned-item', name: 'Toast', servingLabel: '1 slice', amountMode: 'servings' as const, servings: 2, nutrients: { carbsGrams: 15, proteinGrams: 3, fatGrams: 1, fiberGrams: 2 }, statedCalories: 80 },
+      { id: 'described-item', name: 'Fruit', servingLabel: '1 cup', amountMode: 'servings' as const, servings: 1, nutrients: { carbsGrams: 20, proteinGrams: 1, fatGrams: 0, fiberGrams: 3 } },
+    ];
+    const meal = prepareSavedMeal({ id: mealId, name: 'Breakfast plate', items });
+    const batch = prepareNutritionLogBatch({ foods: [], entries: items.map((item, index) => ({
+      ...item, id: `logged-${index}`, eventDate, mealGroupId: 'meal-breakfast', mealLabel: 'Breakfast',
+      source: (['manual', 'ai_label', 'ai_text'] as const)[index], savedMealId: mealId,
+      savedMealName: meal.name, savedMealInstanceId: 'breakfast-instance',
+    })) });
+    const state = applyMealBuilderSave({ trackers: [], checkIns: [] } as TrackerState, meal, batch);
+    expect(state.savedMeals).toHaveLength(1);
+    expect(state.nutritionEntries).toHaveLength(3);
+    expect(state.nutritionEntries?.every((item) => item.savedMealInstanceId === 'breakfast-instance')).toBe(true);
+    expect(nutritionTotals(state.nutritionEntries!, eventDate)).toMatchObject({ calories: 386, carbsGrams: 51, proteinGrams: 19, fatGrams: 12, fiberGrams: 7 });
+    expect(savedMealTotals(state.savedMeals![0].items).calories).toBe(386);
+    const standaloneFood = upsertSavedFood([], { id: 'food-eggs', name: 'Eggs', servingLabel: '2 eggs', nutrients: items[0].nutrients, source: 'manual' }, 'food-eggs')[0];
+    const savedOnly = applyMealBuilderSave({ trackers: [], checkIns: [] } as TrackerState, meal, undefined, [standaloneFood]);
+    expect(savedOnly.nutritionEntries).toBeUndefined();
+    expect(savedOnly.savedFoods?.map((food) => food.id)).toEqual(['food-eggs']);
+  });
+
+  test('replaces one logged group while preserving its template and other logs', () => {
+    const input = (id: string, instanceId: string, name: string) => ({ id, eventDate: '2026-10-28', mealGroupId: 'breakfast', mealLabel: 'Breakfast', name, servingLabel: '1 serving', servings: 1, nutrients, source: 'manual' as const, savedMealInstanceId: instanceId, savedMealName: 'Breakfast' });
+    const original = prepareNutritionLogBatch({ entries: [input('old-a', 'group-a', 'Eggs'), input('old-b', 'group-a', 'Toast'), input('other', 'group-b', 'Oats')], foods: [] });
+    const template = prepareSavedMeal({ name: 'Original template', items: [{ id: 'item', name: 'Eggs', servingLabel: '1 serving', amountMode: 'servings', servings: 1, nutrients }] });
+    const state = { ...applyNutritionLogBatch({ trackers: [], checkIns: [] } as TrackerState, original), savedMeals: [template] };
+    const replacement = prepareNutritionLogBatch({ entries: [input('old-a', 'group-a', 'Eggs'), { ...input('new', 'group-a', 'Fruit'), savedMealName: 'Trail breakfast' }], foods: [] });
+    const updated = replaceLoggedMeal(state, 'group-a', replacement);
+    expect(updated.nutritionEntries?.map((entry) => entry.id)).toEqual(['other', 'old-a', 'new']);
+    expect(updated.nutritionEntries?.find((entry) => entry.id === 'new')?.savedMealName).toBe('Trail breakfast');
+    expect(updated.savedMeals).toEqual([template]);
+    expect(state.nutritionEntries).toHaveLength(3);
   });
 
   test('rolling trends use completed days and leave missing days empty', () => {

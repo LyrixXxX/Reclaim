@@ -12,6 +12,14 @@ export type MacroPlanAnswers = {
 export type MacroCalculation = { version: 2 | 3; restingCalories: number; maintenanceCalories: number; targetCalories: number; calorieSource: 'estimated' | 'user'; activityFactor: number; goalAdjustment: number; proteinFactor: number; proteinTargetGrams: number; proteinReferenceKg: number; trainingFocus: 'general' | 'strength'; lossPace?: 'gentle' | 'moderate' | 'faster'; lossPriority?: 'fat-loss' | 'balanced' | 'performance' };
 export type MacroPlan = { carbsGrams: number; proteinGrams: number; fatGrams: number; fiberGrams: number; rationale: string; estimatedCalories: number; calculation: MacroCalculation };
 
+export function withEstimationBasis(answers: MacroPlanAnswers, basis: 'female' | 'male'): MacroPlanAnswers {
+  return { ...answers, estimationBasis: basis, pregnantOrBreastfeeding: basis === 'male' ? false : answers.pregnantOrBreastfeeding };
+}
+
+export function macroPlannerSafetyConfirmed(answers: Pick<MacroPlanAnswers, 'pregnantOrBreastfeeding' | 'medicalDietaryNeeds' | 'eligibleConfirmed'>) {
+  return answers.eligibleConfirmed && !answers.pregnantOrBreastfeeding && !answers.medicalDietaryNeeds;
+}
+
 // Conservative product guardrails, not a determination that an individual plan is safe.
 export const LOSS_PACE = { gentle: { weeklyLb: 0.5, deficit: 250 }, moderate: { weeklyLb: 1, deficit: 500 }, faster: { weeklyLb: 1.5, deficit: 750 } } as const;
 export const MACRO_LIMITS = { minCalories: 1500, maxCalories: 5000, maxDeficitFraction: 0.25, maxWeeklyWeightFraction: 0.01, minCarbsGrams: 100, fatFraction: 0.25 } as const;
@@ -41,7 +49,7 @@ export function validateMacroAnswers(value: MacroPlanAnswers) {
     ? (Number(value.heightFeet) * 12 + Number(value.heightInches)) * 2.54
     : Number(value.height);
   const weightKg = Number(value.weight) * (value.weightUnit === 'lb' ? 0.45359237 : 1);
-  if (!Number.isInteger(age) || age < 18 || age > 100) throw new Error('AI macro plans are for adults ages 18–100. You can enter targets manually.');
+  if (!Number.isInteger(age) || age < 18 || age > 100) throw new Error('Guided macro plans are for adults ages 18–100. You can enter targets manually.');
   if (value.heightUnit === 'ft-in' && (!/^\d+$/.test(value.heightFeet) || !/^\d+$/.test(value.heightInches) || Number(value.heightInches) > 11)) throw new Error('Enter height in feet and inches (0–11).');
   if (!Number.isFinite(heightCm) || heightCm < 100 || heightCm > 230) throw new Error('Enter a valid height.');
   if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 300) throw new Error('Enter a valid current weight.');
@@ -62,10 +70,48 @@ export function validateMacroPlan(value: unknown, acceptUserEdits = false): Macr
   const result = plan as MacroPlan;
   const calories = macroCalories(result);
   const context = result.calculation;
-  if (!context || ![2, 3].includes(context.version) || !['estimated', 'user'].includes(context.calorieSource) || !['general', 'strength'].includes(context.trainingFocus) || ![context.restingCalories, context.maintenanceCalories, context.targetCalories, context.activityFactor, context.proteinFactor, context.proteinTargetGrams, context.proteinReferenceKg].every((number) => typeof number === 'number' && Number.isFinite(number) && number >= 0) || ![-750, -500, -250, 0, 250].includes(context.goalAdjustment) || context.version === 3 && (!['gentle', 'moderate', 'faster'].includes(context.lossPace ?? '') || !['fat-loss', 'balanced', 'performance'].includes(context.lossPriority ?? ''))) throw new Error('The suggested plan is missing its calculation details. Try again after the AI service is updated.');
+  if (!context || ![2, 3].includes(context.version) || !['estimated', 'user'].includes(context.calorieSource) || !['general', 'strength'].includes(context.trainingFocus) || ![context.restingCalories, context.maintenanceCalories, context.targetCalories, context.activityFactor, context.proteinFactor, context.proteinTargetGrams, context.proteinReferenceKg].every((number) => typeof number === 'number' && Number.isFinite(number) && number >= 0) || ![-750, -500, -250, 0, 250].includes(context.goalAdjustment) || context.version === 3 && (!['gentle', 'moderate', 'faster'].includes(context.lossPace ?? '') || !['fat-loss', 'balanced', 'performance'].includes(context.lossPriority ?? ''))) throw new Error('The suggested plan is missing its calculation details. Try again or enter targets manually.');
   if (calories < (context.version === 3 ? MACRO_LIMITS.minCalories : 1200) || calories > 5000 || Math.abs(calories - result.estimatedCalories) > 50) throw new Error('The suggested plan is inconsistent or below the supported calorie range. Try again or enter targets manually.');
   if (!acceptUserEdits && (Math.abs(result.estimatedCalories - context.targetCalories) > 1 || Math.abs(result.proteinGrams - context.proteinTargetGrams) > 5 || 9 * result.fatGrams / context.targetCalories < 0.25 || 9 * result.fatGrams / context.targetCalories > 0.35 || result.carbsGrams < 100)) throw new Error('The suggested plan did not meet its calculation guardrails. Try again or enter targets manually.');
   return result;
+}
+
+export function macroEnergyRatio(carbs: string, protein: string, fat: string) {
+  const fields = [carbs, protein, fat];
+  if (fields.some((field) => !field.trim() || !/^\d+(?:\.\d+)?$/.test(field.trim()))) return null;
+  const grams = fields.map(Number);
+  if (grams.some((value) => !Number.isFinite(value) || value < 0 || value > 1000)) return null;
+  const energy = [grams[0] * 4, grams[1] * 4, grams[2] * 9];
+  const calories = energy.reduce((total, value) => total + value, 0);
+  if (calories <= 0) return null;
+  const raw = energy.map((value) => value / calories * 100);
+  const percentages = raw.map(Math.floor);
+  const remaining = 100 - percentages.reduce((total, value) => total + value, 0);
+  const ranked = raw.map((value, index) => ({ index, remainder: value - percentages[index] })).sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let index = 0; index < remaining; index++) percentages[ranked[index].index]++;
+  return { calories, carbs: percentages[0], protein: percentages[1], fat: percentages[2] };
+}
+
+export function createLocalMacroPlan(answers: MacroPlanAnswers): MacroPlan {
+  const input = validateMacroAnswers(answers);
+  const estimate = previewMacroCalculation(input);
+  const fatGrams = Math.round(estimate.targetCalories * 0.3 / 9);
+  const proteinGrams = estimate.proteinTargetGrams;
+  const carbsGrams = Math.round((estimate.targetCalories - proteinGrams * 4 - fatGrams * 9) / 4);
+  const estimatedCalories = macroCalories({ carbsGrams, proteinGrams, fatGrams, fiberGrams: 0 });
+  if (carbsGrams < MACRO_LIMITS.minCarbsGrams || Math.abs(estimatedCalories - estimate.targetCalories) > 4) throw new Error('This estimate cannot fit the supported macro starting ranges. Use manual targets or professional guidance.');
+  const activityFactor = { low: 1.2, moderate: 1.375, high: 1.55 }[input.activity as 'low' | 'moderate' | 'high'];
+  const proteinReferenceKg = Math.min(input.weightKg, 30 * (input.heightCm / 100) ** 2);
+  const proteinFactor = input.goal !== 'lose' ? input.trainingFocus === 'strength' ? 1.6 : 1.2 : input.trainingFocus === 'strength' ? input.lossPriority === 'fat-loss' ? 1.8 : 2 : 1.6;
+  const calculation: MacroCalculation = {
+    version: 3, restingCalories: estimate.restingCalories, maintenanceCalories: estimate.maintenanceCalories,
+    targetCalories: estimate.targetCalories, calorieSource: input.calorieSource, activityFactor,
+    goalAdjustment: estimate.goalAdjustment, proteinFactor, proteinTargetGrams: proteinGrams,
+    proteinReferenceKg: Math.round(proteinReferenceKg), trainingFocus: input.trainingFocus as 'general' | 'strength',
+    lossPace: input.lossPace, lossPriority: input.lossPriority,
+  };
+  const rationale = `${input.calorieSource === 'user' ? 'Your entered calorie target' : 'Estimated maintenance adjusted for your goal'} is a starting point, not a measured requirement. Protein uses a capped reference weight; fat is about 30% of calories, and carbohydrates fill the remainder. Review and adjust for your needs.`;
+  return validateMacroPlan({ carbsGrams, proteinGrams, fatGrams, fiberGrams: 0, rationale, estimatedCalories, calculation }, true);
 }
 
 export async function requestMacroPlan(answers: MacroPlanAnswers) {

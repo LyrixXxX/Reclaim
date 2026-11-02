@@ -6,16 +6,16 @@
   "expo": {
     "name": "Reclaim",
     "slug": "reclaim",
-    "version": "1.0.21",
+    "version": "1.0.51",
     "orientation": "default",
     "icon": "./assets/images/reclaim-icon.png",
     "scheme": "reclaim",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/images/reclaim-icon.png"
+      "icon": "./assets/images/reclaim-icon-ios.png"
     },
     "android": {
-      "versionCode": 22,
+      "versionCode": 52,
       "permissions": ["android.permission.ACTIVITY_RECOGNITION", "android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"],
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -31,6 +31,7 @@
     },
     "plugins": [
       "expo-router",
+      ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning.", "recordAudioAndroid": false }],
       "./plugins/with-reclaim-signing",
       [
         "expo-splash-screen",
@@ -49,6 +50,9 @@
         }
       ],
       "expo-image",
+      "expo-font",
+      "expo-sharing",
+      "expo-status-bar",
       "expo-web-browser",
       "expo-notifications",
       "expo-secure-store",
@@ -62,7 +66,7 @@
       ],
       [
         "expo-build-properties",
-        { "android": { "minSdkVersion": 26, "enableMinifyInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true } }
+        { "android": { "minSdkVersion": 26, "enableMinifyInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true, "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }" } }
       ],
       "@maplibre/maplibre-react-native",
       [

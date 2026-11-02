@@ -1,6 +1,6 @@
 import { ActivityRoute, NutritionEntry, NutritionGoalProfile, NutritionMealGroup, NutritionNutrients, WorkoutSession } from '@/models/tracker';
 import { exerciseCaloriesForDate } from './workouts';
-import { goalForDate, metricValue, NutritionMetric, nutritionEntryCalories, nutritionTotals } from './nutrition';
+import { goalForDate, metricValue, NutritionMetric, nutritionCalorieTarget, nutritionEntryCalories, nutritionTotals } from './nutrition';
 import { rollingBounds } from './rolling-range';
 
 export type ReportRange = 'week' | 'month' | 'year' | 'all';
@@ -30,7 +30,7 @@ function average(values: ReportTotals[]): ReportTotals | null {
   const total = sum(values);
   return { calories: total.calories / values.length, carbsGrams: total.carbsGrams / values.length, proteinGrams: total.proteinGrams / values.length, fatGrams: total.fatGrams / values.length, fiberGrams: total.fiberGrams / values.length };
 }
-function goalTotals(goal: NutritionGoalProfile): ReportTotals { return { ...goal, calories: goal.carbsGrams * 4 + goal.proteinGrams * 4 + goal.fatGrams * 9 }; }
+function goalTotals(goal: NutritionGoalProfile): ReportTotals { return { ...goal, calories: nutritionCalorieTarget(goal) }; }
 
 export function macroShare(totals: NutritionNutrients | null, metric: 'carbs' | 'protein' | 'fat') {
   if (!totals) return null;

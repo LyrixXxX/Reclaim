@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import ReclaimIntegrity from '../../modules/reclaim-integrity';
 import { AiNutritionResult, validateAiNutritionResult } from '@/lib/nutrition';
+import { validateSupplementLabelResult } from '@/lib/supplement-label';
 
 const RELAY_URL = 'https://reclaim-nutrition-ai.reclaim-nutrition.workers.dev';
 const CLOUD_PROJECT_NUMBER = process.env.EXPO_PUBLIC_RECLAIM_PLAY_INTEGRITY_PROJECT_NUMBER;
@@ -26,6 +27,14 @@ export async function parseNutritionLabel(base64: string, mimeType = 'image/jpeg
     body: JSON.stringify({ imageDataUrl: `data:${mimeType};base64,${base64}` }),
   });
   return validateAiNutritionResult(await response.json());
+}
+
+export async function parseSupplementLabel(base64: string, mimeType = 'image/jpeg') {
+  if (!base64) throw new Error('The selected photo could not be prepared for upload.');
+  const response = await requestPrivateAiRelay('/v1/parse-supplement-label', {
+    method: 'POST', body: JSON.stringify({ imageDataUrl: `data:${mimeType};base64,${base64}` }),
+  });
+  return validateSupplementLabelResult(await response.json());
 }
 
 export async function requestPrivateAiRelay(path: string, init: RequestInit) {

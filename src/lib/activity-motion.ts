@@ -25,6 +25,7 @@ export const MOTION_LIMITS = {
   resumeSpeedMetersPerSecond: 0.8,
   stopConfirmMs: 12_000,
   resumeConfirmMs: 4_000,
+  speedBackedResumeConfirmMs: 8_000,
 } as const;
 
 export function freshMotionState(): MotionState {
@@ -78,8 +79,17 @@ export function addMotionFix(state: MotionState, fix: MotionFix): MotionState {
   const slowMovement = anchorDelta >= 10_000 && anchorDelta <= 25_000
     && anchorDistance >= Math.max(10, (anchor.accuracy ?? 10) + fix.accuracy)
     && anchorDistance / (anchorDelta / 1000) >= MOTION_LIMITS.stopSpeedMetersPerSecond;
+  // After a confirmed stop, GPS position alone may need 20+ seconds to clear
+  // its uncertainty radius. The device's speed estimate can support an earlier
+  // candidate, but only alongside plausible position change. Two fixes are
+  // still required by resumeConfirmMs at the normal 5-second sample cadence.
+  const speedBackedMovement = state.status === 'stopped'
+    && reportedSpeed !== null && reportedSpeed >= MOTION_LIMITS.resumeSpeedMetersPerSecond
+    && velocity >= MOTION_LIMITS.stopSpeedMetersPerSecond
+    && distance >= Math.max(4, uncertainty * 0.35);
   const confirmedMovement = (velocity >= MOTION_LIMITS.resumeSpeedMetersPerSecond
     && distance >= Math.max(4, uncertainty * 0.6))
+    || speedBackedMovement
     || slowMovement
     || (state.status === 'moving' && velocity >= MOTION_LIMITS.stopSpeedMetersPerSecond && distance >= 2.5 && uncertainty <= 15);
   const stationary = velocity < MOTION_LIMITS.stopSpeedMetersPerSecond
@@ -109,7 +119,9 @@ export function addMotionFix(state: MotionState, fix: MotionFix): MotionState {
     state.candidateSince = slowMovement ? anchor.timestamp : previous.timestamp;
   }
   state.candidateMs += slowMovement && state.status !== 'moving' ? Math.max(delta, anchorDelta) : delta;
-  const threshold = next === 'stopped' ? MOTION_LIMITS.stopConfirmMs : MOTION_LIMITS.resumeConfirmMs;
+  const threshold = next === 'stopped' ? MOTION_LIMITS.stopConfirmMs
+    : speedBackedMovement && !slowMovement && distance < Math.max(4, uncertainty * 0.6)
+      ? MOTION_LIMITS.speedBackedResumeConfirmMs : MOTION_LIMITS.resumeConfirmMs;
   if (state.candidateMs >= threshold) {
     if (state.openStationaryAt !== undefined) {
       state.stationaryIntervals.push({ startedAt: new Date(state.openStationaryAt).toISOString(), endedAt: new Date(state.candidateSince ?? fix.timestamp).toISOString() });

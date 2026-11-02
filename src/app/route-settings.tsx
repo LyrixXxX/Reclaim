@@ -1,10 +1,10 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { readRouteAutoPauseEnabled, setRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
-import { readRouteMileAlertsEnabled, setRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
+import { notifyRouteMile, readRouteMileAlertsEnabled, setRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
 import { colors, layout, spacing } from '@/theme';
 
 export default function RouteSettingsScreen() {
@@ -46,6 +46,7 @@ export default function RouteSettingsScreen() {
     <Text style={styles.intro}>Choose how Reclaim handles your recorded walks, hikes, and runs.</Text>
     <View style={styles.card}>
       <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Mile alerts</Text><Text style={styles.description}>Vibrate and show a notification at each completed mile. No voice or sound.</Text></View><Switch accessibilityLabel="Mile alerts" accessibilityRole="switch" value={mileAlerts} disabled={loading || busy} onValueChange={(value) => void change('alerts', value)} trackColor={{ false: colors.border, true: colors.activityNav }} thumbColor={colors.text} /></View>
+      {mileAlerts && <Pressable accessibilityRole="button" disabled={busy || loading} onPress={() => { void notifyRouteMile(1, 'settings-test', true).then(() => Alert.alert('Test sent', 'Check your notification shade and vibration. Android sound, vibration, and Do Not Disturb settings still apply.')).catch((error) => Alert.alert('Mile alert unavailable', error instanceof Error ? error.message : 'Check Android notification settings.')); }} style={styles.testButton}><Text style={styles.testButtonText}>Send test mile alert</Text></Pressable>}
       <View style={styles.divider} />
       <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Auto Pause</Text><Text style={styles.description}>Pause route distance during a confirmed stop, then resume when movement is detected. GPS stays active; a manual pause never auto-resumes.</Text></View><Switch accessibilityLabel="Auto Pause" accessibilityRole="switch" value={autoPause} disabled={loading || busy} onValueChange={(value) => void change('pause', value)} trackColor={{ false: colors.border, true: colors.activityNav }} thumbColor={colors.text} /></View>
     </View>
@@ -65,4 +66,6 @@ const styles = StyleSheet.create({
   description: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   divider: { height: 1, backgroundColor: colors.border },
   note: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
+  testButton: { alignSelf: 'flex-start', borderColor: colors.activityNav, borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 10 },
+  testButtonText: { color: colors.text, fontSize: 12, fontWeight: '800' },
 });

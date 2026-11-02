@@ -31,22 +31,27 @@ export async function setRouteMileAlertsEnabled(enabled: boolean): Promise<void>
 
 async function ensureRouteMileChannel() {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+  const channel = await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: 'Route mile markers',
     description: 'Optional vibration when a recorded route reaches another mile.',
+    // eslint-disable-next-line import/namespace -- exported by expo-notifications at runtime
     importance: Notifications.AndroidImportance.DEFAULT,
     sound: null,
     enableVibrate: true,
     vibrationPattern: [0, 350, 150, 350],
   });
+  // eslint-disable-next-line import/namespace -- exported by expo-notifications at runtime
+  if (channel?.importance === Notifications.AndroidImportance.NONE) {
+    throw new Error('Route mile-marker notifications are blocked in Android settings.');
+  }
 }
 
-export async function notifyRouteMile(mile: number, routeId: string): Promise<void> {
+export async function notifyRouteMile(mile: number, routeId: string, test = false): Promise<void> {
   const permission = await Notifications.getPermissionsAsync();
-  if (!permission.granted) return;
+  if (!permission.granted) throw new Error('Allow Reclaim notifications in Android settings to receive mile alerts.');
   await ensureRouteMileChannel();
   await Notifications.scheduleNotificationAsync({
-    content: { title: `${mile} ${mile === 1 ? 'mile' : 'miles'} complete`, body: 'Your route is still recording.', sound: false, data: { kind: 'route-mile', routeId, mile } },
+    content: { title: test ? 'Test mile alert' : `${mile} ${mile === 1 ? 'mile' : 'miles'} complete`, body: test ? 'Mile-marker notifications are ready.' : 'Your route is still recording.', sound: false, data: { kind: 'route-mile', routeId, mile, test } },
     trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
   });
 }

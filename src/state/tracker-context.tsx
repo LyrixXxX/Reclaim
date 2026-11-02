@@ -7,8 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors } from '@/theme';
 
-import { ActivityRoute, ActualOneRepMax, AppSection, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
-import { recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
+import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { validateNutrientSelection } from '@/lib/nutrient-totals';
+import { markSupplementDoseSkipped, recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
 import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { DEFAULT_WORKOUT_SETTINGS, finishWorkout, startWorkout } from '@/lib/workouts';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
@@ -30,7 +31,7 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { DEFAULT_PREFERENCES, migratePreferences, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, migratePreferences, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -38,7 +39,7 @@ import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifica
 import { logHabitCompletion } from '@/lib/habit-log';
 import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
 import { validHabitLog } from '@/lib/good-habit-templates';
-import { applyNutritionLogBatch, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertMealGroup, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
+import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, replaceLoggedMeal, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeMealGroup, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 
 type TrackerContextValue = TrackerState & {
   hydrated: boolean;
@@ -47,7 +48,9 @@ type TrackerContextValue = TrackerState & {
   finishOnboarding: () => Promise<void>;
   saveDashboard: (widgets: DashboardWidget[]) => void;
   setHomeHabitVisible: (id: string, visible: boolean) => void;
+  setHomeGoalColors: (colors: Record<string, string>) => void;
   setQuittingTaperingOnHome: (visible: boolean) => void;
+  setTrainingOverviewOnHome: (visible: boolean) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
   saveStatus: SaveStatus;
   retrySave: () => void;
@@ -81,6 +84,11 @@ type TrackerContextValue = TrackerState & {
   setNavigationOrder: (order: NavigationSection[]) => void;
   setRouteCaloriesInNutrition: (enabled: boolean) => void;
   saveNutritionGoal: (input: Omit<NutritionGoalProfile, 'id' | 'recordedAt'>, id?: string) => void;
+  dismissMacroUpdate: (weightLb: number) => void;
+  saveNutrientSelection: (selection: NutrientSelection) => void;
+  removeNutrientSelection: (id: string) => void;
+  saveCustomNutrient: (nutrient: CustomNutrient) => void;
+  setSupplementNutrientsInNutrition: (enabled: boolean) => void;
   deleteNutritionGoal: (id: string, confirmed: boolean) => void;
   saveNutritionEntry: (input: NutritionEntryInput, id?: string) => void;
   saveNutritionLogBatch: (batch: NutritionLogBatch) => void;
@@ -88,8 +96,11 @@ type TrackerContextValue = TrackerState & {
   saveNutritionFood: (input: SavedFoodInput, id?: string) => void;
   deleteNutritionFood: (id: string, confirmed: boolean) => void;
   saveNutritionSavedMeal: (input: SavedMealInput, id?: string) => void;
+  saveNutritionMealBuilder: (meal: SavedMealInput, batch?: NutritionLogBatch, standaloneFoods?: SavedFoodInput[]) => void;
+  replaceNutritionLoggedMeal: (instanceId: string, batch: NutritionLogBatch) => void;
   deleteNutritionSavedMeal: (id: string, confirmed: boolean) => void;
   saveNutritionMealGroup: (group: NutritionMealGroup) => void;
+  deleteNutritionMealGroup: (id: string) => void;
   saveActivityRoute: (route: ActivityRoute) => Promise<void>;
   deleteActivityRoute: (id: string) => void;
   saveStepGoal: (date: string, count: number) => void;
@@ -108,8 +119,9 @@ type TrackerContextValue = TrackerState & {
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   saveSupplement: (draft: SupplementDraft, id: string) => void;
   archiveSupplement: (id: string, archived: boolean) => void;
-  logSupplement: (id: string, eventId: string, outcome?: 'taken' | 'skipped', scheduledFor?: string) => void;
+  logSupplement: (id: string, eventId: string, outcome?: 'taken' | 'skipped', scheduledFor?: string, unitsTaken?: number) => void;
   deleteSupplementLog: (id: string) => void;
+  markSupplementLogSkipped: (id: string) => void;
   saveSupplementStack: (stack: SupplementStack) => string | undefined;
   deleteSupplementStack: (id: string) => void;
   getBackupState: () => TrackerState;
@@ -209,7 +221,9 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     },
     saveDashboard: (widgets) => setState((previous) => saveDashboardLayout(previous, previous.preferences ?? DEFAULT_PREFERENCES, widgets)),
     setHomeHabitVisible: (id, visible) => setState((previous) => setHomeHabitVisible(previous, id, visible)),
+    setHomeGoalColors: (selected) => setState((previous) => setHomeGoalColors(previous, selected)),
     setQuittingTaperingOnHome: (visible) => setState((previous) => setQuittingTaperingOnHome(previous, visible)),
+    setTrainingOverviewOnHome: (visible) => setState((previous) => setTrainingOverviewOnHome(previous, visible)),
     swapHabitOrder: (firstId, secondId) => setState((previous) => swapHabitOrder(previous, firstId, secondId)),
     saveStatus,
     retrySave: () => { void writer.retry().catch(() => undefined); },
@@ -330,12 +344,35 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setSectionVisibility: (section, visible) => setState((previous) => setSectionVisible(previous, section, visible)),
     setNavigationOrder: (order) => setState((previous) => setNavigationOrder(previous, order)),
     setRouteCaloriesInNutrition: (enabled) => setState((previous) => setRouteCaloriesInNutrition(previous, enabled)),
-    saveNutritionGoal: (input, id) => setState((previous) => ({ ...previous, nutritionGoals: upsertNutritionGoal(previous.nutritionGoals ?? [], input, id) })),
+    saveNutritionGoal: (input, id) => setState((previous) => {
+      const selections = previous.nutrientSelections ?? [];
+      const fiber = selections.find((item) => item.nutrientId === 'fiber');
+      return { ...previous, nutritionGoals: upsertNutritionGoal(previous.nutritionGoals ?? [], input, id),
+        macroUpdateDismissedWeightLb: undefined,
+        nutrientSelections: input.fiberGrams > 0 && !fiber ? [...selections, { nutrientId: 'fiber', state: 'goal' as const, goalType: 'minimum' as const, goalAmount: input.fiberGrams, order: selections.length, legacyFiberGoal: true }] : selections };
+    }),
+    dismissMacroUpdate: (weightLb) => setState((previous) => ({ ...previous, macroUpdateDismissedWeightLb: weightLb })),
+    saveNutrientSelection: (selection) => setState((previous) => {
+      validateNutrientSelection(selection, previous);
+      const current = previous.nutrientSelections ?? [];
+      const existing = current.find((item) => item.nutrientId === selection.nutrientId);
+      const order = existing && existing.state !== selection.state
+        ? Math.max(-1, ...current.filter((item) => item.state === selection.state).map((item) => item.order)) + 1
+        : selection.order;
+      return { ...previous, nutrientSelections: [...current.filter((item) => item.nutrientId !== selection.nutrientId), { ...selection, order }] };
+    }),
+    removeNutrientSelection: (id) => setState((previous) => ({ ...previous, nutrientSelections: (previous.nutrientSelections ?? []).filter((item) => item.nutrientId !== id) })),
+    saveCustomNutrient: (nutrient) => setState((previous) => ({ ...previous, customNutrients: [...(previous.customNutrients ?? []).filter((item) => item.id !== nutrient.id), nutrient] })),
+    setSupplementNutrientsInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeSupplementNutrientsInNutrition: enabled } })),
     deleteNutritionGoal: (id, confirmed) => setState((previous) => ({ ...previous, nutritionGoals: removeNutritionGoal(previous.nutritionGoals ?? [], id, confirmed) })),
     saveNutritionEntry: (input, id) => setState((previous) => ({ ...previous, nutritionEntries: upsertNutritionEntry(previous.nutritionEntries ?? [], input, id) })),
     saveNutritionLogBatch: (batch) => {
       const prepared = prepareNutritionLogBatch(batch);
       setState((previous) => applyNutritionLogBatch(previous, prepared));
+    },
+    replaceNutritionLoggedMeal: (instanceId, batch) => {
+      const prepared = prepareNutritionLogBatch(batch);
+      setState((previous) => replaceLoggedMeal(previous, instanceId, prepared));
     },
     deleteNutritionEntry: (id, confirmed) => setState((previous) => ({ ...previous, nutritionEntries: removeNutritionEntry(previous.nutritionEntries ?? [], id, confirmed) })),
     saveNutritionFood: (input, id) => setState((previous) => ({ ...previous, savedFoods: upsertSavedFood(previous.savedFoods ?? [], input, id) })),
@@ -344,8 +381,16 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       const prepared = prepareSavedMeal(input, input.id ?? id);
       setState((previous) => ({ ...previous, savedMeals: applyPreparedSavedMeal(previous.savedMeals ?? [], prepared) }));
     },
+    saveNutritionMealBuilder: (meal, batch, standaloneFoods) => {
+      const preparedMeal = prepareSavedMeal(meal, meal.id);
+      const preparedBatch = batch ? prepareNutritionLogBatch(batch) : undefined;
+      const preparedFoods = (standaloneFoods ?? []).map((food) => upsertSavedFood([], food, food.id)[0]);
+      if (new Set(preparedFoods.map((food) => food.id)).size !== preparedFoods.length) throw new Error('A saved food appears twice in this meal.');
+      setState((previous) => applyMealBuilderSave(previous, preparedMeal, preparedBatch, preparedFoods));
+    },
     deleteNutritionSavedMeal: (id, confirmed) => setState((previous) => ({ ...previous, savedMeals: removeSavedMeal(previous.savedMeals ?? [], id, confirmed) })),
-    saveNutritionMealGroup: (group) => setState((previous) => ({ ...previous, nutritionMealGroups: upsertMealGroup(previous.nutritionMealGroups ?? [], group) })),
+    saveNutritionMealGroup: (group) => setState((previous) => applyMealGroupEdit(previous, group)),
+    deleteNutritionMealGroup: (id) => setState((previous) => removeMealGroup(previous, id)),
     saveActivityRoute: async (route) => {
       const next = { ...state, activityRoutes: [...(state.activityRoutes ?? []).filter((item) => item.id !== route.id), route] };
       await writer.save(JSON.stringify(next));
@@ -368,13 +413,17 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),
     saveSupplement: (draft, id) => setState((previous) => ({ ...previous, medications: saveSupplementDraft(previous.medications ?? [], draft, id) })),
     archiveSupplement: (id, archived) => setState((previous) => ({ ...previous, medications: (previous.medications ?? []).map((item) => item.id === id && item.kind === 'supplement' ? { ...item, archived } : item) })),
-    logSupplement: (id, eventId, outcome = 'taken', scheduledFor) => setState((previous) => {
+    logSupplement: (id, eventId, outcome = 'taken', scheduledFor, unitsTaken) => setState((previous) => {
       const item = (previous.medications ?? []).find((entry) => entry.id === id && entry.kind === 'supplement');
-      return item ? { ...previous, medicationEvents: recordSupplementDose(previous.medicationEvents ?? [], item, eventId, outcome, scheduledFor) } : previous;
+      return item ? { ...previous, medicationEvents: recordSupplementDose(previous.medicationEvents ?? [], item, eventId, outcome, scheduledFor, new Date(), unitsTaken, previous.customNutrients ?? []) } : previous;
     }),
     deleteSupplementLog: (id) => setState((previous) => {
       const supplementIds = new Set((previous.medications ?? []).filter((item) => item.kind === 'supplement').map((item) => item.id));
       return { ...previous, medicationEvents: (previous.medicationEvents ?? []).filter((event) => event.id !== id || !supplementIds.has(event.medicationId)) };
+    }),
+    markSupplementLogSkipped: (id) => setState((previous) => {
+      const supplementIds = new Set((previous.medications ?? []).filter((item) => item.kind === 'supplement').map((item) => item.id));
+      return { ...previous, medicationEvents: markSupplementDoseSkipped(previous.medicationEvents ?? [], supplementIds, id) };
     }),
     saveSupplementStack: (stack) => {
       const problem = validateSupplementStack(stack, state.supplementStacks ?? [], state.medications ?? []);

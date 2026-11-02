@@ -3,20 +3,21 @@ import mobileAds, { AdEventType, AdsConsent, InterstitialAd, TestIds } from 'rea
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { canShowCompletionAd, recordCompletionAd, type AdFrequency } from '@/lib/ad-frequency';
+import { canShowPostSaveAd, recordCompletionAd, type AdFrequency } from '@/lib/ad-frequency';
 import { TEST_ADS_ENABLED } from '@/lib/monetization';
 import { useAppLock } from '@/state/app-lock-context';
 import { useMonetization } from '@/state/monetization-context';
 
 const KEY = 'reclaim-completion-ad-frequency-v1';
 const EMPTY: AdFrequency = { day: '', shownAt: [] };
-type AdsState = { bannerReady: boolean; completionAdReady: boolean; showCompletionAd: () => Promise<void> };
-const Context = createContext<AdsState>({ bannerReady: false, completionAdReady: false, showCompletionAd: async () => undefined });
+type AdCompletion = 'meal' | 'route' | 'weight';
+type AdsState = { bannerReady: boolean; mealAdReady: boolean; routeAdReady: boolean; showCompletionAd: (completion: AdCompletion) => Promise<void> };
+const Context = createContext<AdsState>({ bannerReady: false, mealAdReady: false, routeAdReady: false, showCompletionAd: async () => undefined });
 
 export function AdsProvider({ children }: { children: ReactNode }) {
   const { locked, ready } = useAppLock();
-  const { adsAllowed, adFree } = useMonetization();
-  const allowed = Platform.OS === 'android' && !adFree && (TEST_ADS_ENABLED || adsAllowed) && ready && !locked;
+  const { adsAllowed, adFree, entitlementChecked } = useMonetization();
+  const allowed = Platform.OS === 'android' && !adFree && entitlementChecked && (TEST_ADS_ENABLED || adsAllowed) && ready && !locked;
   const [initialized, setInitialized] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
@@ -30,7 +31,7 @@ export function AdsProvider({ children }: { children: ReactNode }) {
     void AsyncStorage.getItem(KEY).then((raw) => {
       const value = raw ? JSON.parse(raw) as AdFrequency : EMPTY;
       if (!active) return;
-      if (typeof value.day !== 'string' || !Array.isArray(value.shownAt) || !value.shownAt.every((item) => typeof item === 'number')) return;
+      if (typeof value.day !== 'string' || !Array.isArray(value.shownAt) || !value.shownAt.every((item) => typeof item === 'number') || (value.weightShownAt !== undefined && !Number.isFinite(value.weightShownAt))) return;
       historyRef.current = value; setHistory(value); setHistoryReady(true);
     }).catch(() => undefined); // Fail closed if frequency history cannot be read.
     return () => { active = false; };
@@ -61,17 +62,18 @@ export function AdsProvider({ children }: { children: ReactNode }) {
     return () => { unsubs.forEach((unsubscribe) => unsubscribe()); if (adRef.current === ad) adRef.current = null; setLoaded(false); };
   }, [allowed, initialized, historyReady]);
 
-  const completionAdReady = allowed && initialized && historyReady && loaded && canShowCompletionAd(history);
-  const showCompletionAd = useCallback(async () => {
+  const mealAdReady = allowed && initialized && historyReady && loaded;
+  const routeAdReady = mealAdReady && canShowPostSaveAd('route', history);
+  const showCompletionAd = useCallback(async (completion: AdCompletion) => {
     const ad = adRef.current;
-    if (!allowed || !initialized || !historyReady || !loaded || !ad || showingRef.current || !canShowCompletionAd(historyRef.current)) return;
+    if (!allowed || !initialized || !historyReady || !loaded || !ad || showingRef.current || !canShowPostSaveAd(completion, historyRef.current)) return;
     showingRef.current = true;
     setLoaded(false);
     await new Promise<void>((resolve) => {
       let finished = false;
       const finish = () => { if (finished) return; finished = true; unsubOpened(); unsubClosed(); unsubError(); showingRef.current = false; if (adRef.current === ad && allowed) ad.load(); resolve(); };
       const unsubOpened = ad.addAdEventListener(AdEventType.OPENED, () => {
-        const next = recordCompletionAd(historyRef.current);
+        const next = recordCompletionAd(historyRef.current, new Date(), completion);
         historyRef.current = next; setHistory(next);
         void AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => { setHistoryReady(false); });
       });
@@ -81,7 +83,7 @@ export function AdsProvider({ children }: { children: ReactNode }) {
     });
   }, [allowed, initialized, historyReady, loaded]);
 
-  return <Context.Provider value={{ bannerReady: allowed && initialized, completionAdReady, showCompletionAd }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ bannerReady: allowed && initialized, mealAdReady, routeAdReady, showCompletionAd }}>{children}</Context.Provider>;
 }
 
 export function useAds() { return useContext(Context); }

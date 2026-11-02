@@ -1,10 +1,13 @@
-import { Medication, MedicationEvent } from '@/models/tracker';
+import { CustomNutrient, Medication, MedicationEvent } from '@/models/tracker';
 import { medicationDateKey, normalizeScheduleTimes, scheduledDoseKey } from './medications';
 import { scheduledDosesForDate } from './medication-regimen';
 import { localDateKey } from './progress';
+import { toCanonicalNutrientAmount } from './nutrient-catalog';
 
 export type SupplementDraft = {
   id?: string; name: string; serving: string; notes: string;
+  dosagePerUnit?: number; dosageUnit?: string; defaultUnitsTaken?: number;
+  nutrientProfile?: Medication['nutrientProfile'];
   /** Retained for drafts made by the previous single-time editor. */
   time?: string;
   times?: string[];
@@ -20,12 +23,17 @@ export function visibleSupplements(items: Medication[]) {
 export function validateSupplementDraft(draft: SupplementDraft) {
   if (!draft.name.trim()) return 'Enter a vitamin or supplement name.';
   if (draft.name.trim().length > 100) return 'Keep the name under 100 characters.';
+  if (draft.dosagePerUnit !== undefined && (!Number.isFinite(draft.dosagePerUnit) || draft.dosagePerUnit <= 0)) return 'Enter a positive amount per unit.';
+  if (draft.defaultUnitsTaken !== undefined && (!Number.isFinite(draft.defaultUnitsTaken) || draft.defaultUnitsTaken <= 0)) return 'Enter positive units taken.';
+  if (draft.nutrientProfile?.some((value) => !Number.isFinite(value.amount) || value.amount <= 0 || !value.nutrientId || !value.unit)) return 'Check each nutrient profile amount and unit.';
   const times = draft.times ?? (draft.time ? [draft.time] : []);
   if (times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) return 'Enter each time as HH:MM.';
   if (new Set(times).size !== times.length) return 'Each dose needs a different time.';
   if ((draft.scheduleType === 'daily' || draft.scheduleType === 'weekly') && !times.length) return 'Add at least one dose time.';
   if (draft.scheduleType === 'weekly' && !draft.weekdays?.length) return 'Choose at least one day of the week.';
   if (draft.scheduleType === 'interval' && (!Number.isInteger(draft.intervalHours) || draft.intervalHours! < 1 || draft.intervalHours! > 720)) return 'Enter an interval from 1 to 720 hours.';
+  if (!draft.id && (!Number.isFinite(draft.dosagePerUnit) || draft.dosagePerUnit! <= 0 || !draft.dosageUnit?.trim())) return 'Enter a positive amount per unit and its unit.';
+  if (draft.nutrientProfile?.length && (!Number.isFinite(draft.dosagePerUnit) || draft.dosagePerUnit! <= 0 || !draft.dosageUnit?.trim())) return 'Add the amount per unit before linking nutrient values.';
   return undefined;
 }
 
@@ -36,6 +44,10 @@ export function saveSupplementDraft(items: Medication[], draft: SupplementDraft,
   const scheduleType = draft.scheduleType ?? (times.length ? 'daily' : 'as_needed');
   const supplement: Medication = {
     id: existing?.id ?? id, kind: 'supplement', name: draft.name.trim(), strength: draft.serving.trim() || undefined,
+    dosagePerUnit: draft.dosagePerUnit ?? existing?.dosagePerUnit,
+    dosageUnit: draft.dosageUnit?.trim() || existing?.dosageUnit,
+    defaultUnitsTaken: draft.defaultUnitsTaken ?? existing?.defaultUnitsTaken,
+    nutrientProfile: draft.nutrientProfile ?? existing?.nutrientProfile,
     notes: draft.notes.trim() || undefined, startedAt: existing?.startedAt ?? medicationDateKey(now),
     schedule: scheduleType === 'weekly' ? { type: 'weekly', times, weekdays: draft.weekdays }
       : scheduleType === 'daily' ? { type: 'daily', times }
@@ -68,8 +80,10 @@ export function supplementDosesForDate(items: Medication[], events: MedicationEv
 }
 
 export function recordSupplementDose(events: MedicationEvent[], supplement: Medication, id: string,
-  outcome: 'taken' | 'skipped', scheduledFor?: string, now = new Date()) {
+  outcome: 'taken' | 'skipped', scheduledFor?: string, now = new Date(), unitsTaken = supplement.defaultUnitsTaken ?? 1, customNutrients: CustomNutrient[] = []) {
   if (supplement.kind !== 'supplement' || supplement.archived) return events;
+  if (events.some((event) => event.id === id)) return events;
+  if (outcome === 'taken' && (!Number.isFinite(unitsTaken) || unitsTaken <= 0)) return events;
   if (scheduledFor) {
     const day = localDateKey(now);
     if (!day || !scheduledFor.startsWith(`${day}T`) || !supplement.schedule.times.includes(scheduledFor.slice(11))
@@ -77,7 +91,18 @@ export function recordSupplementDose(events: MedicationEvent[], supplement: Medi
       || !supplementDosesForDate([supplement], [], day).some((dose) => dose.key === scheduledFor)
       || events.some((event) => event.medicationId === supplement.id && event.scheduledFor === scheduledFor && event.outcome !== 'snoozed')) return events;
   } else if (supplement.schedule.type !== 'as_needed' && supplement.schedule.type !== 'interval') return events;
-  return [{ id, medicationId: supplement.id, scheduledFor, occurredAt: now.toISOString(), outcome }, ...events];
+  const nutrientSnapshot: Record<string, number> = {};
+  if (outcome === 'taken') for (const value of supplement.nutrientProfile ?? []) {
+    const canonical = toCanonicalNutrientAmount(value.nutrientId, value.amount, value.unit, customNutrients) * unitsTaken;
+    nutrientSnapshot[value.nutrientId] = (nutrientSnapshot[value.nutrientId] ?? 0) + canonical;
+  }
+  return [{ id, medicationId: supplement.id, scheduledFor, occurredAt: now.toISOString(), outcome,
+    ...(outcome === 'taken' ? { unitsTaken, nutrientSnapshot } : {}) }, ...events];
 }
 
 export function supplementDoseKey(date: string, time: string) { return scheduledDoseKey(date, time); }
+
+export function markSupplementDoseSkipped(events: MedicationEvent[], supplementIds: Set<string>, id: string, correctedAt = new Date().toISOString()) {
+  return events.map((event) => event.id === id && event.outcome === 'taken' && supplementIds.has(event.medicationId)
+    ? { ...event, outcome: 'skipped' as const, correctedAt, nutrientSnapshot: undefined, unitsTaken: undefined } : event);
+}

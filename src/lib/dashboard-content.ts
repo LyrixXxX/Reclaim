@@ -1,5 +1,5 @@
 import { DashboardWidget, TrackerState } from '@/models/tracker';
-import { goalForDate, macroCalories, nutritionTotals } from './nutrition';
+import { goalForDate, hasMacroTargets, nutritionCalorieTarget, nutritionTotals } from './nutrition';
 import { formatMedicationTime, medicationIsActiveOnDate } from './medications';
 import { scheduledDosesForDate } from './medication-regimen';
 import { localDateKey } from './progress';
@@ -34,13 +34,13 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
   if (widget.id === 'nutrition') {
     const entries = (state.nutritionEntries ?? []).filter((entry) => entry.eventDate === today);
     const goal = goalForDate(state.nutritionGoals ?? [], today);
-    if (!entries.length && goal) return { value: `${number(macroCalories(goal))} kcal target`, caption: 'Today · targets ready · no food logged', rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(goal[key])} g target` })) };
+    if (!entries.length && goal) return { value: `${number(nutritionCalorieTarget(goal))} kcal target`, caption: 'Today · targets ready · no food logged', rows: hasMacroTargets(goal) ? ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(goal[key])} g target` })) : [] };
     if (!entries.length) return empty('Today · Set your targets in Nutrition.');
     const totals = nutritionTotals(entries);
-    const budget = goal ? macroCalories(goal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false, state.preferences?.includeWorkoutCaloriesInNutrition ?? false).total : null;
+    const budget = goal ? nutritionCalorieTarget(goal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false, state.preferences?.includeWorkoutCaloriesInNutrition ?? false).total : null;
     const recordedDates = [...new Set((state.nutritionEntries ?? []).filter((entry) => entry.eventDate <= today).map((entry) => entry.eventDate))].sort().slice(-7);
     return { value: `${number(totals.calories)} kcal`, calorieStatus: budget !== null ? (totals.calories > budget ? 'over' : 'within') : undefined, caption: `Today · ${entries.length} food ${entries.length === 1 ? 'entry' : 'entries'}${budget !== null ? ` · ${number(budget)} kcal target` : ''}`,
-      rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(totals[key])}${goal ? ` / ${number(goal[key])}` : ''} g` })),
+      rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(totals[key])}${goal && (key === 'fiberGrams' || hasMacroTargets(goal)) ? ` / ${number(goal[key])}` : ''} g` })),
       trend: recordedDates.map((date) => ({ date, value: nutritionTotals(state.nutritionEntries ?? [], date).calories })), trendLabel: 'Calories logged · recorded days only' };
   }
   if (widget.id === 'cpap') {

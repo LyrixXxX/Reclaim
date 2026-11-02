@@ -1,5 +1,7 @@
 param(
-  [string]$BuildRoot = 'C:\ReclaimBuild',
+  # Native codegen object paths can exceed Ninja's Windows 260-character limit
+  # when the build cache uses a longer directory such as C:\ReclaimBuild.
+  [string]$BuildRoot = 'C:\R',
   [switch]$SyncOnly,
   [switch]$PlayBundle
 )
@@ -12,6 +14,13 @@ $credentialsPath = Join-Path $sourceRoot 'credentials.json'
 $outputDirectory = Join-Path $sourceRoot 'dist'
 $outputApk = Join-Path $outputDirectory 'Reclaim-android-release.apk'
 $outputBundle = Join-Path $outputDirectory 'Reclaim-android-release.aab'
+
+function Set-ContentIfChanged([string]$Path, [string]$Value) {
+  $current = if (Test-Path -LiteralPath $Path) { Get-Content -Raw -LiteralPath $Path } else { $null }
+  if ($null -eq $current -or $current.TrimEnd([char[]]"`r`n") -cne $Value.TrimEnd([char[]]"`r`n")) {
+    Set-Content -LiteralPath $Path -Value $Value
+  }
+}
 
 if (-not $SyncOnly) {
   try {
@@ -42,7 +51,13 @@ if (Test-Path -LiteralPath $buildRootFull) {
 }
 
 Write-Host 'Synchronizing Reclaim into the short-path Android build cache...'
-& robocopy $sourceRoot $buildRootFull /E /XD '.git' 'dist' '.gradle' '.cxx' 'build' '.npm-task-cache' '.expo-task-home' /XF '.reclaim-local-build' /NFL /NDL /NJH /NJS /NP
+$syncExclusions = @('.git', 'dist', '.gradle', '.cxx', 'build', '.npm-task-cache', '.expo-task-home', '.jest-cache', '.npm-cache', 'node_modules')
+# The short-path native project is the actual incremental build workspace. The
+# source checkout's older generated Android files must not overwrite it.
+if (Test-Path -LiteralPath (Join-Path $buildRootFull 'android\app\build.gradle')) {
+  $syncExclusions += 'android'
+}
+& robocopy $sourceRoot $buildRootFull /E /XD $syncExclusions /XF '.reclaim-local-build' /NFL /NDL /NJH /NJS /NP
 $robocopyExitCode = $LASTEXITCODE
 if ($robocopyExitCode -ge 8) {
   throw "Unable to synchronize the build cache (robocopy exit code $robocopyExitCode)."
@@ -68,10 +83,12 @@ if (Test-Path -LiteralPath $retiredModule) {
 # complete dependency tree whenever package-lock.json changes, then remove only
 # native Android build caches that may contain paths from the source checkout.
 $sourcePackageLock = Join-Path $sourceRoot 'package-lock.json'
+$sourceAppHash = (Get-FileHash -LiteralPath (Join-Path $sourceRoot 'app.json') -Algorithm SHA256).Hash
 $dependencyMarker = Join-Path $buildRootFull '.reclaim-package-lock.sha256'
 $packageLockHash = (Get-FileHash -LiteralPath $sourcePackageLock -Algorithm SHA256).Hash
 $cachedPackageLockHash = if (Test-Path -LiteralPath $dependencyMarker) { (Get-Content -Raw -LiteralPath $dependencyMarker).Trim() } else { '' }
-if ($packageLockHash -ne $cachedPackageLockHash) {
+$dependencyChanged = $packageLockHash -ne $cachedPackageLockHash
+if ($dependencyChanged) {
   Write-Host 'Refreshing local build dependencies after a package change...'
   $sourceNodeModules = [IO.Path]::GetFullPath((Join-Path $sourceRoot 'node_modules'))
   $cachedNodeModules = [IO.Path]::GetFullPath((Join-Path $buildRootFull 'node_modules'))
@@ -98,7 +115,15 @@ if ($packageLockHash -ne $cachedPackageLockHash) {
 
 # Native config plugins must be reapplied when Android permissions or packages change.
 $nativeConfigMarker = Join-Path $buildRootFull '.reclaim-native-config.sha256'
-$appConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.json') -Algorithm SHA256).Hash
+$nativeAppConfig = Get-Content -Raw -LiteralPath (Join-Path $buildRootFull 'app.json') | ConvertFrom-Json
+# Play version fields are applied to Gradle below; they do not change native
+# permissions, plugins, or resources and must not force Expo prebuild.
+$nativeAppConfig.expo.PSObject.Properties.Remove('version')
+$nativeAppConfig.expo.android.PSObject.Properties.Remove('versionCode')
+$nativeAppConfigJson = $nativeAppConfig | ConvertTo-Json -Depth 100 -Compress
+$nativeAppConfigBytes = [Text.Encoding]::UTF8.GetBytes($nativeAppConfigJson)
+$nativeConfigSha = [Security.Cryptography.SHA256]::Create()
+try { $appConfigHash = [BitConverter]::ToString($nativeConfigSha.ComputeHash($nativeAppConfigBytes)).Replace('-', '') } finally { $nativeConfigSha.Dispose() }
 $dynamicConfigHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'app.config.js') -Algorithm SHA256).Hash
 # Play update prompts belong only in bundles distributed through Google Play.
 # Force this per build type so a prior shell value cannot leak into a sideloaded APK.
@@ -110,8 +135,17 @@ if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED) -and
   Write-Host 'Google test ads are enabled for this local build.'
 }
 $testAdsEnabled = $env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED -eq '1'
+$purchaseTestingEnabled = $env:EXPO_PUBLIC_RECLAIM_PURCHASE_TESTING_ENABLED -eq '1'
 if ($testAdsEnabled -and $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1') {
   throw 'Choose either Google test ads or live monetization; both flags cannot be enabled.'
+}
+if ($purchaseTestingEnabled) {
+  if (-not $PlayBundle -or -not $testAdsEnabled -or $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1') {
+    throw 'Purchase testing requires a Play bundle with Google test ads and live monetization off.'
+  }
+  if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL) -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL).StartsWith('https://') -or -not ([string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_VERIFIER_URL).StartsWith('https://')) {
+    throw 'Purchase testing requires a support email, public HTTPS privacy URL, and HTTPS purchase verifier URL.'
+  }
 }
 $admobAppId = if ($testAdsEnabled) { 'ca-app-pub-3940256099942544~3347511713' } else { [string]$env:EXPO_PUBLIC_ADMOB_APP_ID }
 if ($env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED -eq '1' -and ([string]::IsNullOrWhiteSpace($admobAppId) -or $admobAppId.StartsWith('ca-app-pub-3940256099942544'))) {
@@ -138,7 +172,15 @@ if (-not [string]::IsNullOrWhiteSpace($admobAppId)) {
 }
 $nativeConfigHash = "$appConfigHash-$dynamicConfigHash-$packageLockHash-$admobAppId"
 $cachedNativeConfigHash = if (Test-Path -LiteralPath $nativeConfigMarker) { (Get-Content -Raw -LiteralPath $nativeConfigMarker).Trim() } else { '' }
-if ($nativeConfigHash -ne $cachedNativeConfigHash) {
+# Migrate a valid cache made by the previous script without running prebuild
+# just because this script now excludes version fields from the fingerprint.
+$legacyNativeConfigHash = "$sourceAppHash-$dynamicConfigHash-$packageLockHash-$admobAppId"
+if ($cachedNativeConfigHash -eq $legacyNativeConfigHash) {
+  Set-ContentIfChanged $nativeConfigMarker $nativeConfigHash
+  $cachedNativeConfigHash = $nativeConfigHash
+}
+$nativeConfigChanged = $nativeConfigHash -ne $cachedNativeConfigHash
+if ($nativeConfigChanged) {
   Write-Host 'Updating Android native configuration for installed packages and permissions...'
   $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
   Push-Location $buildRootFull
@@ -148,6 +190,40 @@ if ($nativeConfigHash -ne $cachedNativeConfigHash) {
   } finally { Pop-Location }
   Set-Content -LiteralPath $nativeConfigMarker -Value $nativeConfigHash
 }
+
+# The general sync deliberately excludes the generated Android tree to keep
+# Gradle incremental. Regenerate native branding only when its source changes
+# or Expo prebuild has just rewritten native resources.
+$iconSourceHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'assets\images\reclaim-icon-source.png') -Algorithm SHA256).Hash
+$iconScriptHash = (Get-FileHash -LiteralPath (Join-Path $buildRootFull 'scripts\generate-reclaim-icon.cjs') -Algorithm SHA256).Hash
+$iconMarkerPath = Join-Path $buildRootFull '.reclaim-icon-assets.sha256'
+$iconHash = "$iconSourceHash-$iconScriptHash"
+$cachedIconHash = if (Test-Path -LiteralPath $iconMarkerPath) { (Get-Content -Raw -LiteralPath $iconMarkerPath).Trim() } else { '' }
+if ($nativeConfigChanged -or $iconHash -ne $cachedIconHash) {
+  Write-Host 'Updating Reclaim launcher and splash artwork...'
+  & node.exe (Join-Path $buildRootFull 'scripts\generate-reclaim-icon.cjs')
+  if ($LASTEXITCODE -ne 0) { throw 'Reclaim icon generation failed.' }
+  Set-Content -LiteralPath $iconMarkerPath -Value $iconHash
+}
+
+# Keep these release rules even when Expo prebuild is skipped. Without them,
+# R8 strips WorkManager's reflective constructors and Reclaim crashes before
+# MainActivity opens.
+$proguardRulesPath = Join-Path $buildRootFull 'android\app\proguard-rules.pro'
+if (-not (Test-Path -LiteralPath $proguardRulesPath)) {
+  throw 'Generated Android ProGuard rules are missing. Refusing to build a release that may crash on launch.'
+}
+$proguardContents = Get-Content -Raw -LiteralPath $proguardRulesPath
+$workManagerConstructorRules = @(
+  '-keep class * extends androidx.room.RoomDatabase { <init>(); }',
+  '-keep class * extends androidx.work.InputMerger { <init>(); }'
+)
+foreach ($rule in $workManagerConstructorRules) {
+  if (-not $proguardContents.Contains($rule)) {
+    $proguardContents = $proguardContents.TrimEnd() + "`r`n$rule`r`n"
+  }
+}
+Set-ContentIfChanged $proguardRulesPath $proguardContents
 
 # Incremental Expo prebuild can retain an older generated build.gradle. Play
 # requires a strictly increasing version code for every uploaded bundle.
@@ -164,12 +240,34 @@ if ($gradleRelease -notmatch '(?m)^[ \t]*versionCode[ \t]+\d+[ \t]*$' -or $gradl
 }
 $gradleRelease = $gradleRelease -replace '(?m)^([ \t]*versionCode[ \t]+)\d+[ \t]*$', ('${1}' + $releaseVersionCode)
 $gradleRelease = $gradleRelease -replace '(?m)^([ \t]*versionName[ \t]+)"[^"]+"[ \t]*$', ('${1}"' + $releaseVersionName + '"')
-Set-Content -LiteralPath $gradleFile -Value $gradleRelease
+# AGP passes CMAKE_OBJECT_PATH_MAX=1024, which leaves React Native's generated
+# C++ object paths longer than Windows/Ninja can create. Add a later CMake
+# argument so CMake hashes long paths before Ninja sees them.
+$objectPathArgument = '-DCMAKE_OBJECT_PATH_MAX=240'
+if ($gradleRelease -notmatch [regex]::Escape($objectPathArgument)) {
+  $gradleRelease = $gradleRelease.TrimEnd() + @"
+
+
+android {
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments "$objectPathArgument"
+            }
+        }
+    }
+}
+"@
+}
+Set-ContentIfChanged $gradleFile $gradleRelease
 
 # Expo's incremental prebuild can leave an older checked-in manifest intact.
 # Route recording schedules a persistent Android job; without this permission
 # the phone force-closes Reclaim on the first location update.
 $androidManifestPath = Join-Path $buildRootFull 'android\app\src\main\AndroidManifest.xml'
+$androidManifest = Get-Content -Raw -LiteralPath $androidManifestPath
+$androidManifest = $androidManifest -replace 'android:roundIcon="@mipmap/ic_launcher_round"', 'android:roundIcon="@mipmap/reclaim_icon_round"'
+Set-ContentIfChanged $androidManifestPath $androidManifest
 if (-not (Test-Path -LiteralPath $androidManifestPath) -or
     -not (Select-String -LiteralPath $androidManifestPath -Pattern '<uses-permission\s+android:name="android.permission.RECEIVE_BOOT_COMPLETED"' -Quiet)) {
   throw 'Android manifest is missing RECEIVE_BOOT_COMPLETED. Refusing to build a release that crashes when a route starts.'
@@ -185,9 +283,8 @@ if (Select-String -LiteralPath $androidStylesPath -Pattern 'android:(statusBarCo
   throw 'Android theme still sets deprecated system-bar colors. Refusing to build.'
 }
 
-# The source checkout contains an older generated android/gradle.properties.
-# Robocopy updates the short-path build copy on every run, so restore this
-# config-plugin value even when prebuild is skipped by the hash check.
+# Preserve this config-plugin value even when prebuild is skipped by the hash
+# check. Only write when the effective value changes to keep Gradle incremental.
 $gradlePropertiesPath = Join-Path $buildRootFull 'android\gradle.properties'
 if (-not (Test-Path -LiteralPath $gradlePropertiesPath)) {
   throw 'The generated Android Gradle properties file is missing.'
@@ -198,7 +295,25 @@ if ($gradleProperties -match '(?m)^android\.minSdkVersion=') {
 } else {
   $gradleProperties = $gradleProperties.TrimEnd() + "`r`nandroid.minSdkVersion=26`r`n"
 }
-Set-Content -LiteralPath $gradlePropertiesPath -Value $gradleProperties
+Set-ContentIfChanged $gradlePropertiesPath $gradleProperties
+
+# R8 needs more than Expo's generated 2 GB Gradle heap for this app. A full
+# release was spending nearly all of its time in full GC at that limit.
+# Keep the small heap for standalone Prefab helpers below, but give
+# the Gradle daemon (and in-process R8) a 6 GB heap.
+$gradleProperties = Get-Content -Raw -LiteralPath $gradlePropertiesPath
+$gradleJvmArgs = 'org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=512m'
+if ($gradleProperties -match '(?m)^org\.gradle\.jvmargs=') {
+  $gradleProperties = $gradleProperties -replace '(?m)^org\.gradle\.jvmargs=.*$', $gradleJvmArgs
+} else {
+  $gradleProperties = $gradleProperties.TrimEnd() + "`r`n$gradleJvmArgs`r`n"
+}
+if ($gradleProperties -match '(?m)^org\.gradle\.caching=') {
+  $gradleProperties = $gradleProperties -replace '(?m)^org\.gradle\.caching=.*$', 'org.gradle.caching=true'
+} else {
+  $gradleProperties = $gradleProperties.TrimEnd() + "`r`norg.gradle.caching=true`r`n"
+}
+Set-ContentIfChanged $gradlePropertiesPath $gradleProperties
 
 # Keep R8 enabled even when incremental prebuild reuses an older native project.
 $gradleProperties = Get-Content -Raw -LiteralPath $gradlePropertiesPath
@@ -209,13 +324,39 @@ foreach ($setting in @('android.enableMinifyInReleaseBuilds', 'android.enableShr
     $gradleProperties = $gradleProperties.TrimEnd() + "`r`n$setting=true`r`n"
   }
 }
-Set-Content -LiteralPath $gradlePropertiesPath -Value $gradleProperties
+Set-ContentIfChanged $gradlePropertiesPath $gradleProperties
+
+# SDK 58 / React Native 0.88 require Gradle 9.4.1 and the documented AGP 9
+# compatibility switches. The generated android directory is not tracked.
+$wrapperPropertiesPath = Join-Path $buildRootFull 'android\gradle\wrapper\gradle-wrapper.properties'
+$wrapperProperties = Get-Content -Raw -LiteralPath $wrapperPropertiesPath
+if ($wrapperProperties -notmatch 'gradle-9\.4\.1-bin\.zip') {
+  if ($wrapperProperties -notmatch 'gradle-[\d.]+-bin\.zip') {
+    throw 'Could not identify the generated Gradle wrapper version.'
+  }
+  $wrapperProperties = $wrapperProperties -replace 'gradle-[\d.]+-bin\.zip', 'gradle-9.4.1-bin.zip'
+  Set-Content -LiteralPath $wrapperPropertiesPath -Value $wrapperProperties
+}
+$gradleProperties = Get-Content -Raw -LiteralPath $gradlePropertiesPath
+foreach ($setting in @('android.builtInKotlin', 'android.newDsl')) {
+  if ($gradleProperties -match "(?m)^$([regex]::Escape($setting))=") {
+    $gradleProperties = $gradleProperties -replace "(?m)^$([regex]::Escape($setting))=.*$", "$setting=false"
+  } else {
+    $gradleProperties = $gradleProperties.TrimEnd() + "`r`n$setting=false`r`n"
+  }
+}
+Set-ContentIfChanged $gradlePropertiesPath $gradleProperties
+$gradleRelease = Get-Content -Raw -LiteralPath $gradleFile
+if ($gradleRelease -match 'getDefaultProguardFile\("proguard-android\.txt"\)') {
+  $gradleRelease = $gradleRelease -replace 'getDefaultProguardFile\("proguard-android\.txt"\)', 'getDefaultProguardFile("proguard-android-optimize.txt")'
+  Set-ContentIfChanged $gradleFile $gradleRelease
+}
 
 $generatedAutolinking = @(
   (Join-Path $buildRootFull 'android\build\generated\autolinking'),
   (Join-Path $buildRootFull 'android\app\build\generated\autolinking')
 )
-foreach ($generatedDirectory in $generatedAutolinking) {
+foreach ($generatedDirectory in $(if ($nativeConfigChanged -or $dependencyChanged) { $generatedAutolinking } else { @() })) {
   if (Test-Path -LiteralPath $generatedDirectory) {
     Remove-Item -LiteralPath $generatedDirectory -Recurse -Force
   }
@@ -233,7 +374,7 @@ if (-not (Test-Path -LiteralPath $cacheVersionMarker)) {
     }
     Remove-Item -LiteralPath $cachePath -Recurse -Force
   }
-  Set-Content -LiteralPath $cacheVersionMarker -Value 'Native caches generated from the C:\ReclaimBuild short path.'
+  Set-Content -LiteralPath $cacheVersionMarker -Value "Native caches generated from the $buildRootFull short path."
 }
 
 if ($SyncOnly) {
@@ -256,6 +397,11 @@ if ($playIntegrityProjectNumber -notmatch '^\d+$') {
   throw 'EXPO_PUBLIC_RECLAIM_PLAY_INTEGRITY_PROJECT_NUMBER must be a numeric Google Cloud project number.'
 }
 Write-Host 'Play Integrity project number configured for this build.'
+# Prefer the persistent Windows user setting over a stale value in an already-open shell.
+$savedStadiaKey = [Environment]::GetEnvironmentVariable('EXPO_PUBLIC_STADIA_MAPS_KEY', 'User')
+if (-not [string]::IsNullOrWhiteSpace($savedStadiaKey)) {
+  $env:EXPO_PUBLIC_STADIA_MAPS_KEY = $savedStadiaKey
+}
 $stadiaKey = [string]$env:EXPO_PUBLIC_STADIA_MAPS_KEY
 if ([string]::IsNullOrWhiteSpace($stadiaKey) -or $stadiaKey -match '^\s*(<|PASTE_|your-|YOUR-)') {
   throw 'Set EXPO_PUBLIC_STADIA_MAPS_KEY to your real Stadia Maps API key in this PowerShell window before building.'
@@ -287,6 +433,7 @@ if ($stadiaKeyHash -ne $previousStadiaHash) {
 $monetizationValues = @(
   [string]$env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED,
   [string]$env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED,
+  [string]$env:EXPO_PUBLIC_RECLAIM_PURCHASE_TESTING_ENABLED,
   [string]$env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL,
   [string]$env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL,
   [string]$env:EXPO_PUBLIC_ADMOB_BANNER_ID,
@@ -361,7 +508,7 @@ if ($localProperties -match '(?m)^ndk\.dir=') {
 } else {
   $localProperties = $localProperties.TrimEnd() + "`r`n" + $ndkLine + "`r`n"
 }
-Set-Content -LiteralPath $localPropertiesPath -Value $localProperties
+Set-ContentIfChanged $localPropertiesPath $localProperties
 $gradle = Join-Path $androidDirectory 'gradlew.bat'
 $previousJavaToolOptions = [Environment]::GetEnvironmentVariable('JAVA_TOOL_OPTIONS', 'Process')
 # Android's Prefab CLI starts separate Java processes while configuring CMake.
@@ -379,7 +526,7 @@ try {
   $releaseTask = if ($PlayBundle) { 'bundleRelease' } else { 'assembleRelease' }
   $releaseKind = if ($PlayBundle) { 'App Bundle for Google Play' } else { 'APK' }
   Write-Host "Building the signed Android release $releaseKind..."
-  & $gradle $releaseTask --no-daemon --no-parallel --max-workers=1 --stacktrace
+  & $gradle $releaseTask --no-daemon --no-parallel --max-workers=1 --profile --stacktrace
   if ($LASTEXITCODE -ne 0) { throw "Android build failed with exit code $LASTEXITCODE." }
 } finally {
   Pop-Location
@@ -389,6 +536,14 @@ try {
 }
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+$mappingFile = Join-Path $buildRootFull 'android\app\build\outputs\mapping\release\mapping.txt'
+if (-not (Test-Path -LiteralPath $mappingFile)) { throw 'R8 mapping.txt was not generated for the release.' }
+foreach ($className in @('androidx.work.impl.WorkDatabase_Impl', 'androidx.work.ArrayCreatingInputMerger', 'androidx.work.OverwritingInputMerger')) {
+  $classMapping = Select-String -LiteralPath $mappingFile -Pattern ('^' + [regex]::Escape($className) + ' ->') -Context 0,30 | Select-Object -First 1
+  if (-not $classMapping -or -not (($classMapping.Context.PostContext -join "`n") -match 'void <init>\(\)')) {
+    throw "R8 removed the no-argument constructor for $className. Refusing to publish an app that crashes on launch."
+  }
+}
 if ($PlayBundle) {
   $builtBundle = Join-Path $buildRootFull 'android\app\build\outputs\bundle\release\app-release.aab'
   if (-not (Test-Path -LiteralPath $builtBundle)) { throw 'Gradle completed but the App Bundle was not found.' }
@@ -399,8 +554,6 @@ if ($PlayBundle) {
     throw 'The App Bundle was created but its upload signature could not be verified.'
   }
   Copy-Item -LiteralPath $builtBundle -Destination $outputBundle -Force
-  $mappingFile = Join-Path $buildRootFull 'android\app\build\outputs\mapping\release\mapping.txt'
-  if (-not (Test-Path -LiteralPath $mappingFile)) { throw 'R8 mapping.txt was not generated for the release bundle.' }
   Copy-Item -LiteralPath $mappingFile -Destination (Join-Path $outputDirectory 'Reclaim-android-release-mapping.txt') -Force
   $outputArtifact = $outputBundle
 } else {

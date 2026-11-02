@@ -10,11 +10,12 @@ import { AppLockSettings } from '@/components/app-lock-settings';
 import { AdsConsent } from 'react-native-google-mobile-ads';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { LocalSaveStatus } from '@/components/local-save-status';
+import { RemoveAdsButton } from '@/components/remove-ads-button';
 import { backupSummary, parseReclaimBackup } from '@/lib/backup';
 import { readActiveRoute } from '@/lib/activity-recording';
 import { createPortableBackup, restorePortableBackup } from '@/lib/backup-files';
 import { DEFAULT_PREFERENCES, moveNavigationSection, normalizeNavigationOrder } from '@/lib/preferences';
-import { MONETIZATION_ENABLED, TEST_ADS_ENABLED } from '@/lib/monetization';
+import { MONETIZATION_ENABLED, PURCHASES_ENABLED, TEST_ADS_ENABLED } from '@/lib/monetization';
 import { NavigationSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useMonetization } from '@/state/monetization-context';
@@ -27,6 +28,7 @@ const sections: { id: NavigationSection; label: string; description: string }[] 
   { id: 'activity', label: 'Steps', description: 'Daily steps, goal, and trends.' },
   { id: 'routes', label: 'Routes', description: 'GPS-recorded walks, hikes, runs, and saved maps.' },
   { id: 'workouts', label: 'Workouts', description: 'Strength sessions, routines, and progress.' },
+  { id: 'supplements', label: 'Supplements', description: 'Vitamin and supplement schedules, doses, and history.' },
 ];
 
 export default function SettingsScreen() {
@@ -108,10 +110,22 @@ export default function SettingsScreen() {
     <Text style={styles.section}>Ads & support</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>{monetization.adFree ? 'Ads removed' : 'Keep Reclaim free'}</Text>
-      <Text style={styles.backupText}>{TEST_ADS_ENABLED ? 'Google test banners appear on Home, Steps, Routes, and Nutrition. A test ad may also appear after saving a current meal. They earn no revenue; purchases are off in this build.' : monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : 'Banners and occasional post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
+      <Text style={styles.backupText}>{monetization.adFree ? 'Your permanent Remove Ads purchase is active on this Play account.' : TEST_ADS_ENABLED ? `This build uses Google test ads, which earn no revenue.${PURCHASES_ENABLED ? ' Remove Ads can be tested through Google Play.' : ' Purchases are off in this build.'}` : 'Banners and post-save ads can help support Reclaim. Your personal records are never used to target them.'}</Text>
       {!!monetization.error && <Text accessibilityRole="alert" style={styles.privacy}>{monetization.error}</Text>}
-      {MONETIZATION_ENABLED && !monetization.adFree && <Pressable disabled={!monetization.connected || !monetization.price || monetization.busy} onPress={() => { void monetization.buy().catch(() => Alert.alert('Purchase unavailable', 'Please try again through Google Play.')); }} style={[styles.primary, (!monetization.connected || !monetization.price || monetization.busy) && styles.disabled]}><Text style={styles.primaryText}>Remove ads permanently{monetization.price ? ` · ${monetization.price}` : ''}</Text></Pressable>}
-      {MONETIZATION_ENABLED && <Pressable disabled={monetization.busy} onPress={() => { void monetization.restore().then((result) => Alert.alert(result === 'restored' ? 'Ads removed' : result === 'none' ? 'No purchase found' : 'Could not check purchases', result === 'restored' ? 'Your Remove Ads purchase is active on this Play account.' : result === 'none' ? 'No completed Remove Ads purchase was found on this Play account.' : 'Connect to Google Play and try again.')); }} style={styles.secondary}><Text style={styles.secondaryText}>Restore purchase</Text></Pressable>}
+      <RemoveAdsButton />
+      {PURCHASES_ENABLED && <Pressable disabled={monetization.busy} onPress={() => { void monetization.restore().then((result) => {
+        const messages = {
+          verified: ['Ads removed', 'Your Remove Ads purchase was verified and is active.'],
+          'not-returned': ['Purchase not returned', 'Google Play did not return Remove Ads to Reclaim. If Play says you own it, check that this is the purchasing Play account and try again shortly.'],
+          pending: ['Purchase pending', 'Google Play returned Remove Ads, but the purchase has not completed yet.'],
+          'missing-token': ['Purchase needs another check', 'Google Play returned Remove Ads without a verification token. Reconnect to Play and try again.'],
+          rejected: ['Purchase not verified', 'Google Play returned Remove Ads, but the verification service did not confirm it. Please try again later.'],
+          'play-unavailable': ['Play purchase check unavailable', 'Reclaim could not query Google Play purchases. Check your Play connection and try again.'],
+          'verification-unavailable': ['Verification unavailable', 'Google Play returned a purchase, but Reclaim could not reach the verification service. Please try again later.'],
+        } as const;
+        const [title, message] = messages[result];
+        Alert.alert(title, message);
+      }); }} style={styles.secondary}><Text style={styles.secondaryText}>Restore purchase</Text></Pressable>}
       {MONETIZATION_ENABLED && <Pressable onPress={() => { void AdsConsent.showPrivacyOptionsForm().catch(() => Alert.alert('Privacy options unavailable', 'Try again when connected.')); }} style={styles.secondary}><Text style={styles.secondaryText}>Ad privacy choices</Text></Pressable>}
       {!MONETIZATION_ENABLED && !TEST_ADS_ENABLED && <Text style={styles.backupText}>Ads and purchases are not active in this build.</Text>}
     </View>

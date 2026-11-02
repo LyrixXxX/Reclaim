@@ -27,7 +27,7 @@ const stateArrayKeys = [
   'trackers', 'checkIns', 'lapseEvents', 'historicalEntries', 'taperSteps',
   'healthReadings', 'cpapReadings', 'cpapTherapySettings', 'cpapUsageGoals', 'weightEntries', 'cpapEquipment',
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
-  'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutritionMealGroups',
+  'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutrientSelections', 'customNutrients', 'nutritionMealGroups',
   'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs', 'strengthExercises', 'workoutRoutines', 'workoutSessions', 'actualOneRepMaxes',
 ] as const;
 
@@ -84,6 +84,7 @@ function validateState(value: Record<string, unknown>) {
   if (!Array.isArray(value.trackers) || !Array.isArray(value.checkIns)) {
     throw new Error('This Reclaim backup is missing required tracker data. Nothing was restored.');
   }
+  if (value.preferences !== undefined && (!isObject(value.preferences) || (value.preferences.includeSupplementNutrientsInNutrition !== undefined && typeof value.preferences.includeSupplementNutrientsInNutrition !== 'boolean'))) throw new Error('This Reclaim backup contains an invalid Nutrition preference. Nothing was restored.');
   for (const key of stateArrayKeys) {
     if (value[key] !== undefined && !Array.isArray(value[key])) {
       throw new Error(`This Reclaim backup has invalid ${key} data. Nothing was restored.`);
@@ -97,6 +98,7 @@ function validateState(value: Record<string, unknown>) {
     || (tracker.habitTemplate !== undefined && (![...GOOD_HABIT_TEMPLATES.map((item) => item.id), 'water'].includes(String(tracker.habitTemplate)) || tracker.mode !== 'habit'))
     || (GOOD_HABIT_TEMPLATES.some((item) => item.id === tracker.habitTemplate && (item.checklist ? !Array.isArray(tracker.habitChecklistHistory) || !tracker.habitChecklistHistory.length : !Array.isArray(tracker.habitGoalHistory) || !tracker.habitGoalHistory.length)))
     || (tracker.habitGoalHistory !== undefined && (!Array.isArray(tracker.habitGoalHistory) || tracker.habitGoalHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || typeof item.value !== 'number' || !Number.isFinite(item.value) || item.value <= 0 || item.value > 10000)))
+    || (tracker.mindfulnessVisualMode !== undefined && tracker.mindfulnessVisualMode !== 'breathing' && tracker.mindfulnessVisualMode !== 'quiet')
     || (tracker.exerciseGoalModes !== undefined && (!Array.isArray(tracker.exerciseGoalModes) || tracker.exerciseGoalModes.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !['times', 'minutes'].includes(String(item.mode)))))
     || (tracker.exerciseRegimenHistory !== undefined && (!Array.isArray(tracker.exerciseRegimenHistory) || tracker.exerciseRegimenHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !Array.isArray(item.rows) || item.rows.length > 20 || new Set(item.rows.map((row: unknown) => isObject(row) ? row.id : undefined)).size !== item.rows.length || item.rows.some((row: unknown) => !isObject(row) || typeof row.id !== 'string' || typeof row.label !== 'string' || !row.label.trim() || !Array.isArray(row.days) || row.days.some((day: unknown) => typeof day !== 'number' || !Number.isInteger(day) || day < 0 || day > 6)))))
     || (tracker.producePresets !== undefined && (!Array.isArray(tracker.producePresets) || tracker.producePresets.length > 8 || tracker.producePresets.some((value: unknown) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 20)))
@@ -126,9 +128,17 @@ function validateState(value: Record<string, unknown>) {
     throw new Error('This Reclaim backup contains invalid check-in dates. Nothing was restored.');
   }
   if (Array.isArray(value.medications) && value.medications.some((item) => !isObject(item)
-    || (item.kind !== undefined && item.kind !== 'medication' && item.kind !== 'supplement'))) {
+    || (item.kind !== undefined && item.kind !== 'medication' && item.kind !== 'supplement')
+    || (item.nutrientProfile !== undefined && (!Array.isArray(item.nutrientProfile) || item.nutrientProfile.some((amount: unknown) => !isObject(amount) || typeof amount.nutrientId !== 'string' || typeof amount.unit !== 'string' || typeof amount.amount !== 'number' || !Number.isFinite(amount.amount) || amount.amount <= 0))))) {
     throw new Error('This Reclaim backup contains an invalid medication or supplement type. Nothing was restored.');
   }
+  if (Array.isArray(value.medicationEvents) && value.medicationEvents.some((event) => !isObject(event)
+    || (event.unitsTaken !== undefined && (typeof event.unitsTaken !== 'number' || !Number.isFinite(event.unitsTaken) || event.unitsTaken <= 0))
+    || (event.nutrientSnapshot !== undefined && (!isObject(event.nutrientSnapshot) || Object.values(event.nutrientSnapshot).some((amount) => typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0))))) {
+    throw new Error('This Reclaim backup contains an invalid supplement dose. Nothing was restored.');
+  }
+  if (Array.isArray(value.customNutrients) && value.customNutrients.some((item) => !isObject(item) || typeof item.id !== 'string' || typeof item.name !== 'string' || typeof item.unit !== 'string')) throw new Error('This Reclaim backup contains an invalid custom nutrient. Nothing was restored.');
+  if (Array.isArray(value.nutrientSelections) && value.nutrientSelections.some((item) => !isObject(item) || typeof item.nutrientId !== 'string' || !['goal', 'tracked'].includes(String(item.state)) || typeof item.order !== 'number')) throw new Error('This Reclaim backup contains an invalid nutrient selection. Nothing was restored.');
   if (Array.isArray(value.supplementStacks)) {
     const slots = new Set<string>();
     for (const stack of value.supplementStacks) {
@@ -164,13 +174,17 @@ function validateState(value: Record<string, unknown>) {
     || ['manualPauseIntervals', 'stationaryIntervals', 'autoPauseIntervals'].some((key) => route[key] !== undefined && (!Array.isArray(route[key]) || route[key].some((interval: unknown) => !isObject(interval) || typeof interval.startedAt !== 'string' || typeof interval.endedAt !== 'string' || !Number.isFinite(Date.parse(interval.startedAt)) || !Number.isFinite(Date.parse(interval.endedAt)) || Date.parse(interval.endedAt) < Date.parse(interval.startedAt))))
     || (route.estimateWeightKg !== undefined && (typeof route.estimateWeightKg !== 'number' || !Number.isFinite(route.estimateWeightKg) || route.estimateWeightKg <= 0))
     || (route.estimatedCalories !== undefined && (typeof route.estimatedCalories !== 'number' || !Number.isFinite(route.estimatedCalories) || route.estimatedCalories < 0))
+    || (route.routeSteps !== undefined && (typeof route.routeSteps !== 'number' || !Number.isInteger(route.routeSteps) || route.routeSteps < 0))
+    || (route.routeStepStatus !== undefined && !['available', 'unavailable', 'partial'].includes(String(route.routeStepStatus)))
     || (route.name !== undefined && (typeof route.name !== 'string' || route.name.length > 120))
     || (route.notes !== undefined && (typeof route.notes !== 'string' || route.notes.length > 2000))
     || !Array.isArray(route.points)
     || route.points.some((point: unknown) => !isObject(point)
       || typeof point.latitude !== 'number' || !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90
       || typeof point.longitude !== 'number' || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180
-      || typeof point.timestamp !== 'number'))) {
+      || typeof point.timestamp !== 'number'
+      || (point.altitudeMeters != null && (typeof point.altitudeMeters !== 'number' || !Number.isFinite(point.altitudeMeters)))
+      || (point.altitudeAccuracyMeters != null && (typeof point.altitudeAccuracyMeters !== 'number' || !Number.isFinite(point.altitudeAccuracyMeters) || point.altitudeAccuracyMeters < 0))))) {
     throw new Error('This Reclaim backup contains invalid activity routes. Nothing was restored.');
   }
   if (Array.isArray(value.stepHistory) && value.stepHistory.some((day) => !isObject(day)

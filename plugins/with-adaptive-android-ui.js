@@ -1,4 +1,10 @@
-const { withAndroidManifest, withAndroidStyles } = require('expo/config-plugins');
+const { withAndroidManifest, withAndroidStyles, withAppBuildGradle } = require('expo/config-plugins');
+
+function useCurrentMaterialComponents(buildGradle) {
+  const dependency = 'implementation("com.google.android.material:material:1.14.0")';
+  if (buildGradle.includes(dependency)) return buildGradle;
+  return buildGradle.replace(/dependencies\s*\{/, (match) => `${match}\n    // Material 1.14 fixes Android 15 bottom-sheet system-bar handling.\n    ${dependency}`);
+}
 
 function removeLegacyWindowAttributes(manifest) {
   const application = manifest.manifest.application?.[0];
@@ -33,11 +39,16 @@ module.exports = function withAdaptiveAndroidUi(config) {
     mod.modResults = removeLegacyWindowAttributes(mod.modResults);
     return mod;
   });
-  return withAndroidStyles(config, (mod) => {
+  config = withAndroidStyles(config, (mod) => {
     mod.modResults = removeLegacySystemBarColors(mod.modResults);
+    return mod;
+  });
+  return withAppBuildGradle(config, (mod) => {
+    mod.modResults.contents = useCurrentMaterialComponents(mod.modResults.contents);
     return mod;
   });
 };
 
 module.exports.removeLegacyWindowAttributes = removeLegacyWindowAttributes;
 module.exports.removeLegacySystemBarColors = removeLegacySystemBarColors;
+module.exports.useCurrentMaterialComponents = useCurrentMaterialComponents;

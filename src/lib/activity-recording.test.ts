@@ -4,6 +4,7 @@ const mockStorage = new Map<string, string>();
 let mockRunning = false;
 let mockLocationTask: ((event: { data?: { locations: unknown[] }; error?: unknown }) => Promise<void>) | undefined;
 const mockMileNotification = jest.fn((_mile: number, _routeId: string) => Promise.resolve());
+const mockReadTodaySteps = jest.fn(() => Promise.resolve({ status: 'available', count: 1000, incomplete: false }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: (key: string) => Promise.resolve(mockStorage.get(key) ?? null),
@@ -22,8 +23,9 @@ jest.mock('expo-location', () => ({
 }));
 jest.mock('expo-notifications', () => ({ getPermissionsAsync: () => Promise.resolve({ granted: true }) }));
 jest.mock('./route-mile-alerts', () => ({ nextMileAlert: (distance: number, previous: number) => Math.floor(distance / 1609.344) > previous ? Math.floor(distance / 1609.344) : null, notifyRouteMile: (mile: number, routeId: string) => mockMileNotification(mile, routeId) }));
+jest.mock('./activity-steps', () => ({ readTodaySteps: () => mockReadTodaySteps() }));
 
-beforeEach(() => { mockStorage.clear(); mockRunning = false; mockMileNotification.mockClear(); });
+beforeEach(() => { mockStorage.clear(); mockRunning = false; mockMileNotification.mockClear(); mockReadTodaySteps.mockReset(); mockReadTodaySteps.mockResolvedValue({ status: 'available', count: 1000, incomplete: false }); });
 
 test('records points, pauses, resumes, and preserves finished route until explicitly cleared', async () => {
   await startRoute('run', 90);
@@ -48,6 +50,20 @@ test('records points, pauses, resumes, and preserves finished route until explic
   expect(await readPendingRoute()).toBeNull();
 });
 
+test('route steps update from the phone counter without counting manual-pause steps', async () => {
+  for (const count of [1000, 1012, 1020, 1050, 1060, 1062]) mockReadTodaySteps.mockResolvedValueOnce({ status: 'available', count, incomplete: false });
+  await startRoute('walk');
+  const base = Date.now();
+  await mockLocationTask?.({ data: { locations: [{ coords: { latitude: 41.88, longitude: -87.63, accuracy: 5 }, timestamp: base }] } });
+  expect((await readActiveRoute())?.routeSteps).toBe(12);
+  await pauseRoute();
+  await resumeRoute();
+  await mockLocationTask?.({ data: { locations: [{ coords: { latitude: 41.8801, longitude: -87.63, accuracy: 5 }, timestamp: base + 5000 }] } });
+  const finished = await finishRoute();
+  expect(finished.routeSteps).toBe(32);
+  expect(finished.routeStepStatus).toBe('available');
+});
+
 test('optional mile alerts fire once per crossed mile and survive task restarts', async () => {
   const route = await startRoute('walk', 80, true);
   const base = Date.now();
@@ -62,6 +78,23 @@ test('optional mile alerts fire once per crossed mile and survive task restarts'
   expect(mockMileNotification).toHaveBeenCalledTimes(1);
   await mockLocationTask?.({ data: { locations: Array.from({ length: 12 }, (_, index) => sample(index + 288)) } });
   expect(mockMileNotification).toHaveBeenNthCalledWith(2, 2, route.id);
+});
+
+test('a failed mile notification remains eligible for a later retry', async () => {
+  const route = await startRoute('walk', 80, true);
+  const base = Date.now();
+  const sample = (index: number) => ({ coords: { latitude: 41.88 + index * 0.0001, longitude: -87.63, accuracy: 5 }, timestamp: base + index * 5_000 });
+  mockMileNotification.mockRejectedValueOnce(new Error('Notification channel blocked'));
+  await mockLocationTask?.({ data: { locations: Array.from({ length: 147 }, (_, index) => sample(index)) } });
+  const failed = await readActiveRoute();
+  expect(failed?.lastMileAlert).toBe(0);
+  expect(failed?.mileAlertError).toMatch(/channel blocked/i);
+  mockStorage.set('reclaim:active-route:v1', JSON.stringify({ ...failed, lastMileAlertAttemptAt: Date.now() - 31_000 }));
+  await mockLocationTask?.({ data: { locations: [sample(147)] } });
+  expect(mockMileNotification).toHaveBeenCalledTimes(2);
+  expect(mockMileNotification).toHaveBeenLastCalledWith(1, route.id);
+  expect((await readActiveRoute())?.lastMileAlert).toBe(1);
+  expect((await readActiveRoute())?.mileAlertError).toBeUndefined();
 });
 
 test('routes without opted-in alerts never notify', async () => {

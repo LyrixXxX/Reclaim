@@ -44,6 +44,9 @@ audit-screens/
 .env*.local
 services/nutrition-ai/.dev.vars*
 services/nutrition-ai/.wrangler/
+services/play-purchases/.dev.vars*
+services/play-purchases/.env*
+services/play-purchases/.wrangler/
 
 # typescript
 *.tsbuildinfo

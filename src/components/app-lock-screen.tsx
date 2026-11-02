@@ -1,9 +1,9 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { canApplyUnlockResult, canStartBiometricUnlock, PIN_MAX_LENGTH } from '@/lib/app-lock';
+import { canApplyUnlockResult, canStartBiometricUnlock, PIN_MAX_LENGTH, type AppLockLifecycleState } from '@/lib/app-lock';
 import { useAppLock } from '@/state/app-lock-context';
 import { colors, layout, spacing } from '@/theme';
 import { BrandedLoading } from '@/components/branded-loading';
@@ -13,7 +13,7 @@ export function AppLockScreen({ loading = false }: { loading?: boolean }) {
   const [pin, setPin] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const [appState, setAppState] = useState<AppLockLifecycleState>(AppState.currentState === 'active' ? 'active' : 'unknown');
   const biometricAttempted = useRef(false);
   const biometricAttempt = useRef(0);
   const mounted = useRef(true);
@@ -21,7 +21,7 @@ export function AppLockScreen({ loading = false }: { loading?: boolean }) {
   useEffect(() => {
     mounted.current = true;
     const subscription = AppState.addEventListener('change', (nextState) => {
-      setAppState(nextState);
+      setAppState(nextState === 'active' ? 'active' : nextState === 'background' ? 'background' : 'inactive');
       if (nextState !== 'background') return;
       biometricAttempt.current += 1;
       biometricAttempted.current = false;
@@ -44,7 +44,7 @@ export function AppLockScreen({ loading = false }: { loading?: boolean }) {
     setBusy(true);
     unlockWithBiometrics()
       .then((result) => {
-        if (!mounted.current || !canApplyUnlockResult(attempt, biometricAttempt.current, AppState.currentState)) return;
+        if (!mounted.current || !canApplyUnlockResult(attempt, biometricAttempt.current, AppState.currentState === 'active' ? 'active' : 'unknown')) return;
         if (!result.ok && !result.message.includes('canceled')) setMessage(result.message);
       })
       .finally(() => {
@@ -71,7 +71,7 @@ export function AppLockScreen({ loading = false }: { loading?: boolean }) {
     setBusy(true);
     setMessage('');
     const result = await unlockWithBiometrics();
-    if (!mounted.current || !canApplyUnlockResult(attempt, biometricAttempt.current, AppState.currentState)) return;
+    if (!mounted.current || !canApplyUnlockResult(attempt, biometricAttempt.current, AppState.currentState === 'active' ? 'active' : 'unknown')) return;
     if (!result.ok && !result.message.includes('canceled')) setMessage(result.message);
     setBusy(false);
   };

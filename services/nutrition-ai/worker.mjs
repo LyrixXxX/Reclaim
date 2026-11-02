@@ -22,12 +22,16 @@ const nutritionSchema = {
           servingWeightGrams: { type: ['number', 'null'], exclusiveMinimum: 0 },
           nutrients: {
             type: 'object', additionalProperties: false,
-            required: ['carbsGrams', 'proteinGrams', 'fatGrams', 'fiberGrams'],
+            required: ['carbsGrams', 'proteinGrams', 'fatGrams', 'fiberGrams', 'additionalNutrients'],
             properties: {
               carbsGrams: { type: 'number', minimum: 0 },
               proteinGrams: { type: 'number', minimum: 0 },
               fatGrams: { type: 'number', minimum: 0 },
               fiberGrams: { type: 'number', minimum: 0 },
+              additionalNutrients: { type: 'array', maxItems: 3, items: { type: 'object', additionalProperties: false, required: ['id', 'amount'], properties: {
+                id: { type: 'string', enum: ['saturated_fat', 'cholesterol', 'sodium'] },
+                amount: { type: 'number', minimum: 0 },
+              } } },
             },
           },
           statedCalories: { type: ['number', 'null'], minimum: 0 },
@@ -38,6 +42,25 @@ const nutritionSchema = {
     },
   },
 };
+
+const supplementLabelSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['name', 'servingLabel', 'servingUnits', 'unitName', 'nutrients', 'warnings'],
+  properties: {
+    name: { type: ['string', 'null'] },
+    servingLabel: { type: ['string', 'null'] },
+    servingUnits: { type: ['number', 'null'] },
+    unitName: { type: ['string', 'null'] },
+    warnings: { type: 'array', maxItems: 12, items: { type: 'string' } },
+    nutrients: { type: 'array', maxItems: 30, items: { type: 'object', additionalProperties: false,
+      required: ['id', 'amount', 'unit'], properties: {
+        id: { type: 'string', enum: ['fiber', 'sodium', 'potassium', 'calcium', 'magnesium', 'iron', 'zinc', 'selenium', 'iodine', 'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'thiamin', 'riboflavin', 'niacin', 'vitamin_b6', 'folate', 'vitamin_b12', 'choline', 'caffeine', 'omega_3', 'epa', 'dha'] },
+        amount: { type: 'number', exclusiveMinimum: 0 }, unit: { type: 'string', enum: ['g', 'mg', 'mcg', 'IU'] },
+      } } },
+  },
+};
+
+const supplementLabelInstructions = `Transcribe a user-selected Supplement Facts label for personal tracking. Return only legible facts explicitly printed on this image. Do not suggest supplements or dosages, infer missing values, or treat percent Daily Value as an amount. Amounts are per printed serving, not per pill. servingUnits is the explicit count in a serving size such as "2 capsules"; return null if unreadable or a scoop mass without a count. unitName is capsule, tablet, scoop, or another printed unit when clear. Map only a clearly named vitamin, mineral, or listed nutrient to its stable ID. For minerals use the printed elemental amount, not compound mass. Keep omega-3, EPA and DHA separate. If a blend cannot be mapped precisely, omit it and add a warning. name is the product name only if visible. Never invent a zero amount.`;
 
 const labHistorySchema = {
   type: 'object',
@@ -157,7 +180,7 @@ const instructions = `You extract nutrition facts for a personal food log. Retur
 - Treat supplied totals as totals for the named meal, including quantities such as "x2". Do not multiply them again, split ingredients into separate foods, or replace statedCalories with calories calculated from macros.
 - Only separate a described meal into individual editable foods when a complete total nutrition summary was not supplied.
 - For nutrition-label images, transcribe the values per labeled serving and do not invent unreadable values.
-- Nutrients are grams of total carbohydrate, protein, total fat, and dietary fiber per serving.
+- Nutrients are grams of total carbohydrate, protein, total fat, and dietary fiber per serving. For additionalNutrients, include only saturated fat (g), cholesterol (mg), and sodium (mg), and only when an amount is explicitly supplied in text or legibly printed on the cropped Nutrition Facts label. Otherwise use an empty array. Omit uncertain or unreadable amounts rather than reporting zero.
 - statedCalories is the printed or estimated calorie value per serving. The app independently calculates tracked calories using 4/4/9.
 - Use a concise servingLabel such as "1 cup (227 g)" or "2 large eggs".
 - servingWeightGrams is the printed gram weight for one serving. Transcribe the gram value in parentheses when present; convert a printed ounce-only weight to grams; otherwise return null.
@@ -189,7 +212,7 @@ export async function handleRequest(request, env, fetcher = fetch) {
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404, headers);
     const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
-    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce' && url.pathname !== '/v1/plan-workouts' && url.pathname !== '/v1/plan-macros') return json({ error: 'Not found.' }, 404, headers);
+    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-supplement-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce' && url.pathname !== '/v1/plan-workouts' && url.pathname !== '/v1/plan-macros') return json({ error: 'Not found.' }, 404, headers);
 
     const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
     const safetyIdentifier = `reclaim-${(await sha256(clientIp)).slice(0, 32)}`;
@@ -232,6 +255,13 @@ export async function handleRequest(request, env, fetcher = fetch) {
         { type: 'input_text', text: 'Read this nutrition label. Return the product as one item using values per labeled serving.' },
         { type: 'input_image', image_url: imageDataUrl, detail: 'high' },
       ];
+    } else if (url.pathname === '/v1/parse-supplement-label') {
+      const imageDataUrl = typeof body.imageDataUrl === 'string' ? body.imageDataUrl : '';
+      if (!/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(imageDataUrl) || imageDataUrl.length > MAX_BODY_BYTES) return json({ error: 'Choose a cropped JPEG, PNG, or WebP Supplement Facts image.' }, 400, headers);
+      responseInstructions = supplementLabelInstructions;
+      responseSchema = supplementLabelSchema;
+      responseName = 'supplement_label';
+      content = [{ type: 'input_text', text: 'Transcribe this Supplement Facts label. Leave unreadable or ambiguous values out.' }, { type: 'input_image', image_url: imageDataUrl, detail: 'high' }];
     } else if (url.pathname === '/v1/suggest-produce') {
       if (!Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 20 || body.entries.some((entry) => typeof entry?.id !== 'string' || typeof entry?.name !== 'string' || typeof entry?.servingLabel !== 'string' || typeof entry?.servings !== 'number')) return json({ error: 'Select up to 20 valid food entries.' }, 400, headers);
       responseInstructions = produceInstructions;
@@ -293,6 +323,18 @@ export async function handleRequest(request, env, fetcher = fetch) {
       const allowedIds = new Set(body.catalog.map((exercise) => exercise.id));
       const exerciseOnly = request.headers.get('X-Reclaim-Plan-Format') === 'exercise-ids-v2';
       if (!Array.isArray(parsed.days) || parsed.days.length !== body.weekdays.length || new Set(parsed.days.map((day) => day.weekday)).size !== parsed.days.length || parsed.days.some((day) => !body.weekdays.includes(day.weekday) || typeof day.name !== 'string' || !day.name.trim() || day.name.length > 60 || !Array.isArray(day.exercises) || day.exercises.length < 1 || day.exercises.length > 10 || day.exercises.some((exercise) => !allowedIds.has(exercise.exerciseId) || (!exerciseOnly && (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 6 || !Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 30))))) return json({ error: 'The suggested workout could not be validated. Try again.' }, 502, headers);
+      return json(parsed, 200, headers);
+    }
+    if (responseName === 'supplement_label') {
+      const valid = parsed && typeof parsed === 'object' && (parsed.name === null || typeof parsed.name === 'string' && parsed.name.length <= 100)
+        && (parsed.servingLabel === null || typeof parsed.servingLabel === 'string' && parsed.servingLabel.length <= 100)
+        && (parsed.servingUnits === null || Number.isInteger(parsed.servingUnits) && parsed.servingUnits > 0 && parsed.servingUnits <= 100)
+        && (parsed.unitName === null || typeof parsed.unitName === 'string' && parsed.unitName.length <= 30)
+        && Array.isArray(parsed.warnings) && parsed.warnings.length <= 12 && parsed.warnings.every((warning) => typeof warning === 'string' && warning.length <= 300)
+        && Array.isArray(parsed.nutrients) && parsed.nutrients.length <= 30
+        && new Set(parsed.nutrients.map((value) => value.id)).size === parsed.nutrients.length
+        && parsed.nutrients.every((value) => supplementLabelSchema.properties.nutrients.items.properties.id.enum.includes(value.id) && Number.isFinite(value.amount) && value.amount > 0 && value.amount <= 1_000_000 && ['g', 'mg', 'mcg', 'IU'].includes(value.unit));
+      if (!valid) return json({ error: 'The supplement label could not be validated. Review it manually.' }, 502, headers);
       return json(parsed, 200, headers);
     }
     if (responseName === 'macro_plan') {

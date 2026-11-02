@@ -2,8 +2,8 @@ import { router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AccessibilityInfo, BackHandler, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
 
 import { AppLockScreen } from '@/components/app-lock-screen';
 import { BottomNavigation } from '@/components/bottom-navigation';
@@ -24,6 +24,8 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions(startupFadeOptions(true));
 void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => SplashScreen.setOptions(startupFadeOptions(reduced))).catch(() => undefined);
 const handoffStartup = createStartupHandoff(() => SplashScreen.hide());
+const BACK_TO_EXIT_MS = 2000;
+const mainSectionPaths = new Set(['/', '/habits', '/weight', '/nutrition', '/supplements', '/activity', '/routes', '/activity-map', '/workouts', '/settings']);
 
 export default function RootLayout() {
   return <View style={styles.shell} onLayout={handoffStartup}><StatusBar style="light" /><AppLockProvider><MonetizationProvider><AdsProvider><TrackerProvider><AppShell /></TrackerProvider></AdsProvider></MonetizationProvider></AppLockProvider></View>;
@@ -31,10 +33,32 @@ export default function RootLayout() {
 
 function AppShell() {
   const pathname = usePathname();
+  const lastBackPress = useRef(0);
   const { locked, ready } = useAppLock();
   const privateContent = startupSurface(true, false, ready, locked) !== 'app';
-  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/activity', '/routes', '/activity-map', '/activity-routes', '/workouts', '/settings'];
+  const mainTabs = ['/', '/habits', '/weight', '/nutrition', '/supplements', '/activity', '/routes', '/activity-map', '/activity-routes', '/workouts', '/settings'];
   const showBottomNavigation = mainTabs.includes(pathname);
+  useEffect(() => {
+    if (pathname !== '/') lastBackPress.current = 0;
+    if (Platform.OS !== 'android' || privateContent || !mainSectionPaths.has(pathname)) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      const now = Date.now();
+      if (pathname !== '/') {
+        lastBackPress.current = now;
+        router.replace('/');
+        ToastAndroid.show('Press Back again to exit Reclaim', ToastAndroid.SHORT);
+        return true;
+      }
+      if (now - lastBackPress.current <= BACK_TO_EXIT_MS) {
+        BackHandler.exitApp();
+        return true;
+      }
+      lastBackPress.current = now;
+      ToastAndroid.show('Press Back again to exit Reclaim', ToastAndroid.SHORT);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [pathname, privateContent]);
   useEffect(() => {
     Promise.all([ImagePicker.getPendingResultAsync(), consumePendingCaptureTarget()]).then(([result, target]) => {
       if (result && 'canceled' in result && !result.canceled && result.assets[0]) {
@@ -68,7 +92,7 @@ function AppShell() {
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
           <Stack.Screen name="weight" options={{ headerShown: false }} />
           <Stack.Screen name="nutrition" options={{ headerShown: false }} />
-          <Stack.Screen name="supplements" options={{ title: 'Vitamins & Supplements' }} />
+          <Stack.Screen name="supplements" options={{ headerShown: false }} />
           <Stack.Screen name="activity" options={{ headerShown: false }} />
           <Stack.Screen name="routes" options={{ headerShown: false }} />
           <Stack.Screen name="workouts" options={{ headerShown: false }} />
@@ -88,7 +112,8 @@ function AppShell() {
           <Stack.Screen name="nutrition-foods" options={{ title: 'Saved foods' }} />
           <Stack.Screen name="nutrition-food-form" options={{ title: 'Saved food' }} />
           <Stack.Screen name="nutrition-meal-form" options={{ title: 'Saved meal' }} />
-          <Stack.Screen name="nutrition-settings" options={{ title: 'Nutrition setup' }} />
+          <Stack.Screen name="nutrition-meal-groups" options={{ title: 'Edit meal groups' }} />
+          <Stack.Screen name="nutrition-settings" options={{ title: 'Macros' }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
         </Stack>

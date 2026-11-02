@@ -4,9 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { PrivacyContent } from '@/components/privacy-content';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
-import { MacroPlanAssistant } from '@/components/macro-plan-assistant';
 import { ONBOARDING_AREAS, OnboardingSetupDraft, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight } from '@/lib/onboarding';
-import { macroCalories } from '@/lib/nutrition';
 import { OnboardingArea } from '@/models/tracker';
 import { colors, layout, spacing } from '@/theme';
 
@@ -23,7 +21,6 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
   const [step, setStep] = useState<'welcome' | 'choices' | 'review' | 'weight' | 'nutrition' | 'activity' | 'finish'>(selected.length ? 'choices' : 'welcome');
   const [busy, setBusy] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [macroAssistantOpen, setMacroAssistantOpen] = useState(false);
   const [error, setError] = useState('');
   const tabs = [
     'Home',
@@ -33,6 +30,7 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
     ...(selected.includes('weight') ? ['Weight'] : []),
     ...(selected.includes('nutrition') ? ['Nutrition'] : []),
     ...(selected.includes('workouts') ? ['Workouts'] : []),
+    ...(selected.includes('supplements') ? ['Supplements'] : []),
     'Settings',
   ];
   const toggle = (area: OnboardingArea) => {
@@ -43,14 +41,14 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
   const nextAfterWeight = () => selected.includes('nutrition') ? 'nutrition' : selected.includes('activity') ? 'activity' : 'finish';
   const nextAfterNutrition = () => selected.includes('activity') ? 'activity' : 'finish';
   const updateWeight = (patch: Partial<NonNullable<OnboardingSetupDraft['weight']>>) => onDraftChange({ ...draft, weight: { value: '', unit: 'lb', ...draft.weight, ...patch, skipped: false } });
-  const updateNutrition = (patch: Partial<NonNullable<OnboardingSetupDraft['nutrition']>>) => onDraftChange({ ...draft, nutrition: { carbs: '', protein: '', fat: '', fiber: '', ...draft.nutrition, ...patch, skipped: false } });
+  const updateNutrition = (patch: Partial<NonNullable<OnboardingSetupDraft['nutrition']>>) => onDraftChange({ ...draft, nutrition: { calories: '', carbs: '', protein: '', fat: '', fiber: '', ...draft.nutrition, ...patch, skipped: false } });
   const updateActivity = (patch: Partial<NonNullable<OnboardingSetupDraft['activity']>>) => onDraftChange({ ...draft, activity: { stepGoal: '', enableStepTracking: false, ...draft.activity, ...patch, skipped: false } });
   const continueWeight = () => {
     try { parseFirstWeight(draft.weight?.value ?? ''); onDraftChange({ ...draft, weight: { value: draft.weight!.value, unit: draft.weight!.unit, skipped: false } }); setError(''); setStep(nextAfterWeight()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Check your weight.'); }
   };
   const continueNutrition = () => {
-    try { parseFirstNutrition({ carbs: '', protein: '', fat: '', fiber: '', ...draft.nutrition }); onDraftChange({ ...draft, nutrition: { carbs: draft.nutrition!.carbs, protein: draft.nutrition!.protein, fat: draft.nutrition!.fat, fiber: draft.nutrition!.fiber, skipped: false } }); setError(''); setStep(nextAfterNutrition()); }
+    try { parseFirstNutrition({ calories: '', carbs: '', protein: '', fat: '', fiber: '', ...draft.nutrition }); onDraftChange({ ...draft, nutrition: { calories: draft.nutrition!.calories, carbs: draft.nutrition!.carbs, protein: draft.nutrition!.protein, fat: draft.nutrition!.fat, fiber: draft.nutrition!.fiber, skipped: false } }); setError(''); setStep(nextAfterNutrition()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Check your targets.'); }
   };
   const continueActivity = () => {
@@ -113,14 +111,14 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
         <Pressable accessibilityRole="button" onPress={() => { setError(''); setStep('review'); }} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
       </>}
       {step === 'nutrition' && <>
-        <Text style={styles.title}>Set your daily macro targets.</Text>
-        <Text style={styles.body}>Enter your own targets in grams, or ask AI for an editable estimate. Fiber is optional; leaving it blank saves 0 g. Nothing is saved until you finish setup.</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Help me set targets with AI" onPress={() => setMacroAssistantOpen(true)} style={styles.aiButton}><Text style={styles.aiButtonText}>✦ Help me set targets with AI</Text></Pressable>
-        {([['Carbs', 'carbs'], ['Protein', 'protein'], ['Fat', 'fat'], ['Fiber', 'fiber']] as const).map(([label, key]) => <View key={key}><Text style={styles.fieldLabel}>{label.toUpperCase()} · G{key === 'fiber' ? ' · OPTIONAL' : ''}</Text><TextInput accessibilityLabel={`${label} target in grams${key === 'fiber' ? ', optional' : ''}`} keyboardType="decimal-pad" placeholder={key === 'fiber' ? 'Optional · defaults to 0' : 'Enter grams'} placeholderTextColor={colors.textDim} value={draft.nutrition?.[key] ?? ''} onChangeText={(value) => updateNutrition({ [key]: value })} style={styles.input} /></View>)}
-        <View style={styles.info}><Text style={styles.infoTitle}>Calculated calorie goal</Text><Text style={styles.infoText}>{macroCalories({ carbsGrams: Number(draft.nutrition?.carbs) || 0, proteinGrams: Number(draft.nutrition?.protein) || 0, fatGrams: Number(draft.nutrition?.fat) || 0, fiberGrams: Number(draft.nutrition?.fiber) || 0 }).toLocaleString()} kcal · No food has been logged.</Text></View>
+        <Text style={styles.title}>Set your daily calorie target.</Text>
+        <Text style={styles.body}>Enter a calorie target you chose. Protein, carbs, and fat targets are optional; leave all three blank to track calories only. You can use an optional editable split calculator later in Nutrition → Macros. Nothing is saved until you finish setup.</Text>
+        <Text style={styles.fieldLabel}>CALORIES · KCAL</Text><TextInput accessibilityLabel="Daily calorie target" keyboardType="number-pad" placeholder="Enter calories" placeholderTextColor={colors.textDim} value={draft.nutrition?.calories ?? ''} onChangeText={(value) => updateNutrition({ calories: value })} style={styles.input} />
+        {([['Carbs', 'carbs'], ['Protein', 'protein'], ['Fat', 'fat']] as const).map(([label, key]) => <View key={key}><Text style={styles.fieldLabel}>{label.toUpperCase()} · G</Text><TextInput accessibilityLabel={`${label} target in grams`} keyboardType="decimal-pad" placeholder="Enter grams" placeholderTextColor={colors.textDim} value={draft.nutrition?.[key] ?? ''} onChangeText={(value) => updateNutrition({ [key]: value })} style={styles.input} /></View>)}
+        <View style={styles.info}><Text style={styles.infoTitle}>Your calorie target</Text><Text style={styles.infoText}>{draft.nutrition?.calories?.trim() || '—'} kcal · No food has been logged.</Text></View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" onPress={continueNutrition} style={styles.primary}><Text style={styles.primaryText}>Save and continue</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { onDraftChange({ ...draft, nutrition: { carbs: draft.nutrition?.carbs ?? '', protein: draft.nutrition?.protein ?? '', fat: draft.nutrition?.fat ?? '', fiber: draft.nutrition?.fiber ?? '', skipped: true } }); setError(''); setStep(nextAfterNutrition()); }} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { onDraftChange({ ...draft, nutrition: { calories: draft.nutrition?.calories ?? '', carbs: draft.nutrition?.carbs ?? '', protein: draft.nutrition?.protein ?? '', fat: draft.nutrition?.fat ?? '', fiber: draft.nutrition?.fiber ?? '', skipped: true } }); setError(''); setStep(nextAfterNutrition()); }} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { setError(''); setStep(selected.includes('weight') ? 'weight' : 'review'); }} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
       </>}
       {step === 'activity' && <>
@@ -146,7 +144,6 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
       </>}
     </KeyboardSafeScrollView>
     <Modal visible={privacyOpen} animationType="slide" onRequestClose={() => setPrivacyOpen(false)}><SafeAreaView style={styles.safe} edges={['top', 'bottom']}><ScrollView><PrivacyContent /></ScrollView><Pressable accessibilityRole="button" onPress={() => setPrivacyOpen(false)} style={styles.privacyClose}><Text style={styles.primaryText}>Close</Text></Pressable></SafeAreaView></Modal>
-    <MacroPlanAssistant visible={macroAssistantOpen} onClose={() => setMacroAssistantOpen(false)} savedWeight={selected.includes('weight') && !draft.weight?.skipped && draft.weight?.value && Number(draft.weight.value) > 0 ? { value: Number(draft.weight.value), unit: draft.weight.unit } : undefined} onUse={(plan) => updateNutrition({ carbs: String(plan.carbsGrams), protein: String(plan.proteinGrams), fat: String(plan.fatGrams), fiber: String(plan.fiberGrams) })} />
   </SafeAreaView>;
 }
 

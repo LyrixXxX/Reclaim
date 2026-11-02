@@ -55,6 +55,14 @@ test('weekly habits show as cards and do not enter the daily goal count', () => 
   expect(result.weeklyHabitCards.map((card) => card.id)).toEqual(['exercise']);
 });
 
+test('mindfulness is reserved for its own Home card, not the daily goals ring', () => {
+  const mindfulness = { id: 'mindfulness', name: 'Practice mindfulness', icon: 'mindfulness', color: '#fff', mode: 'habit' as const, habitTemplate: 'mindfulness' as const,
+    habitGoalHistory: [{ effectiveDate: '2026-10-01', value: 10 }] };
+  const result = homeOverview({ ...base, trackers: [mindfulness] }, { status: 'permission-needed' }, new Date(2026, 9, 22, 12));
+  expect(result.dailyHabitGoals).toEqual([]);
+  expect(result.goalCount).toBe(0);
+});
+
 test('Home ignores walking intervals fetched for the previous day', () => {
   const walk = { id: 'walk', name: 'Walk more', icon: 'walk', color: '#fff', mode: 'habit' as const, habitTemplate: 'walk' as const,
     habitGoalHistory: [{ effectiveDate: '2026-10-01', value: 30 }] };

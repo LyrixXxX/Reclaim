@@ -46,9 +46,11 @@ export function activityToday(routes: readonly ActivityRoute[], now: Date) {
   const today = localDateKey(now);
   const matches = routes.filter((route) => localDateKey(new Date(route.startedAt)) === today);
   const estimated = matches.filter((route) => route.estimatedCalories !== undefined);
+  const counted = matches.filter((route) => route.routeSteps !== undefined && Number.isFinite(route.routeSteps));
   return {
     distanceMeters: matches.reduce((sum, route) => sum + route.distanceMeters, 0),
     activeMs: matches.reduce((sum, route) => sum + activityDurationMs(route), 0),
     estimatedCalories: estimated.length ? estimated.reduce((sum, route) => sum + route.estimatedCalories!, 0) : null,
+    routeSteps: counted.length ? counted.reduce((sum, route) => sum + route.routeSteps!, 0) : null,
   };
 }

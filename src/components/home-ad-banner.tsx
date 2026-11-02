@@ -11,7 +11,7 @@ export function HomeAdBanner() {
   const unitId = TEST_ADS_ENABLED ? TestIds.ADAPTIVE_BANNER : process.env.EXPO_PUBLIC_ADMOB_BANNER_ID;
   if (!bannerReady || !unitId) return null;
   return <View style={styles.container} accessibilityLabel="Advertisement">
-    <Text style={styles.label}>{TEST_ADS_ENABLED ? 'TEST AD · NO REVENUE' : 'ADVERTISEMENT'}</Text>
+    {!TEST_ADS_ENABLED && <Text style={styles.label}>ADVERTISEMENT</Text>}
     <BannerAd unitId={unitId} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} />
   </View>;
 }

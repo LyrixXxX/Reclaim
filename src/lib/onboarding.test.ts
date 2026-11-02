@@ -27,7 +27,7 @@ describe('first-run setup', () => {
 
   test('one choice enables only its tab and widget', () => {
     const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['weight'] });
-    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false, routes: false, workouts: false });
+    expect(next.preferences!.visibleSections).toEqual({ goals: false, health: false, cpap: false, weight: true, nutrition: false, activity: false, routes: false, workouts: false, supplements: false });
     expect(next.preferences!.dashboard?.filter((widget) => widget.visible).map((widget) => [widget.id, widget.expanded])).toEqual([['weight', false]]);
   });
 
@@ -100,12 +100,12 @@ describe('first-run setup', () => {
 
   test('first entries become ordinary records only for selected, unskipped areas', () => {
     const date = new Date(2026, 9, 15, 12);
-    const draft = { weight: { value: '182.5', unit: 'lb' as const }, nutrition: { carbs: '220', protein: '160', fat: '65', fiber: '30' } };
+    const draft = { weight: { value: '182.5', unit: 'lb' as const }, nutrition: { calories: '2105', carbs: '220', protein: '160', fat: '65', fiber: '30' } };
     const pending = { ...createFreshState(), onboardingSelections: ['weight' as const, 'nutrition' as const], onboardingSetupDraft: draft };
     expect(pending.weightEntries).toBeUndefined();
     const complete = completeOnboarding(pending, date);
     expect(complete.weightEntries?.[0]).toMatchObject({ date: '2026-10-15', weight: 182.5, unit: 'lb' });
-    expect(complete.nutritionGoals?.[0]).toMatchObject({ effectiveDate: '2026-10-15', carbsGrams: 220, proteinGrams: 160, fatGrams: 65, fiberGrams: 30 });
+    expect(complete.nutritionGoals?.[0]).toMatchObject({ effectiveDate: '2026-10-15', calorieTarget: 2105, carbsGrams: 220, proteinGrams: 160, fatGrams: 65, fiberGrams: 30 });
     expect(complete.onboardingSetupDraft).toBeUndefined();
     expect(completeOnboarding({ ...pending, onboardingSelections: ['weight'], onboardingSetupDraft: { ...draft, weight: { value: '82.4', unit: 'kg' }, nutrition: { ...draft.nutrition, skipped: true } } }, date).nutritionGoals).toBeUndefined();
     expect(completeOnboarding({ ...pending, onboardingSetupDraft: { ...draft, weight: { ...draft.weight, skipped: true } } }, date).weightEntries).toBeUndefined();
@@ -118,11 +118,12 @@ describe('first-run setup', () => {
     expect(completeOnboarding(reloaded!, new Date(2026, 9, 15)).weightEntries?.[0].unit).toBe('kg');
     expect(() => parseFirstWeight('')).toThrow();
     expect(() => parseFirstWeight('-2')).toThrow();
-    expect(() => parseFirstNutrition({ carbs: '0', protein: '0', fat: '0', fiber: '0' })).toThrow();
-    expect(() => parseFirstNutrition({ carbs: '20', protein: '', fat: '0', fiber: '0' })).toThrow();
-    expect(parseFirstNutrition({ carbs: '20.5', protein: '30', fat: '10', fiber: '0' }).carbsGrams).toBe(20.5);
-    expect(parseFirstNutrition({ carbs: '20.5', protein: '30', fat: '10', fiber: '' }).fiberGrams).toBe(0);
-    expect(() => parseFirstNutrition({ carbs: '20', protein: '30', fat: '10', fiber: '-1' })).toThrow();
+    expect(() => parseFirstNutrition({ calories: '', carbs: '0', protein: '0', fat: '0', fiber: '0' })).toThrow();
+    expect(() => parseFirstNutrition({ calories: '2000', carbs: '20', protein: '', fat: '0', fiber: '0' })).toThrow();
+    expect(parseFirstNutrition({ calories: '2000', carbs: '20.5', protein: '30', fat: '10', fiber: '0' }).carbsGrams).toBe(20.5);
+    expect(parseFirstNutrition({ calories: '2000', carbs: '20.5', protein: '30', fat: '10', fiber: '' }).fiberGrams).toBe(0);
+    expect(parseFirstNutrition({ calories: '2000', carbs: '', protein: '', fat: '', fiber: '' })).toMatchObject({ calorieTarget: 2000, macroTargetsEnabled: false });
+    expect(() => parseFirstNutrition({ calories: '2000', carbs: '20', protein: '30', fat: '10', fiber: '-1' })).toThrow();
   });
 
   test('Activity setup saves a daily goal and requests tracking only when explicitly chosen', async () => {

@@ -35,6 +35,12 @@ function emptyState(): TrackerState {
 }
 
 describe('custom tracker management', () => {
+  it('stores the selected mindfulness visual without changing the minutes goal', () => {
+    const input: TrackerDraft = { ...draft('habit'), habitTemplate: 'mindfulness', habitGoalValue: '10', mindfulnessVisualMode: 'quiet' };
+    expect(validateTrackerDraft(input)).toEqual({});
+    expect(createTracker(emptyState(), input, 'mindfulness').tracker).toMatchObject({ mindfulnessVisualMode: 'quiet', habitGoalHistory: [{ value: 10 }] });
+    expect(validateTrackerDraft({ ...input, mindfulnessVisualMode: 'invalid' as 'quiet' }).mindfulnessVisualMode).toBeTruthy();
+  });
   it('stores exercise target mode and regimen and validates malformed rows', () => {
     const base: TrackerDraft = { ...draft('habit'), habitTemplate: 'exercise', habitGoalValue: '3', exerciseGoalMode: 'times', exerciseRegimenRows: [{ id: 'push', label: 'Push', days: [0, 2] }] };
     expect(validateTrackerDraft(base)).toEqual({});

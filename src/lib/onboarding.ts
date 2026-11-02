@@ -14,16 +14,19 @@ export function parseFirstWeight(value: string) {
 }
 
 export function parseFirstNutrition(draft: NonNullable<OnboardingSetupDraft['nutrition']>) {
+  const calorieTarget = Number(draft.calories?.trim());
+  if (!draft.calories?.trim() || !Number.isInteger(calorieTarget) || calorieTarget < 1 || calorieTarget > 10000) throw new Error('Enter a calorie target from 1 to 10,000 kcal.');
+  const hasMacros = [draft.carbs, draft.protein, draft.fat].some((value) => value.trim());
   const fields = { carbsGrams: draft.carbs, proteinGrams: draft.protein, fatGrams: draft.fat, fiberGrams: draft.fiber };
   const nutrients = {} as Record<keyof typeof fields, number>;
   for (const [key, value] of Object.entries(fields) as [keyof typeof fields, string][]) {
-    if (key === 'fiberGrams' && !value.trim()) { nutrients[key] = 0; continue; }
+    if (!value.trim() && (key === 'fiberGrams' || !hasMacros)) { nutrients[key] = 0; continue; }
     const amount = Number(value.trim());
     if (!value.trim() || !Number.isFinite(amount) || amount < 0 || amount > 10000) throw new Error(`Enter a valid ${key.replace('Grams', '')} target (0–10,000 g).`);
     nutrients[key] = amount;
   }
-  if (macroCalories(nutrients) <= 0) throw new Error('Enter a carb, protein, or fat target above zero to make a calorie goal.');
-  return nutrients;
+  if (hasMacros && macroCalories(nutrients) <= 0) throw new Error('Enter at least one macro target above zero, or leave all three blank to track calories only.');
+  return { ...nutrients, calorieTarget, macroTargetsEnabled: hasMacros, macroMethod: 'manual' as const };
 }
 
 export function parseFirstStepGoal(value: string) {
@@ -39,6 +42,7 @@ export function shouldEnableFirstStepTracking(state: TrackerState) {
 export const ONBOARDING_AREAS: { id: OnboardingArea; label: string; description: string }[] = [
   { id: 'habits', label: 'Habits', description: 'Track habits you are quitting, reducing, or building.' },
   { id: 'nutrition', label: 'Nutrition', description: 'Log food, macros, and fiber.' },
+  { id: 'supplements', label: 'Supplements', description: 'Schedule vitamins and supplements and track doses.' },
   { id: 'weight', label: 'Weight', description: 'Follow weigh-ins and long-term trends.' },
   { id: 'workouts', label: 'Workouts', description: 'Log strength sessions, build routines, and review progress.' },
   { id: 'activity', label: 'Steps', description: 'Count daily steps and follow your step goal and trends.' },
@@ -62,12 +66,12 @@ export function completeOnboarding(state: TrackerState, now = new Date()): Track
   const selections = normalizeOnboardingSelections(state.onboardingSelections);
   const has = (area: OnboardingArea) => selections.includes(area);
   const visibleSections: AppPreferences['visibleSections'] = {
-    goals: has('habits'), health: false, cpap: false, weight: has('weight'), nutrition: has('nutrition'), activity: has('activity'), routes: has('routes'), workouts: has('workouts'),
+    goals: has('habits'), health: false, cpap: false, weight: has('weight'), nutrition: has('nutrition'), activity: has('activity'), routes: has('routes'), workouts: has('workouts'), supplements: has('supplements'),
   };
   const visibleHealthModules: AppPreferences['visibleHealthModules'] = {
     bloodPressure: false, medications: false, labs: false,
   };
-  const selectedWidgets = selections.flatMap((id): DashboardWidgetId[] => id === 'workouts' || id === 'routes' ? [] : [id === 'habits' ? 'habits' : id]);
+  const selectedWidgets = selections.flatMap((id): DashboardWidgetId[] => id === 'workouts' || id === 'routes' || id === 'supplements' ? [] : [id === 'habits' ? 'habits' : id]);
   const widgetOrder: DashboardWidgetId[] = [
     ...selectedWidgets,
     ...DASHBOARD_WIDGETS.map(({ id }) => id).filter((id) => !selectedWidgets.includes(id)),

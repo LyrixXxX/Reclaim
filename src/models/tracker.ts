@@ -27,6 +27,7 @@ export type Tracker = {
   habitLogStyle?: 'done' | 'count';
   habitTemplate?: 'water' | 'walk' | 'sleep' | 'exercise' | 'produce' | 'reading' | 'mindfulness' | 'dental';
   habitGoalHistory?: { effectiveDate: string; value: number }[];
+  mindfulnessVisualMode?: 'breathing' | 'quiet';
   exerciseGoalModes?: { effectiveDate: string; mode: 'times' | 'minutes' }[];
   exerciseRegimenHistory?: { effectiveDate: string; rows: { id: string; label: string; days: number[] }[] }[];
   producePresets?: number[];
@@ -176,25 +177,28 @@ export type CpapMaintenanceEvent = {
   completedAt: string;
 };
 
-export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts';
-export type NavigationSection = 'activity' | 'routes' | 'goals' | 'weight' | 'nutrition' | 'workouts';
+export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'supplements';
+export type NavigationSection = 'activity' | 'routes' | 'goals' | 'weight' | 'nutrition' | 'workouts' | 'supplements';
 export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
 export type AppPreferences = {
   dashboard?: DashboardWidget[];
   hiddenHomeHabitIds?: string[];
+  homeGoalColors?: Record<string, string>;
   showQuittingTaperingOnHome?: boolean;
-  visibleSections: Record<Exclude<AppSection, 'workouts' | 'routes'>, boolean> & { workouts?: boolean; routes?: boolean };
+  showTrainingOverviewOnHome?: boolean;
+  visibleSections: Record<Exclude<AppSection, 'workouts' | 'routes' | 'supplements'>, boolean> & { workouts?: boolean; routes?: boolean; supplements?: boolean };
   navigationOrder?: NavigationSection[];
   visibleHealthModules: Record<HealthModule, boolean>;
   includeRouteCaloriesInNutrition?: boolean;
   includeWorkoutCaloriesInNutrition?: boolean;
+  includeSupplementNutrientsInNutrition?: boolean;
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
-export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; segment?: number };
+export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; altitudeMeters?: number | null; altitudeAccuracyMeters?: number | null; segment?: number };
 export type ActivityTimeInterval = { startedAt: string; endedAt: string };
-export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; name?: string; notes?: string };
+export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; routeSteps?: number; routeStepStatus?: 'available' | 'unavailable' | 'partial'; name?: string; notes?: string };
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'arms' | 'quadriceps' | 'hamstrings' | 'glutes' | 'calves' | 'legs' | 'core' | 'traps' | 'forearms' | 'full body';
 export type ExerciseEquipment = 'machine' | 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'other';
 export type ExerciseMeasurement = 'weighted_reps' | 'bodyweight_reps' | 'assisted_reps' | 'timed_hold' | 'distance_carry';
@@ -231,6 +235,11 @@ export type Medication = {
   name: string;
   discreetName?: string;
   strength?: string;
+  /** Structured quantity for newly created supplements; legacy free-text strength remains intact. */
+  dosagePerUnit?: number;
+  dosageUnit?: string;
+  defaultUnitsTaken?: number;
+  nutrientProfile?: NutrientAmount[];
   form?: string;
   instructions?: string;
   startedAt?: string;
@@ -254,6 +263,9 @@ export type MedicationEvent = {
   occurredAt: string;
   correctedAt?: string;
   outcome: 'taken' | 'skipped' | 'snoozed';
+  unitsTaken?: number;
+  /** Canonical totals captured when Take is confirmed, never recalculated from the current product. */
+  nutrientSnapshot?: Record<string, number>;
   note?: string;
 };
 
@@ -293,12 +305,24 @@ export type NutritionNutrients = {
   proteinGrams: number;
   fatGrams: number;
   fiberGrams: number;
+  /** Explicitly recorded canonical amounts. An absent key means unknown, not zero. */
+  extraNutrients?: Record<string, number>;
 };
+
+export type NutrientAmount = { nutrientId: string; amount: number; unit: string };
+export type CustomNutrient = { id: string; name: string; unit: string };
+export type NutrientSelection = { nutrientId: string; state: 'goal' | 'tracked'; goalType?: 'minimum' | 'maximum' | 'target'; goalAmount?: number; order: number; legacyFiberGoal?: boolean; color?: string; visible?: boolean };
 
 export type NutritionGoalProfile = NutritionNutrients & {
   id: string;
   effectiveDate: string;
   recordedAt: string;
+  /** Older profiles derive this from macro grams. */
+  calorieTarget?: number;
+  macroTargetsEnabled?: boolean;
+  fitnessGoal?: 'fat-loss' | 'muscle-gain' | 'maintenance';
+  macroMethod?: 'manual' | 'calculated';
+  calculation?: { sourceWeightLb: number; referenceWeightLb: number; heightCm: number };
 };
 
 export type NutritionMealGroup = {
@@ -388,7 +412,7 @@ export type TrackerState = {
   onboardingSelections?: OnboardingArea[];
   onboardingSetupDraft?: {
     weight?: { value: string; unit: 'lb' | 'kg'; skipped?: boolean };
-    nutrition?: { carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
+    nutrition?: { calories?: string; carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
     activity?: { stepGoal: string; enableStepTracking: boolean; skipped?: boolean };
   };
   lapseEvents?: LapseEvent[];
@@ -417,6 +441,9 @@ export type TrackerState = {
   labTrackerVersion?: number;
   labResults?: LabResult[];
   nutritionGoals?: NutritionGoalProfile[];
+  macroUpdateDismissedWeightLb?: number;
+  nutrientSelections?: NutrientSelection[];
+  customNutrients?: CustomNutrient[];
   nutritionMealGroups?: NutritionMealGroup[];
   savedFoods?: SavedFood[];
   savedMeals?: SavedMeal[];
@@ -434,4 +461,4 @@ export type TrackerState = {
   workoutSettings?: WorkoutSettings;
 };
 
-export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'bloodPressure' | 'medications' | 'labs';
+export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'bloodPressure' | 'medications' | 'labs';

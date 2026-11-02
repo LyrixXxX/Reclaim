@@ -1,6 +1,13 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { removeLegacyWindowAttributes, removeLegacySystemBarColors } = require('./with-adaptive-android-ui');
+const { removeLegacyWindowAttributes, removeLegacySystemBarColors, useCurrentMaterialComponents } = require('./with-adaptive-android-ui');
+
+test('uses current Material Components without duplicating the dependency', () => {
+  const original = 'dependencies {\n    implementation("com.facebook.react:react-android")\n}';
+  const updated = useCurrentMaterialComponents(original);
+  assert.match(updated, /material:1\.14\.0/);
+  assert.equal(useCurrentMaterialComponents(updated), updated);
+});
 
 test('removes the main activity orientation lock without touching unrelated activities', () => {
   const manifest = { manifest: { application: [{ $: { 'android:resizeableActivity': 'false' }, activity: [

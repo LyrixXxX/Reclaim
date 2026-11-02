@@ -5,8 +5,12 @@ const root = path.resolve(__dirname, '..');
 const assets = path.join(root, 'assets/images');
 
 async function main() {
-  const artwork = await Jimp.read(path.join(assets, 'reclaim-icon-source.jpg'));
+  const artwork = await Jimp.read(path.join(assets, 'reclaim-icon-source.png'));
   await artwork.clone().resize(1024, 1024).writeAsync(path.join(assets, 'reclaim-icon.png'));
+  // Apple requires an opaque app icon; Android and in-app marks keep the source alpha.
+  const opaqueIcon = new Jimp(1024, 1024, 0x000000ff).composite(artwork.clone().resize(1024, 1024), 0, 0);
+  await opaqueIcon.writeAsync(path.join(assets, 'reclaim-icon-ios.png'));
+  await artwork.clone().resize(512, 512).writeAsync(path.join(assets, 'reclaim-play-store-icon.png'));
   // Android adaptive layers are 108dp; keep the artwork inside the central 72dp.
   const foreground = new Jimp(1024, 1024, 0x00000000);
   foreground.composite(artwork.clone().resize(682, 682), 171, 171);

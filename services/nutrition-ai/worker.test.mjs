@@ -195,6 +195,29 @@ test('validates empty food text before calling OpenAI', async () => {
   assert.equal(response.status, 400);
 });
 
+test('supplement label scan uses a separate schema and never invents dose values', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    assert.equal(request.text.format.name, 'supplement_label');
+    assert.match(request.instructions, /Do not suggest supplements or dosages/i);
+    assert.equal(request.input[0].content[1].type, 'input_image');
+    return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ name: 'D3', servingLabel: '2 capsules', servingUnits: 2, unitName: 'capsule', nutrients: [{ id: 'vitamin_d', amount: 2000, unit: 'IU' }], warnings: [] }) }] }] });
+  };
+  const response = await handleRequest(new Request('https://relay.test/v1/parse-supplement-label', { method: 'POST', headers: auth, body: JSON.stringify({ imageDataUrl: 'data:image/jpeg;base64,AAAA' }) }), env);
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).nutrients, [{ id: 'vitamin_d', amount: 2000, unit: 'IU' }]);
+});
+
+test('supplement label scan rejects duplicate nutrient IDs', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ name: null, servingLabel: null, servingUnits: null, unitName: null, nutrients: [{ id: 'vitamin_d', amount: 10, unit: 'mcg' }, { id: 'vitamin_d', amount: 20, unit: 'mcg' }], warnings: [] }) }] }] });
+  const response = await handleRequest(new Request('https://relay.test/v1/parse-supplement-label', { method: 'POST', headers: auth, body: JSON.stringify({ imageDataUrl: 'data:image/jpeg;base64,AAAA' }) }), env);
+  assert.equal(response.status, 502);
+});
+
 test('returns structured OpenAI food output', async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => { globalThis.fetch = originalFetch; });
@@ -204,16 +227,20 @@ test('returns structured OpenAI food output', async (context) => {
     assert.equal(request.store, false);
     assert.equal(request.text.format.type, 'json_schema');
     assert.ok(request.text.format.schema.properties.items.items.required.includes('servingWeightGrams'));
+    assert.ok(request.text.format.schema.properties.items.items.properties.nutrients.required.includes('additionalNutrients'));
+    assert.deepEqual(request.text.format.schema.properties.items.items.properties.nutrients.properties.additionalNutrients.items.properties.id.enum, ['saturated_fat', 'cholesterol', 'sodium']);
+    assert.match(request.instructions, /Omit uncertain or unreadable amounts rather than reporting zero/i);
     assert.match(request.instructions, /return exactly one item for the whole named meal/i);
     assert.match(request.instructions, /does not authorize changing the number/i);
     assert.match(request.instructions, /Do not multiply them again/i);
-    return new Response(JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ schemaVersion: 1, warnings: [], items: [{ name: 'Eggs', brand: null, servingLabel: '2 large (100 g)', servingWeightGrams: 100, nutrients: { carbsGrams: 1, proteinGrams: 12, fatGrams: 10, fiberGrams: 0 }, statedCalories: 140, confidence: 'high', assumptions: [] }] }) }] }] }), { status: 200 });
+    return new Response(JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ schemaVersion: 1, warnings: [], items: [{ name: 'Eggs', brand: null, servingLabel: '2 large (100 g)', servingWeightGrams: 100, nutrients: { carbsGrams: 1, proteinGrams: 12, fatGrams: 10, fiberGrams: 0, additionalNutrients: [{ id: 'sodium', amount: 140 }] }, statedCalories: 140, confidence: 'high', assumptions: [] }] }) }] }] }), { status: 200 });
   };
   const response = await handleRequest(new Request('https://relay.test/v1/parse-food-text', { method: 'POST', headers: auth, body: JSON.stringify({ text: 'two eggs' }) }), env);
   assert.equal(response.status, 200);
   const item = (await response.json()).items[0];
   assert.equal(item.name, 'Eggs');
   assert.equal(item.servingWeightGrams, 100);
+  assert.deepEqual(item.nutrients.additionalNutrients, [{ id: 'sodium', amount: 140 }]);
 });
 
 test('returns structured historical lab rows without asking the model to identify the lab', async (context) => {

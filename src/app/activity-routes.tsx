@@ -1,12 +1,15 @@
 import { Href, router } from 'expo-router';
-import { useState } from 'react';
+import type { StyleSpecification } from '@maplibre/maplibre-react-native';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityRouteDetails, routeDisplayName } from '@/components/activity-route-details';
 import { HistoryPages } from '@/components/history-pages';
-import { RoutePreview } from '@/components/route-preview';
+import { RouteMapPreview } from '@/components/route-map-preview';
 import { activityDurationMs, averagePaceMinPerMile, routeMovingDurationMs } from '@/lib/activity';
+import { rasterMapStyle } from '@/lib/activity-map-style';
+import { getMapKey } from '@/lib/activity-maps';
 import { formatMiles } from '@/lib/activity-units';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing } from '@/theme';
@@ -14,6 +17,12 @@ import { colors, layout, spacing } from '@/theme';
 export default function SavedRoutesScreen() {
   const { activityRoutes = [], saveActivityRoute, deleteActivityRoute } = useTrackers();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [mapStyle, setMapStyle] = useState<StyleSpecification | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void getMapKey().then((key) => { if (!cancelled && key) setMapStyle(rasterMapStyle(key)); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const editingRoute = activityRoutes.find((route) => route.id === editingId) ?? null;
   const routes = [...activityRoutes].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content}>
@@ -28,7 +37,7 @@ export default function SavedRoutesScreen() {
       const paceLabel = paceSeconds === null ? '—' : `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, '0')} /mi`;
       return <View key={route.id} style={styles.route}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.push(`/activity-map?routeId=${encodeURIComponent(route.id)}` as Href)}>
-          <RoutePreview points={route.points} />
+          <RouteMapPreview points={route.points} mapStyle={mapStyle} />
           <Text style={styles.name}>{routeDisplayName(route)}</Text>
           <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
           <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} elapsed · {movingMs == null ? 'Moving time unavailable' : `${Math.round(movingMs / 60_000)} min moving`} · {paceLabel} {movingMs == null ? 'overall pace' : 'moving pace'}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>

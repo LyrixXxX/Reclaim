@@ -13,7 +13,20 @@ test('Monday–Sunday week leaves future and missing days empty and averages rec
 test('today totals saved routes without assuming missing calories are zero', () => {
   const route = { id: 'r1', kind: 'walk' as const, startedAt: '2026-10-01T12:00:00', endedAt: '2026-10-01T12:30:00', pausedMs: 0, distanceMeters: 1609.344, points: [] };
   expect(activityToday([route], new Date(2026, 9, 1, 12)).estimatedCalories).toBeNull();
+  expect(activityToday([route], new Date(2026, 9, 1, 12)).routeSteps).toBeNull();
   expect(activityToday([{ ...route, estimatedCalories: 70 }], new Date(2026, 9, 1, 12))).toMatchObject({ distanceMeters: 1609.344, activeMs: 1800000, estimatedCalories: 70 });
+});
+
+test('today sums recorded route steps without treating older routes as zero or adding daily steps again', () => {
+  const base = { kind: 'walk' as const, startedAt: '2026-10-01T12:00:00', endedAt: '2026-10-01T12:30:00', pausedMs: 0, distanceMeters: 1000, points: [] };
+  const today = new Date(2026, 9, 1, 18);
+  expect(activityToday([
+    { ...base, id: 'old' },
+    { ...base, id: 'morning', routeSteps: 420 },
+    { ...base, id: 'afternoon', routeSteps: 610 },
+    { ...base, id: 'yesterday', startedAt: '2026-09-30T12:00:00', routeSteps: 900 },
+  ], today).routeSteps).toBe(1030);
+  expect(activityToday([{ ...base, id: 'zero', routeSteps: 0 }], today).routeSteps).toBe(0);
 });
 
 test('Sunday and year rollover use the correct calendar week', () => {

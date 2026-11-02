@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Image, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { HABIT_MILESTONES, HabitMilestone } from '@/lib/habit-milestones';
 import { colors, layout, spacing } from '@/theme';
@@ -16,7 +16,7 @@ const ACCENTS = ['#a9ed70', '#56e8ad', '#f5d565', '#5ccaff', '#ffb849', '#df8aff
 
 export function HabitMilestoneShowcase({ awards }: { awards: HabitMilestone[] }) {
   const [selected, setSelected] = useState<number | null>(null);
-  const carousel = useRef<ScrollView>(null);
+  const carousel = useRef<ScrollViewInstance>(null);
   const scrollOffset = useRef(0);
   const moveCarousel = (direction: -1 | 1) => carousel.current?.scrollTo({ x: Math.max(0, scrollOffset.current + direction * 162), animated: true });
   const rememberOffset = (event: NativeSyntheticEvent<NativeScrollEvent>) => { scrollOffset.current = Math.max(0, event.nativeEvent.contentOffset.x); };

@@ -1,3 +1,4 @@
+import { FOOD_EXTRA_NUTRIENT_IDS } from '@/lib/nutrient-catalog';
 import {
   NutritionEntry,
   NutritionGoalProfile,
@@ -60,16 +61,29 @@ export function macroCalories(nutrients: NutritionNutrients) {
   return round((nutrients.carbsGrams * 4) + (nutrients.proteinGrams * 4) + (nutrients.fatGrams * 9), 1);
 }
 
+export function nutritionCalorieTarget(goal: NutritionGoalProfile) {
+  return goal.calorieTarget ?? macroCalories(goal);
+}
+
+export function hasMacroTargets(goal: NutritionGoalProfile) {
+  return goal.macroTargetsEnabled !== false;
+}
+
 export function parseExplicitNutritionSummary(text: string): AiNutritionItem | undefined {
   const calories = explicitNutritionValue(text, ['calories?', 'kcal', 'cals?'], '(?:kcal|calories?|cals?)?');
   const protein = explicitNutritionValue(text, ['protein'], 'g(?:rams?)?');
   const carbs = explicitNutritionValue(text, ['carbs?', 'carbohydrates?'], 'g(?:rams?)?');
-  const fat = explicitNutritionValue(text, ['fat'], 'g(?:rams?)?');
+  // Keep a supplied saturated-fat amount from being mistaken for total fat.
+  const totalFatText = text.replace(/\b(?:saturated|sat\.?)\s+fat\b/gi, 'saturatedfat');
+  const fat = explicitNutritionValue(totalFatText, ['total\\s+fat', 'fat'], 'g(?:rams?)?');
   const fiber = explicitNutritionValue(text, ['fiber', 'fibre'], 'g(?:rams?)?');
   if ([calories, protein, carbs, fat, fiber].some((value) => value === undefined)) return undefined;
 
   const title = explicitNutritionTitle(text);
   if (!title) return undefined;
+  const cholesterol = explicitFoodDetail(text, ['cholesterol'], 'mg');
+  const sodium = explicitFoodDetail(text, ['sodium'], 'mg');
+  const saturatedFat = explicitFoodDetail(text, ['saturated\\s+fat', 'sat\\.?\\s+fat', 'saturates?'], 'g');
   return {
     name: title,
     servingLabel: '1 complete meal',
@@ -78,6 +92,12 @@ export function parseExplicitNutritionSummary(text: string): AiNutritionItem | u
       proteinGrams: protein!,
       fatGrams: fat!,
       fiberGrams: fiber!,
+      extraNutrients: {
+        fiber: fiber!,
+        ...(cholesterol === undefined ? {} : { cholesterol }),
+        ...(sodium === undefined ? {} : { sodium }),
+        ...(saturatedFat === undefined ? {} : { saturated_fat: saturatedFat }),
+      },
     },
     statedCalories: calories,
     confidence: 'high',
@@ -107,6 +127,7 @@ export function scaleNutrients(nutrients: NutritionNutrients, servings: number):
     proteinGrams: round(nutrients.proteinGrams * servings, 2),
     fatGrams: round(nutrients.fatGrams * servings, 2),
     fiberGrams: round(nutrients.fiberGrams * servings, 2),
+    extraNutrients: nutrients.extraNutrients ? Object.fromEntries(Object.entries(nutrients.extraNutrients).map(([id, amount]) => [id, round(amount * servings, 4)])) : undefined,
   };
 }
 
@@ -134,6 +155,7 @@ export function addNutrients(items: NutritionNutrients[]): NutritionNutrients {
     proteinGrams: round(total.proteinGrams + item.proteinGrams, 2),
     fatGrams: round(total.fatGrams + item.fatGrams, 2),
     fiberGrams: round(total.fiberGrams + item.fiberGrams, 2),
+    extraNutrients: Object.entries(item.extraNutrients ?? {}).reduce<Record<string, number>>((values, [id, amount]) => ({ ...values, [id]: round((values[id] ?? 0) + amount, 4) }), { ...total.extraNutrients }),
   }), emptyNutrients());
 }
 
@@ -160,6 +182,7 @@ export function goalForDate(goals: NutritionGoalProfile[], date: string) {
 export function upsertNutritionGoal(goals: NutritionGoalProfile[], input: Omit<NutritionGoalProfile, 'id' | 'recordedAt'>, id = nutritionId('goal')) {
   validateDate(input.effectiveDate);
   validateNutrients(input);
+  if (input.calorieTarget !== undefined && (!Number.isFinite(input.calorieTarget) || input.calorieTarget <= 0 || input.calorieTarget > 10000)) throw new Error('Enter a calorie target from 1 to 10,000 kcal.');
   const existing = goals.find((goal) => goal.effectiveDate === input.effectiveDate);
   const next: NutritionGoalProfile = { ...input, id: existing?.id ?? id, recordedAt: new Date().toISOString() };
   return [...goals.filter((goal) => goal.id !== next.id), next].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
@@ -223,6 +246,25 @@ export function applyNutritionLogBatch(state: TrackerState, batch: PreparedNutri
   };
 }
 
+/** Replace one logged meal instance without touching its reusable template. */
+export function replaceLoggedMeal(state: TrackerState, instanceId: string, batch: PreparedNutritionLogBatch): TrackerState {
+  const previous = (state.nutritionEntries ?? []).filter((entry) => entry.savedMealInstanceId === instanceId);
+  if (!previous.length) throw new Error('This logged meal is no longer available.');
+  if (batch.entries.some((entry) => entry.savedMealInstanceId !== instanceId)) throw new Error('Meal items must stay in the same group.');
+  const originalById = new Map(previous.map((entry) => [entry.id, entry]));
+  const preserved = { ...batch, entries: batch.entries.map((entry) => ({ ...entry, recordedAt: originalById.get(entry.id)?.recordedAt ?? entry.recordedAt })) };
+  const retained = (state.nutritionEntries ?? []).filter((entry) => entry.savedMealInstanceId !== instanceId);
+  return applyNutritionLogBatch({ ...state, nutritionEntries: retained }, preserved);
+}
+
+/** Save a reusable meal and its optional log in one state transition. */
+export function applyMealBuilderSave(state: TrackerState, meal: SavedMeal, batch?: PreparedNutritionLogBatch, standaloneFoods: SavedFood[] = []): TrackerState {
+  const logged = batch ? applyNutritionLogBatch(state, batch) : state;
+  const foods = new Map((logged.savedFoods ?? []).map((food) => [food.id, food]));
+  for (const food of standaloneFoods) foods.set(food.id, { ...food, createdAt: foods.get(food.id)?.createdAt ?? food.createdAt });
+  return { ...logged, savedFoods: [...foods.values()].sort((a, b) => a.name.localeCompare(b.name)), savedMeals: applyPreparedSavedMeal(logged.savedMeals ?? [], meal) };
+}
+
 export function upsertSavedFood(foods: SavedFood[], input: SavedFoodInput, id = nutritionId('food')) {
   validateFood(input);
   const existing = input.id ? foods.find((food) => food.id === input.id) : undefined;
@@ -284,6 +326,19 @@ export function upsertMealGroup(groups: NutritionMealGroup[], input: Pick<Nutrit
   return [...groups.filter((group) => group.id !== input.id), { ...input, name }].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+/** The editor validates synchronously; a deferred state update must never crash on stale input. */
+export function applyMealGroupEdit(state: TrackerState, input: NutritionMealGroup): TrackerState {
+  try { return { ...state, nutritionMealGroups: upsertMealGroup(state.nutritionMealGroups ?? [], input) }; }
+  catch { return state; }
+}
+
+/** Only unused custom groups can be deleted; archived groups retain historical logs. */
+export function removeMealGroup(state: TrackerState, id: string): TrackerState {
+  const group = (state.nutritionMealGroups ?? []).find((item) => item.id === id);
+  if (!group || group.builtIn || (state.nutritionEntries ?? []).some((entry) => entry.mealGroupId === id)) return state;
+  return { ...state, nutritionMealGroups: (state.nutritionMealGroups ?? []).filter((item) => item.id !== id) };
+}
+
 export function migrateNutritionState(state: TrackerState): TrackerState {
   const existingGroups = state.nutritionMealGroups ?? [];
   const mergedGroups = [
@@ -293,6 +348,8 @@ export function migrateNutritionState(state: TrackerState): TrackerState {
   return {
     ...state,
     nutritionGoals: state.nutritionGoals ?? [],
+    nutrientSelections: state.nutrientSelections ?? (state.nutritionGoals?.some((goal) => goal.fiberGrams > 0) ? [{ nutrientId: 'fiber', state: 'goal', goalType: 'minimum', goalAmount: [...state.nutritionGoals].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)).find((goal) => goal.fiberGrams > 0)!.fiberGrams, order: 0, legacyFiberGoal: true }] : []),
+    customNutrients: state.customNutrients ?? [],
     nutritionMealGroups: mergedGroups,
     savedFoods: state.savedFoods ?? [],
     savedMeals: state.savedMeals ?? [],
@@ -372,6 +429,7 @@ export function validateAiNutritionResult(value: unknown): AiNutritionResult {
         proteinGrams: numeric(nutrients.proteinGrams),
         fatGrams: numeric(nutrients.fatGrams),
         fiberGrams: numeric(nutrients.fiberGrams),
+        extraNutrients: Array.isArray(nutrients.additionalNutrients) ? Object.fromEntries(nutrients.additionalNutrients.filter((entry: unknown) => isObject(entry) && FOOD_EXTRA_NUTRIENT_IDS.some((id) => id === entry.id) && typeof entry.amount === 'number' && Number.isFinite(entry.amount) && entry.amount >= 0).map((entry: { id: string; amount: number }) => [entry.id, entry.amount])) : isObject(nutrients.extraNutrients) ? Object.fromEntries(Object.entries(nutrients.extraNutrients).filter(([id, amount]) => FOOD_EXTRA_NUTRIENT_IDS.some((allowedId) => allowedId === id) && typeof amount === 'number' && Number.isFinite(amount) && amount >= 0)) as Record<string, number> : undefined,
       },
       statedCalories: item.statedCalories === null || item.statedCalories === undefined ? undefined : numeric(item.statedCalories),
       confidence: item.confidence === 'high' || item.confidence === 'medium' || item.confidence === 'low' ? item.confidence : 'low',
@@ -425,6 +483,7 @@ function validateNutrients(nutrients: NutritionNutrients) {
   for (const value of [nutrients.carbsGrams, nutrients.proteinGrams, nutrients.fatGrams, nutrients.fiberGrams]) {
     if (!Number.isFinite(value) || value < 0 || value > 10000) throw new Error('Nutrition values must be valid non-negative numbers.');
   }
+  if (nutrients.extraNutrients && Object.entries(nutrients.extraNutrients).some(([id, value]) => !id || !Number.isFinite(value) || value < 0 || value > 1000000)) throw new Error('Additional nutrient values must be valid non-negative numbers.');
 }
 
 function validateDate(value: string) {
@@ -451,6 +510,22 @@ function explicitNutritionValue(text: string, labels: string[], trailingUnit: st
   if (raw === undefined) return undefined;
   const value = Number(raw.replaceAll(',', ''));
   return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function explicitFoodDetail(text: string, labels: string[], canonicalUnit: 'g' | 'mg') {
+  const label = `(?:${labels.join('|')})`;
+  const number = '(\\d[\\d,]*(?:\\.\\d+)?)';
+  const unit = '(mg|milligrams?|g|grams?)?';
+  const labelFirst = new RegExp(`\\b${label}\\b\\s*(?:[:=]|(?:is|was|were))?\\s*[~≈]?\\s*${number}\\s*${unit}\\b`, 'i').exec(text);
+  const valueFirst = new RegExp(`[~≈]?\\s*${number}\\s*${unit}\\s*\\b${label}\\b`, 'i').exec(text);
+  const match = labelFirst ?? valueFirst;
+  if (!match) return undefined;
+  const amount = Number(match[1].replaceAll(',', ''));
+  if (!Number.isFinite(amount) || amount < 0) return undefined;
+  const suppliedUnit = match[2]?.toLowerCase();
+  const milligrams = suppliedUnit === 'mg' || suppliedUnit?.startsWith('milligram');
+  const grams = suppliedUnit === 'g' || suppliedUnit?.startsWith('gram');
+  return canonicalUnit === 'mg' && grams ? amount * 1000 : canonicalUnit === 'g' && milligrams ? amount / 1000 : amount;
 }
 
 function explicitNutritionTitle(text: string) {

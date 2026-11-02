@@ -117,7 +117,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
     unlockAttemptRef.current = attempt;
     const result = await checkPin(pin);
     if (result.ok) {
-      if (!canApplyUnlockResult(attempt, unlockAttemptRef.current, AppState.currentState)) {
+      if (!canApplyUnlockResult(attempt, unlockAttemptRef.current, AppState.currentState === 'active' ? 'active' : 'unknown')) {
         return { ok: false, message: 'Unlock was interrupted. Try again.' };
       }
       updateLocked(false);
@@ -140,7 +140,7 @@ export function AppLockProvider({ children }: PropsWithChildren) {
         disableDeviceFallback: true,
         requireConfirmation: true,
       });
-      if (!canApplyUnlockResult(attempt, unlockAttemptRef.current, AppState.currentState)) {
+      if (!canApplyUnlockResult(attempt, unlockAttemptRef.current, AppState.currentState === 'active' ? 'active' : 'unknown')) {
         return { ok: false, message: 'Biometric unlock was interrupted. Try again or use your PIN.' };
       }
       if (!result.success) return { ok: false, message: biometricMessage(result.error) };
