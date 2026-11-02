@@ -96,6 +96,7 @@ function AppShell() {
           <Stack.Screen name="workout-history" options={{ title: 'Workout history' }} />
           <Stack.Screen name="workout-progress" options={{ title: 'Strength progress' }} />
           <Stack.Screen name="workout-exercise-progress" options={{ title: 'Exercise progress' }} />
+          <Stack.Screen name="workout-body-part" options={{ title: 'Body part strength' }} />
           <Stack.Screen name="workout-settings" options={{ title: 'Workout settings' }} />
           <Stack.Screen name="activity-map" options={{ headerShown: false }} />
           <Stack.Screen name="activity-routes" options={{ title: 'Saved routes' }} />

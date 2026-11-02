@@ -11,7 +11,7 @@ import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWi
 import { validateNutrientSelection } from '@/lib/nutrient-totals';
 import { markSupplementDoseSkipped, recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
 import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
-import { DEFAULT_WORKOUT_SETTINGS, finishWorkout, startWorkout } from '@/lib/workouts';
+import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/lib/workouts';
 import { createFreshState, needsOnboarding, normalizeOnboardingSelections, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
 import { saveDashboardLayout } from '@/lib/dashboard';
@@ -401,7 +401,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     saveStrengthExercise: (exercise) => setState((previous) => ({ ...previous, strengthExercises: [...(previous.strengthExercises ?? []).filter((item) => item.id !== exercise.id), exercise] })),
     saveWorkoutRoutine: (routine) => setState((previous) => ({ ...previous, workoutRoutines: [...(previous.workoutRoutines ?? []).filter((item) => item.id !== routine.id), routine] })),
     deleteWorkoutRoutine: (id) => setState((previous) => ({ ...previous, workoutRoutines: (previous.workoutRoutines ?? []).filter((item) => item.id !== id) })),
-    beginWorkout: (name, routine) => setState((previous) => previous.activeWorkout || !routine?.exercises.length ? previous : { ...previous, activeWorkout: startWorkout(name, routine, new Date().toISOString(), previous.strengthExercises ?? []) }),
+    beginWorkout: (name, routine) => setState((previous) => beginWorkoutState(previous, name, routine)),
     updateActiveWorkout: (update) => setState((previous) => previous.activeWorkout ? { ...previous, activeWorkout: update(previous.activeWorkout) } : previous),
     completeWorkout: () => setState((previous) => finishWorkout(previous)),
     discardWorkout: () => setState((previous) => ({ ...previous, activeWorkout: undefined })),

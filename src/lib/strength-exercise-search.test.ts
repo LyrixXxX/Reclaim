@@ -49,3 +49,16 @@ test('backup round-trip keeps exercise type and assistance separate', () => {
   expect(restored.workoutSessions?.[0].exercises[0].sets[0].assistanceKg).toBe(20);
   expect(restored.workoutSessions?.[0].exercises[0].sets[0].weightKg).toBeUndefined();
 });
+
+test('search ranks the closest names first and narrows as more is typed', () => {
+  const names = (query: string) => searchStrengthExercises(BUILTIN_EXERCISES, query).map((item) => item.name);
+  const bench = names('bench');
+  expect(bench.length).toBeGreaterThan(3);
+  expect(bench.indexOf('Bench Press') === -1 || bench.indexOf('Bench Press') < bench.findIndex((name) => !/bench/i.test(name))).toBe(true);
+  // Names containing the typed word come before muscle-only or equipment-only matches.
+  const firstNonName = bench.findIndex((name) => !/bench/i.test(name));
+  if (firstNonName >= 0) expect(bench.slice(firstNonName).every((name) => !/bench/i.test(name))).toBe(true);
+  expect(names('dumbbell bench').length).toBeLessThan(bench.length);
+  expect(names('dumbbell bench')[0]).toMatch(/dumbbell bench/i);
+  expect(names('arms').length).toBeGreaterThan(0);
+});

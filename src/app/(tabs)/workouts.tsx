@@ -1,6 +1,7 @@
 import { Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
+import { BodyPartTiles } from '@/components/body-part-tiles';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { WorkoutTrendChart } from '@/components/workout-trend-chart';
 import { WorkoutButton, WorkoutCard, WorkoutPage, WorkoutRow, WorkoutText, WorkoutTitle } from '@/components/workout-ui';
@@ -43,6 +44,7 @@ export default function WorkoutsHome() {
   }, [sessions, actualOneRepMaxes]);
   const volume = (kg: number) => `${Math.round(fromKg(kg, unit)).toLocaleString()} ${unit}`;
   const minutes = (value: number) => `${Math.round(value).toLocaleString()} min`;
+  const startBlank = () => { if (activeWorkout) return router.push('/workout-session' as Href); beginWorkout(`${now.toLocaleDateString(undefined, { weekday: 'long' })} workout`); router.push('/workout-session' as Href); };
   const launch = (selected: typeof workoutRoutines[number]) => { if (activeWorkout) return Alert.alert('Workout already active', 'Finish or discard the current session before starting another.'); beginWorkout(selected.name, selected); router.push('/workout-session' as Href); };
   const currentWeek = weeks.at(-1)?.totals;
   const previousWeek = weeks.at(-2)?.totals;
@@ -50,9 +52,9 @@ export default function WorkoutsHome() {
   const previousRoutineValue = points.length > 1 ? routineValue(points.at(-2)!, routineMetric) : null;
   const routineDelta = previousRoutineValue === null ? null : latestRoutineValue - previousRoutineValue;
   return <WorkoutPage><MainScreenHeader title="Workouts" subtitle="Strength and cardio activity side by side, from logs saved on this device." accent={colors.workoutsNav} />
-    {activeWorkout ? <WorkoutCard><WorkoutTitle>Workout in progress</WorkoutTitle><WorkoutText>{activeWorkout.name} · {workoutSets(activeWorkout).length} sets logged</WorkoutText><WorkoutButton label="Resume workout" onPress={() => router.push('/workout-session' as Href)} /></WorkoutCard> : <WorkoutButton label={assigned[0] ? `Start ${assigned[0].name}` : 'Start workout'} onPress={() => assigned[0] ? launch(assigned[0]) : router.push('/workout-routines' as Href)} />}
+    {activeWorkout ? <WorkoutCard><WorkoutTitle>Workout in progress</WorkoutTitle><WorkoutText>{activeWorkout.name} · {workoutSets(activeWorkout).length} sets logged</WorkoutText><WorkoutButton label="Resume workout" onPress={() => router.push('/workout-session' as Href)} /></WorkoutCard> : <><WorkoutButton label="Start a blank page" onPress={startBlank} /><WorkoutButton label={assigned[0] ? `Start today's plan · ${assigned[0].name}` : 'Start from a plan'} secondary onPress={() => assigned[0] ? launch(assigned[0]) : router.push('/workout-routines' as Href)} /></>}
     {!!assigned.length && <WorkoutCard><WorkoutText>Scheduled today</WorkoutText>{assigned.map((item) => <WorkoutRow key={item.id} title={item.name} subtitle={`${item.exercises.length} exercises · tap to start`} onPress={() => launch(item)} />)}</WorkoutCard>}
-    {!workoutRoutines.length && <WorkoutCard><WorkoutText>Create a routine with at least one exercise to start training.</WorkoutText></WorkoutCard>}
+    <WorkoutCard><WorkoutTitle>Strength by body part</WorkoutTitle><WorkoutText>How much stronger each area is since you first logged it. Tap one for its chart.</WorkoutText><BodyPartTiles sessions={sessions} /></WorkoutCard>
     <WorkoutButton label="Saved routines" secondary onPress={() => router.push('/workout-routines' as Href)} /><WorkoutButton label="Build a training week" secondary onPress={() => router.push('/workout-plan' as Href)} />
 
     <WorkoutCard><WorkoutTitle>Training overview</WorkoutTitle><View style={chips}>{(Object.keys(ranges) as DashboardRange[]).map((item) => <Chip key={item} label={ranges[item]} selected={range === item} onPress={() => setRange(item)} />)}</View><View style={stats}><Stat label="Strength sessions" value={String(totals.strengthSessions)} /><Stat label="Cardio routes" value={String(totals.cardioSessions)} /><Stat label="Strength time" value={minutes(totals.strengthMinutes)} /><Stat label="Cardio time" value={minutes(totals.cardioMinutes)} /><Stat label="Cardio distance" value={formatMiles(totals.cardioMeters)} /><Stat label="External-load volume" value={volume(totals.volumeKg)} /></View><WorkoutText>Strength and cardio time may overlap; they are not added into one unique total.</WorkoutText></WorkoutCard>

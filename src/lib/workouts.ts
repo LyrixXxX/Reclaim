@@ -90,6 +90,11 @@ export function startWorkout(name: string, routine?: WorkoutRoutine, now = new D
   }) ?? [];
   return { id: newId(), name: name.trim() || 'Workout', routineId: routine?.id, startedAt: now, pausedMs: 0, exercises, currentExerciseId: exercises[0]?.id };
 }
+/** Opens a workout page: from a routine's plan, or blank when no routine is given. One page at a time. */
+export function beginWorkoutState(state: TrackerState, name: string, routine?: WorkoutRoutine, now = new Date().toISOString()): TrackerState {
+  if (state.activeWorkout) return state;
+  return { ...state, activeWorkout: startWorkout(name, routine, now, state.strengthExercises ?? []) };
+}
 export function finishWorkout(state: TrackerState, endedAt = new Date().toISOString()): TrackerState {
   const current = state.activeWorkout;
   if (!current || state.workoutSessions?.some((item) => item.id === current.id)) return state;
