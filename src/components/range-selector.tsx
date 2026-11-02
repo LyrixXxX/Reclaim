@@ -25,5 +25,5 @@ export function RangeSelector<T extends string>({ options, value, onChange, acce
 const styles = StyleSheet.create({
   shell: { width: '100%', flexDirection: 'row', gap: 5, backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: 4 },
   button: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent', paddingHorizontal: 4 },
-  text: { ...type.micro, color: colors.textMuted, fontWeight: '900' },
+  text: { ...type.micro, color: colors.textMuted, fontWeight: '700' },
 });

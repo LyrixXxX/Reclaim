@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Header } from '@/components/header';
+import { MainScreenHeader } from '@/components/main-screen-header';
 import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { routeDisplayName } from '@/components/activity-route-details';
 import { RoutePreview } from '@/components/route-preview';
@@ -371,7 +371,7 @@ export default function ActivityMapScreen() {
       {line && <GeoJSONSource id="activity-route" data={line}><Layer id="activity-line" type="line" paint={{ 'line-color': colors.activityNav, 'line-width': 4 }} /></GeoJSONSource>}
       {currentPoint && !directionArrow && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} /></GeoJSONSource>}
       {directionArrow && <GeoJSONSource id="activity-heading-arrow" data={directionArrow}><Layer id="activity-heading-fill" type="fill" paint={{ 'fill-color': colors.activityNav, 'fill-opacity': 1 }} /><Layer id="activity-heading-outline" type="line" paint={{ 'line-color': '#FFFFFF', 'line-width': 2 }} /></GeoJSONSource>}
-    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={styles.buttonText}>Retry map</Text></Pressable>}</View>}
+    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={styles.buttonText}>Retry map</Text></Pressable>}</View>}
     {active && !selectedRoute && <View style={styles.navigationControls}>
       <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.navigationButton}><MapModeArtwork following={mapMode === 'follow'} /></Pressable>
       {mapMode === 'follow' && <View style={styles.compassBadge}><Text style={styles.compassText}>{compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>{compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}</View>}
@@ -384,8 +384,7 @@ export default function ActivityMapScreen() {
     </View>}
   </View>;
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled contentContainerStyle={styles.content}>
-    <Header />
-    <View style={styles.settingsRow}><Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Route settings  ›</Text></Pressable></View>
+    <MainScreenHeader title="Routes" subtitle="Record walks, hikes, and runs with GPS." accent={colors.activityNav} action={<Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Settings</Text></Pressable>} />
     {pending ? <View style={styles.card}><Text style={styles.cardTitle}>Route completed 🎉</Text><Text style={styles.body}>{new Date(pending.endedAt).toLocaleString(undefined, { hour12: true })}</Text><RoutePreview points={pending.points} /><View style={styles.metrics}><Metric label="Distance" value={formatMiles(pending.distanceMeters)} /><Metric label="Elapsed time" value={formatDuration(activityDurationMs(pending))} /><Metric label="Moving time" value={pending.movingMs === undefined ? '—' : formatDuration(pending.movingMs)} /><Metric label="Moving pace" value={formatPace(pending.movingMs === undefined ? null : averagePaceMinPerMile(pending.distanceMeters, pending.movingMs))} /><Metric label="Stopped time" value={pending.stoppedMs === undefined ? "—" : formatDuration(pending.stoppedMs)} /><Metric label="Overall pace" value={formatPace(averagePaceMinPerMile(pending.distanceMeters, activityDurationMs(pending)))} /><Metric label="Est. calories" value={pending.estimatedCalories == null ? '—' : `${pending.estimatedCalories} kcal`} /><Metric label="Route Steps" value={pending.routeSteps === undefined ? '—' : pending.routeSteps.toLocaleString()} /></View><Text style={styles.note}>Elapsed time excludes manual pauses. Unclassified GPS time is not counted as movement.</Text><Text style={styles.body}>Route name</Text><TextInput accessibilityLabel="Route name" value={routeName} onChangeText={setRouteName} maxLength={120} placeholder={pending.kind === 'route' ? 'Route' : pending.kind} placeholderTextColor={colors.textDim} style={styles.input} /><Text style={styles.body}>Activity type</Text><View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} onPress={() => changePendingKind(choice)} style={[styles.smallButton, pending.kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View><Text style={styles.body}>Notes (optional)</Text><TextInput accessibilityLabel="Route notes" value={routeNotes} onChangeText={setRouteNotes} maxLength={2000} multiline placeholder="Anything you want to remember" placeholderTextColor={colors.textDim} style={[styles.input, { minHeight: 80 }]} /><View style={styles.row}><View style={{ flex: 1 }}><Button label="Save route" onPress={savePending} /></View><View style={{ flex: 1 }}><Button label="Discard" onPress={discardPending} secondary /></View></View></View> : null}
     {!pending && <View style={active ? styles.recordingShell : styles.idleShell}>
     {active ? <View style={styles.recordingCard}><View style={styles.recordingHeader}><Text style={styles.cardTitle}>{active.pausedAt ? 'Route paused' : active.autoPausedAt ? 'Auto-paused' : 'Recording route'}</Text><Text style={[styles.recordingStatus, (active.pausedAt || !recording) && styles.statusWarning]}>● {routeStatus}</Text></View><Text accessibilityLabel={`Elapsed time ${formatDuration(activeDuration)}`} style={styles.timer}>{formatClock(activeDuration)}</Text><Text style={styles.timerCaption}>Elapsed time · {active.kind.toUpperCase()}{active.mileAlerts ? ' · Mile alerts on' : ''}</Text><View style={styles.recordingMetrics}><Metric compact label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><Metric compact label="Distance" value={formatMiles(activeDistance)} /><Metric compact label="Moving pace" value={formatPace(activePace)} /></View><View style={styles.recordingMetrics}><Metric compact label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /><Metric compact label="Route Steps" value={active.routeSteps === undefined ? '—' : active.routeSteps.toLocaleString()} /></View><Pressable accessibilityRole="button" accessibilityState={{ expanded: showTimingDetails }} onPress={() => setShowTimingDetails((value) => !value)}><Text style={styles.note}>{showTimingDetails ? 'Hide' : 'Show'} timing details</Text></Pressable>{showTimingDetails && <View><StatusRow label="Overall pace" value={formatPace(activeOverallPace)} /><StatusRow label="Stopped time" value={formatDuration(activeTimes.stoppedMs ?? 0)} /><StatusRow label="Unclassified GPS time" value={formatDuration(activeTimes.unclassifiedMs)} /><Text style={styles.note}>Elapsed excludes manual pauses; uncertain or missing GPS time is not assumed to be moving.</Text></View>}{active.mileAlertError && <Text style={styles.note}>Mile alert unavailable: {active.mileAlertError}</Text>}</View> : !pending && !selectedRoute ? <View style={styles.card}><Text style={styles.cardTitle}>Track an activity</Text><Text style={styles.body}>Choose an activity, then start your route.</Text><View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} accessibilityRole="button" onPress={() => setKind(choice)} style={[styles.smallButton, kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View></View> : null}
@@ -397,7 +396,7 @@ export default function ActivityMapScreen() {
       </View>
       <View style={styles.conditionHalf} accessibilityLabel={`GPS estimated accuracy ${currentAccuracy == null ? 'unavailable' : `approximately ${Math.round(currentAccuracy)} meters`}`}>
         <Text style={styles.conditionLabel}>GPS ACCURACY</Text>
-        <Text style={styles.conditionValue}>{[1, 2, 3, 4].map((bar) => bar <= accuracyBars ? '▮' : '▯').join('')}</Text>
+        <View accessible accessibilityLabel={`GPS accuracy ${accuracyBars} of 4 bars`} style={styles.signalBars}>{[1, 2, 3, 4].map((bar) => <View key={bar} style={[styles.signalBar, { height: 6 + bar * 4 }, bar <= accuracyBars && styles.signalBarOn]} />)}</View>
         <Text style={styles.conditionDetail}>{currentAccuracy == null ? 'Finding a fix' : `Approx. ±${Math.round(currentAccuracy)} m`}</Text>
       </View>
     </View>
@@ -474,41 +473,41 @@ const styles = StyleSheet.create({
   content: { maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
   settingsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   settingsButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontWeight: '800' },
-  eyebrow: { color: colors.activityNav, fontWeight: '800', letterSpacing: 2 },
+  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontWeight: '600' },
+  eyebrow: { color: colors.activityNav, fontWeight: '600', letterSpacing: 2 },
   body: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
   card: { padding: 20, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 22, gap: 12 },
   recordingShell: { padding: 14, backgroundColor: colors.surface, borderColor: colors.activityNav, borderWidth: 1, borderRadius: 22, gap: 12, overflow: 'hidden' },
   idleShell: { gap: 12 },
   recordingCard: { gap: 12 },
   recordingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  recordingStatus: { color: colors.danger, fontSize: 13, fontWeight: '800' },
+  recordingStatus: { color: colors.danger, fontSize: 13, fontWeight: '600' },
   statusWarning: { color: colors.textMuted },
   fullMap: { marginHorizontal: -spacing.lg, height: 380, position: 'relative', backgroundColor: colors.surfaceRaised },
   recordingMap: { marginHorizontal: 0, height: 340, borderRadius: 16, overflow: 'hidden', borderColor: colors.border, borderWidth: 1 },
   expandedSafe: { flex: 1, backgroundColor: colors.background },
   expandedHeader: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface },
-  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'right' },
+  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '600', textAlign: 'right' },
   closeMapButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   expandedMap: { flex: 1, position: 'relative', backgroundColor: colors.surfaceRaised },
   conditions: { flexDirection: 'row', gap: 8 },
   conditionHalf: { flex: 1, minWidth: 0, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, gap: 4 },
-  conditionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
-  conditionValue: { color: colors.activityNav, fontSize: 19, fontWeight: '800' },
+  conditionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  conditionValue: { color: colors.activityNav, fontSize: 19, fontWeight: '600' }, signalBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 26 }, signalBar: { width: 7, borderRadius: 2, backgroundColor: colors.border }, signalBarOn: { backgroundColor: colors.activityNav },
   conditionDetail: { color: colors.textDim, fontSize: 11 },
   map: { flex: 1 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 26 },
   mapAttributionRow: { position: 'absolute', left: 8, right: 8, bottom: 4, height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mapLibreLabel: { color: '#526265', fontSize: 13, fontWeight: '800', textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
+  mapLibreLabel: { color: '#526265', fontSize: 13, fontWeight: '600', textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
   mapAttributionButton: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#208D9E', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9F8F4CC' },
-  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontWeight: '800', lineHeight: 19, textAlign: 'center' },
+  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontWeight: '600', lineHeight: 19, textAlign: 'center' },
   recenter: { position: 'absolute', right: 16, top: 16, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   expandMapButton: { position: 'absolute', left: 12, bottom: 44, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   navigationControls: { position: 'absolute', left: 12, right: MAP_CONTROL_SIZE + 28, top: 16, alignItems: 'flex-start', gap: 6 },
   navigationButton: { width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
   compassBadge: { maxWidth: '100%', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: '#10191CDD' },
-  compassText: { color: colors.text, fontSize: 12, fontWeight: '800' },
-  compassWarning: { color: colors.danger, fontSize: 10, fontWeight: '700' },
+  compassText: { color: colors.text, fontSize: 12, fontWeight: '600' },
+  compassWarning: { color: colors.danger, fontSize: 11, fontWeight: '700' },
   mapHint: { position: 'absolute', left: 12, bottom: 42, right: 12, alignItems: 'center' },
   mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 },
   retry: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.activityNav },
@@ -521,18 +520,18 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 9 },
   statusValue: { color: colors.activityNav, fontSize: 14, fontWeight: '700', textAlign: 'right' },
   metricLabel: { color: colors.textMuted, fontSize: 12 },
-  metricValue: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  cardTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  timer: { color: colors.text, fontSize: 36, fontWeight: '900', textAlign: 'center' },
+  metricValue: { color: colors.text, fontSize: 18, fontWeight: '600' },
+  cardTitle: { color: colors.text, fontSize: 20, fontWeight: '600' },
+  timer: { color: colors.text, fontSize: 36, fontWeight: '700', textAlign: 'center' },
   timerCaption: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: -12 },
-  big: { color: colors.activityNav, fontSize: 42, fontWeight: '800' },
+  big: { color: colors.activityNav, fontSize: 42, fontWeight: '600' },
   stepRing: { alignSelf: 'center', width: 164, height: 164, alignItems: 'center', justifyContent: 'center' },
   ringLabel: { position: 'absolute', alignItems: 'center' },
   stepHistoryRow: { paddingVertical: 10, borderTopColor: colors.border, borderTopWidth: 1 },
   button: { backgroundColor: colors.activityNav, padding: 15, borderRadius: 14, alignItems: 'center' },
   secondary: { backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   dangerButton: { backgroundColor: colors.danger },
-  buttonText: { color: colors.text, fontWeight: '800' },
+  buttonText: { color: colors.text, fontWeight: '600' },
   note: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
   deleteText: { color: colors.danger, fontSize: 12, paddingTop: 8 },
   input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14 },

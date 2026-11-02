@@ -18,5 +18,5 @@ export function HomeAdBanner() {
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', backgroundColor: colors.background, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 3 },
-  label: { color: colors.textDim, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
+  label: { color: colors.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
 });

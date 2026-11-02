@@ -23,9 +23,9 @@ export function ProgressBar({ label, progress, color, totalLabel, secondaryLabel
 
 const styles = StyleSheet.create({
   item: { flex: 1, minWidth: 64 },
-  durationItem: { flex: 0, width: '100%', minWidth: 0 },
+  durationItem: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 },
-  label: { ...type.micro, color: colors.textMuted, fontWeight: '800' },
+  label: { ...type.micro, color: colors.textMuted, fontWeight: '600' },
   percent: { ...type.micro, color: colors.textMuted, fontVariant: ['tabular-nums'] },
   total: { color: colors.text, fontSize: 12, fontWeight: '700', marginBottom: 7, fontVariant: ['tabular-nums'] },
   track: { height: 4, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },

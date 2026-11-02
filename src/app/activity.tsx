@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Header } from '@/components/header';
+import { MainScreenHeader } from '@/components/main-screen-header';
 import { HistoryPages } from '@/components/history-pages';
 import { RollingRangeControls } from '@/components/rolling-range-controls';
 import { activityRange } from '@/lib/activity-overview';
@@ -48,8 +48,7 @@ export default function ActivityOverview() {
     catch (error) { Alert.alert('Step goal', error instanceof Error ? error.message : 'Enter a valid goal.'); }
   };
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content}>
-    <Header />
-    <Text accessibilityRole="header" style={styles.eyebrow}>STEPS · MOVEMENT, ON YOUR TERMS</Text>
+    <MainScreenHeader title="Steps" subtitle="Daily movement and your step goal." accent={colors.activityNav} />
     <View style={styles.card}>
       <Text style={styles.title}>Today’s steps</Text>
       <View style={styles.stepRow}><View style={styles.ring}><Svg width={164} height={164} viewBox="0 0 164 164"><Circle cx="82" cy="82" r="68" fill="none" stroke={colors.border} strokeWidth="12" /><Circle cx="82" cy="82" r="68" fill="none" stroke={colors.activityNav} strokeWidth="12" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 68}`} strokeDashoffset={2 * Math.PI * 68 * (1 - progress)} rotation="-90" origin="82, 82" /></Svg><View style={styles.ringLabel}><Text style={styles.big}>{count === undefined ? '—' : count.toLocaleString()}</Text><Text style={styles.muted}>{goal ? `of ${goal.toLocaleString()}` : 'No goal'}</Text></View></View>
@@ -69,11 +68,11 @@ function Action({ label, onPress, secondary }: { label: string; onPress: () => v
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
-  eyebrow: { color: colors.activityNav, fontWeight: '900', letterSpacing: 2 }, card: { padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
-  title: { color: colors.text, fontSize: 20, fontWeight: '900' }, muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18 }, stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  ring: { width: 164, height: 164, alignItems: 'center', justifyContent: 'center' }, ringLabel: { position: 'absolute', alignItems: 'center' }, big: { color: colors.activityNav, fontSize: 29, fontWeight: '900' }, goalBox: { flex: 1, gap: 8 }, goalText: { color: colors.activityNav, fontWeight: '900', fontSize: 15 },
-  metrics: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, metric: { flexGrow: 1, flexBasis: 90, backgroundColor: colors.surfaceRaised, padding: 12, borderRadius: 13 }, metricValue: { color: colors.text, fontWeight: '900', fontSize: 16, marginTop: 4 },
-  input: { color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 9 }, action: { backgroundColor: colors.activityNav, minHeight: 46, justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 13 }, secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 }, actionText: { color: colors.text, fontWeight: '900' },
-  chart: { height: 130, flexDirection: 'row', gap: 8, alignItems: 'flex-end' }, chartSlot: { flex: 1, alignItems: 'center', gap: 6 }, barTrack: { width: '100%', height: 105, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.border }, bar: { width: '100%', backgroundColor: colors.activityNav, borderTopLeftRadius: 4, borderTopRightRadius: 4 }, dayLabel: { color: colors.textMuted, fontSize: 10 },
-  dayName: { color: colors.text, fontWeight: '800', fontSize: 14 }, historyRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 10 },
+  eyebrow: { color: colors.activityNav, fontWeight: '700', letterSpacing: 2 }, card: { padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20 },
+  title: { color: colors.text, fontSize: 20, fontWeight: '700' }, muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18 }, stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ring: { width: 164, height: 164, alignItems: 'center', justifyContent: 'center' }, ringLabel: { position: 'absolute', alignItems: 'center' }, big: { color: colors.activityNav, fontSize: 29, fontWeight: '700' }, goalBox: { flex: 1, gap: 8 }, goalText: { color: colors.activityNav, fontWeight: '700', fontSize: 15 },
+  metrics: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, metric: { flexGrow: 1, flexBasis: 90, backgroundColor: colors.surfaceRaised, padding: 12, borderRadius: 13 }, metricValue: { color: colors.text, fontWeight: '700', fontSize: 16, marginTop: 4 },
+  input: { color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 9 }, action: { backgroundColor: colors.activityNav, minHeight: 46, justifyContent: 'center', alignItems: 'center', padding: 10, borderRadius: 13 }, secondary: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 }, actionText: { color: colors.text, fontWeight: '700' },
+  chart: { height: 130, flexDirection: 'row', gap: 8, alignItems: 'flex-end' }, chartSlot: { flex: 1, alignItems: 'center', gap: 6 }, barTrack: { width: '100%', height: 105, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.border }, bar: { width: '100%', backgroundColor: colors.activityNav, borderTopLeftRadius: 4, borderTopRightRadius: 4 }, dayLabel: { color: colors.textMuted, fontSize: 11 },
+  dayName: { color: colors.text, fontWeight: '600', fontSize: 14 }, historyRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 10 },
 });

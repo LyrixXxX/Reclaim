@@ -21,7 +21,7 @@ export default function GoodHabitTypesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.lg, gap: 12, paddingBottom: 50 },
-  title: { color: colors.text, fontSize: 26, fontWeight: '900' }, body: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, minHeight: 96, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.habitsNav },
-  disabled: { opacity: 0.55 }, copy: { flex: 1, gap: 4 }, name: { color: colors.text, fontSize: 18, fontWeight: '800' }, chevron: { color: colors.habitsNav, fontSize: 30 },
+  title: { color: colors.text, fontSize: 26, fontWeight: '700' }, body: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, minHeight: 96, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  disabled: { opacity: 0.55 }, copy: { flex: 1, gap: 4 }, name: { color: colors.text, fontSize: 18, fontWeight: '600' }, chevron: { color: colors.habitsNav, fontSize: 30 },
 });

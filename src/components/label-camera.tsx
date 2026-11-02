@@ -19,11 +19,18 @@ export function LabelCamera({ visible, label, onCancel, onConfirm }: { visible: 
   const [working, setWorking] = useState(false);
   const [photo, setPhoto] = useState<FramedLabelPhoto | null>(null);
   const [error, setError] = useState('');
+  const [wasVisible, setWasVisible] = useState(visible);
+
+  // Reset capture state when the camera closes, during render rather than in an effect.
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (!visible) { setPhoto(null); setError(''); setReady(false); setWorking(false); }
+  }
 
   useEffect(() => {
     if (visible && permission && !permission.granted && permission.canAskAgain && !requestedOnOpen.current) { requestedOnOpen.current = true; void requestPermission(); }
-    if (!visible) { requestedOnOpen.current = false; setPhoto(null); setError(''); setReady(false); setWorking(false); }
-  }, [visible, permission?.granted, permission?.canAskAgain]);
+    if (!visible) requestedOnOpen.current = false;
+  }, [visible, permission, requestPermission]);
 
   const capture = async () => {
     if (!ready || !camera.current || !previewSize.width || working) return;
@@ -63,7 +70,7 @@ export function LabelCamera({ visible, label, onCancel, onConfirm }: { visible: 
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background, padding: 20, gap: 12 },
-  title: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  title: { color: colors.text, fontSize: 25, fontWeight: '600' },
   help: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   choices: { flexDirection: 'row', gap: 10 },
   choice: { flex: 1, alignItems: 'center', padding: 15, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.surface },
@@ -74,7 +81,7 @@ const styles = StyleSheet.create({
   permission: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 15 },
   actions: { flexDirection: 'row', gap: 10 },
   confirm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 13, backgroundColor: '#C8F55B' },
-  confirmText: { color: '#101510', fontWeight: '800' },
+  confirmText: { color: '#101510', fontWeight: '600' },
   disabled: { opacity: 0.5 },
   error: { color: '#FF8888' },
 });

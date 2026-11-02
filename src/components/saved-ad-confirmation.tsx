@@ -14,8 +14,8 @@ export function SavedAdConfirmation({ visible, onContinue, title = 'Saved', subj
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.8)', padding: spacing.lg },
   card: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg },
-  title: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  title: { color: colors.text, fontSize: 24, fontWeight: '600' },
   body: { color: colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 10 },
   button: { minHeight: 48, backgroundColor: colors.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
-  buttonText: { color: colors.background, fontSize: 15, fontWeight: '800' },
+  buttonText: { color: colors.background, fontSize: 15, fontWeight: '600' },
 });

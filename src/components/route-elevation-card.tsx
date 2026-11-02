@@ -43,9 +43,9 @@ export function RouteElevationCard({ points }: { points: ActivityPoint[] }) {
 
 const styles = StyleSheet.create({
   card: { marginTop: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  title: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  title: { color: colors.text, fontSize: 16, fontWeight: '600', marginBottom: 10 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginTop: 8 },
-  label: { color: colors.textMuted, fontSize: 10, fontWeight: '800' },
-  value: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 3 },
+  label: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  value: { color: colors.text, fontSize: 15, fontWeight: '600', marginTop: 3 },
   note: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 12 },
 });

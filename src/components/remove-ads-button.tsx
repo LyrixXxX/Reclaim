@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
   button: { width: '100%', minHeight: 94, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.settingsNav, borderWidth: 1, borderRadius: 16, paddingRight: 14, marginTop: 12 },
   icon: { width: 132, height: 88 },
   copy: { flex: 1, paddingVertical: 12 },
-  title: { color: colors.text, fontSize: 14, fontWeight: '900' },
+  title: { color: colors.text, fontSize: 14, fontWeight: '700' },
   price: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 5 },
   disabled: { opacity: 0.55 },
 });

@@ -1,30 +1,39 @@
+import { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Header } from '@/components/header';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, type } from '@/theme';
 
 type Props = {
-  eyebrow: string;
-  subtitle: string;
+  title: string;
+  subtitle?: string;
   accent?: string;
+  /** Optional control shown to the right of the title, such as an edit button. */
+  action?: ReactNode;
 };
 
-export function MainScreenHeader({ eyebrow, subtitle, accent = colors.accent }: Props) {
+export function MainScreenHeader({ title, subtitle, accent = colors.accent, action }: Props) {
   return <View style={styles.wrapper}>
     <Header />
-    <Animated.View entering={FadeIn.duration(800)} style={styles.intro}>
-      <View style={[styles.accentLine, { backgroundColor: accent }]} />
-      <Text accessibilityRole="header" style={[styles.eyebrow, { color: accent }]}>{eyebrow}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
-    </Animated.View>
+    <View style={styles.intro}>
+      <View style={styles.titleRow}>
+        <View style={styles.titleBlock}>
+          <View style={[styles.accentLine, { backgroundColor: accent }]} />
+          <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        </View>
+        {action}
+      </View>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+    </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
   wrapper: { width: '100%' },
-  intro: { marginTop: 22, marginBottom: spacing.lg },
-  accentLine: { width: 34, height: 3, borderRadius: 2, marginBottom: 13 },
-  eyebrow: { fontSize: 10, lineHeight: 13, letterSpacing: 1.6, fontWeight: '900' },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 9, maxWidth: 560 },
+  intro: { marginTop: spacing.md, marginBottom: spacing.lg, gap: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.md },
+  titleBlock: { flex: 1, gap: 10 },
+  accentLine: { width: 28, height: 3, borderRadius: 2 },
+  title: { color: colors.text, ...type.display },
+  subtitle: { color: colors.textMuted, ...type.body, maxWidth: 560 },
 });
