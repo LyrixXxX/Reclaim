@@ -122,6 +122,7 @@ type TrackerContextValue = TrackerState & {
   deleteSavingsGoal: (id: string) => void;
   setFeaturedTracker: (trackerId: string | undefined) => void;
   markSwipeHintSeen: () => void;
+  updateStartHere: (update: { done?: string[]; collapsed?: boolean; dismissed?: boolean }) => void;
   updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   saveSupplement: (draft: SupplementDraft, id: string) => void;
@@ -436,6 +437,13 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     saveSavingsGoal: (goal) => setState((previous) => ({ ...previous, savingsGoals: [...(previous.savingsGoals ?? []).filter((item) => item.id !== goal.id), goal] })),
     deleteSavingsGoal: (id) => setState((previous) => ({ ...previous, savingsGoals: (previous.savingsGoals ?? []).filter((item) => item.id !== id) })),
     setFeaturedTracker: (trackerId) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), featuredTrackerId: trackerId } })),
+    updateStartHere: ({ done, collapsed, dismissed }) => setState((previous) => {
+      const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
+      const current = preferences.startHere ?? {};
+      const nextDone = done ? [...new Set([...(current.done ?? []), ...done])] : current.done;
+      if ((nextDone?.length ?? 0) === (current.done?.length ?? 0) && (collapsed === undefined || collapsed === !!current.collapsed) && (dismissed === undefined || dismissed === !!current.dismissed)) return previous;
+      return { ...previous, preferences: { ...preferences, startHere: { ...current, done: nextDone, ...(collapsed === undefined ? {} : { collapsed }), ...(dismissed === undefined ? {} : { dismissed }) } } };
+    }),
     markSwipeHintSeen: () => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), swipeHintSeen: true } })),
     updateWorkoutSettings: (update) => setState((previous) => ({ ...previous, workoutSettings: { ...DEFAULT_WORKOUT_SETTINGS, ...previous.workoutSettings, ...update } })),
     setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),

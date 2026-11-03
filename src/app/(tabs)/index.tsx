@@ -14,7 +14,7 @@ import { stepCalories } from '@/lib/step-calories';
 import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
 import { quittingStarts } from '@/lib/quit-progress';
 import { QuitHero } from '@/components/quit-hero';
-import { StartHereCard, startHereActions } from '@/components/start-here-card';
+import { StartHereCard, startHereSteps } from '@/components/start-here-card';
 import { DEFAULT_PREFERENCES, trainingOverviewVisibleOnHome } from '@/lib/preferences';
 import { homeGoalColor } from '@/lib/home-goal-colors';
 import { habitProgress } from '@/lib/good-habit-templates';
@@ -78,7 +78,7 @@ export default function DashboardScreen() {
 
     {quitStarts.length > 0 && <QuitHero starts={quitStarts} featuredId={preferences.featuredTrackerId} cravings={state.cravings ?? []} goals={state.savingsGoals ?? []} now={now.getTime()} onFeature={state.setFeaturedTracker} />}
 
-    <StartHereCard actions={startHereActions(state, preferences.visibleSections)} />
+    <StartHereCard steps={startHereSteps(state, preferences.visibleSections)} prefs={preferences.startHere} onUpdate={state.updateStartHere} />
 
     {overview.attention.length > 0 && <View style={styles.attentionPanel}><View style={styles.panelHeading}><Text style={styles.attentionTitle}>Needs attention</Text><Text style={styles.attentionCount}>{overview.attention.length} {overview.attention.length === 1 ? 'item' : 'items'}</Text></View>{overview.attention.map((item) => <Link key={item.id} href={item.href as Href} asChild><Pressable accessibilityRole="button" style={styles.attentionRow}><View style={styles.attentionText}><Text style={styles.attentionItemTitle}>{item.title}</Text><Text style={styles.caption}>{item.detail}</Text></View><Chevron color={colors.textMuted} /></Pressable></Link>)}</View>}
 

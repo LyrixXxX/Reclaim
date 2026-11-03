@@ -38,6 +38,13 @@ export function hiddenHabitsDestination(sections: AppPreferences['visibleSection
   return '/settings' as const;
 }
 
+function normalizeStartHere(value: unknown): AppPreferences['startHere'] {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as { done?: unknown; collapsed?: unknown; dismissed?: unknown };
+  const done = Array.isArray(raw.done) ? [...new Set(raw.done.filter((id): id is string => typeof id === 'string'))] : undefined;
+  return { done, collapsed: raw.collapsed === true || undefined, dismissed: raw.dismissed === true || undefined };
+}
+
 export function migratePreferences(state: TrackerState): TrackerState {
   const savedSections = state.preferences?.visibleSections;
   return {
@@ -57,6 +64,7 @@ export function migratePreferences(state: TrackerState): TrackerState {
       includeSupplementNutrientsInNutrition: state.preferences?.includeSupplementNutrientsInNutrition ?? false,
       featuredTrackerId: typeof state.preferences?.featuredTrackerId === 'string' ? state.preferences.featuredTrackerId : undefined,
       swipeHintSeen: state.preferences?.swipeHintSeen === true || undefined,
+      startHere: normalizeStartHere(state.preferences?.startHere),
     },
   };
 }

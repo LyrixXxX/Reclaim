@@ -205,6 +205,8 @@ export type AppPreferences = {
   featuredTrackerId?: string;
   /** The one-time "swipe between sections" hint has been dismissed. */
   swipeHintSeen?: boolean;
+  /** Start Here card: first-use steps already done, and whether it is minimized or dismissed. */
+  startHere?: { done?: string[]; collapsed?: boolean; dismissed?: boolean };
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
