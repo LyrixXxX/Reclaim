@@ -85,7 +85,7 @@ export default function DashboardScreen() {
     {hasProgress && <View style={styles.progressPanel}>
       <View style={styles.panelHeading}><Text style={styles.progressTitle}>Today’s progress</Text><Text style={styles.panelCount}>{overview.goalCount ? `${overview.reachedCount} of ${overview.goalCount} goals` : 'Today at a glance'}</Text></View>
       <View style={styles.progressBody}><View style={styles.progressHero}>
-        {overview.goalCount > 0 && <View style={styles.goalRing}><Svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`} accessibilityLabel={ringSegments.map((segment) => `${segment.name} ${Math.round(Math.min(1, Math.max(0, segment.progress)) * 100)}%`).join(', ')}>{ringSegments.map((segment, index) => {
+        {overview.goalCount > 0 && <View style={styles.goalRing}><Svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`} accessibilityLabel={ringSegments.map((segment) => `${segment.name} ${Math.round(Math.max(0, segment.progress) * 100)}%`).join(', ')}>{ringSegments.map((segment, index) => {
           const circumference = 2 * Math.PI * ringRadius;
           const arc = circumference / ringSegments.length - 8;
           const rotation = -90 + index * (360 / ringSegments.length);
@@ -96,7 +96,7 @@ export default function DashboardScreen() {
           const filled = arc * Math.min(1, Math.max(0, segment.progress));
           return filled > 0 ? <Circle key={segment.name} cx={ringCenter} cy={ringCenter} r={ringRadius} fill="none" stroke={segment.color} strokeWidth={10} strokeLinecap="round" strokeDasharray={`${filled} ${circumference - filled}`} rotation={-90 + index * (360 / ringSegments.length)} origin={`${ringCenter}, ${ringCenter}`} /> : null;
         })}</Svg><View style={styles.goalRingLabel}><Text style={styles.goalRingValue}>{overview.reachedCount}/{overview.goalCount}</Text><Text style={styles.goalRingCaption}>goals</Text></View></View>}
-        <View style={styles.legend}>{ringSegments.map((segment) => <View key={segment.name} style={styles.legendRow}><View style={[styles.cardDot, { backgroundColor: segment.color }]} /><Text style={styles.legendName} numberOfLines={1}>{segment.name}</Text><Text style={styles.legendValue}>{Math.round(Math.min(1, Math.max(0, segment.progress)) * 100)}%</Text></View>)}</View>
+        <View style={styles.legend}>{ringSegments.map((segment) => <View key={segment.name} style={styles.legendRow}><View style={[styles.cardDot, { backgroundColor: segment.color }]} /><Text style={styles.legendName} numberOfLines={1}>{segment.name}</Text><Text style={[styles.legendValue, segment.progress > 1 && { color: segment.color }]}>{Math.round(Math.max(0, segment.progress) * 100)}%</Text></View>)}</View>
         </View>
         <View style={styles.progressTiles}>
           {overview.stepProgress && <ProgressTile title="Steps" value={`${overview.stepProgress.count === null ? '—' : overview.stepProgress.count.toLocaleString()} / ${overview.stepProgress.target.toLocaleString()}`} detail={stepBurn ? <>Est. calories: <Text style={styles.tileStrong}>{stepBurn.kcal.toLocaleString()}</Text></> : 'Awaiting step data'} progress={(overview.stepProgress.count ?? 0) / overview.stepProgress.target} color={goalColor('steps', colors.activityNav)} href="/activity" />}

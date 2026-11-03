@@ -73,8 +73,11 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
       : `${amount} / ${target} ${unit} ${weekly ? 'this week' : 'today'}`;
     const left = Math.max(0, progress.goal - progress.amount);
     const leftText = tracker.habitTemplate === 'water' ? waterDisplayAmount(left, unit as 'fl oz' | 'mL') : Number(left.toFixed(1)).toLocaleString();
-    const short = progress.amount >= progress.goal ? 'Goal reached' : `${leftText} ${unit} to go`;
-    return [{ id: tracker.id, title: tracker.displayName || tracker.name, value: `${amount} / ${target} ${unit}`, detail, short, progress: progress.percent / 100,
+    const over = progress.amount - progress.goal;
+    const overText = tracker.habitTemplate === 'water' ? waterDisplayAmount(over, unit as 'fl oz' | 'mL') : Number(over.toFixed(1)).toLocaleString();
+    const short = over > 0 ? `+${overText} over goal` : over === 0 ? 'Goal reached' : `${leftText} ${unit} to go`;
+    return [{ id: tracker.id, title: tracker.displayName || tracker.name, value: `${amount} / ${target} ${unit}`, detail, short, // Not capped, so going past a goal shows as more than 100%.
+      progress: progress.goal > 0 ? progress.amount / progress.goal : 0,
       reached: progress.amount >= progress.goal, href: `/tracker/${encodeURIComponent(tracker.id)}`, weekly }];
   });
   const dailyHabitGoals = habitGoals.filter((goal) => !goal.weekly);
