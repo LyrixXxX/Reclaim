@@ -104,6 +104,7 @@ function AppShell() {
           <Stack.Screen name="activity-map" options={{ headerShown: false }} />
           <Stack.Screen name="activity-routes" options={{ title: 'Saved routes' }} />
           <Stack.Screen name="route-settings" options={{ title: 'Route settings' }} />
+          <Stack.Screen name="nutrition-add" options={{ title: 'Add food' }} />
           <Stack.Screen name="nutrition-log" options={{ title: 'Log food' }} />
           <Stack.Screen name="nutrition-trends" options={{ title: 'Food trend report' }} />
           <Stack.Screen name="nutrition-foods" options={{ title: 'Saved foods' }} />

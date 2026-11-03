@@ -8,8 +8,11 @@ describe('daily action layout contracts', () => {
     const markers = ['<MainScreenHeader', 'style={styles.dateRow}', '{!goal ?', 'accessibilityLabel="Add Food"', '<NutritionNavigation date={date}', '{visibleAdditional.length > 0', '>Meals</Text>'];
     for (let index = 1; index < markers.length; index++) expect(source.indexOf(markers[index])).toBeGreaterThan(source.indexOf(markers[index - 1]));
     expect(source).not.toContain('DAILY NUTRITION');
-    expect(source).toContain("params: { mode, date");
-    expect(source).toContain("captureOnOpen: 'camera'");
-    for (const mode of ['text', 'label', 'manual']) expect(source).toContain(`openFoodEntry('${mode}')`);
+    // Add Food and each meal's + open quick add, which offers manual, describe and scan.
+    expect(source).toContain("pathname: '/nutrition-add', params: { date }");
+    expect(source).toContain("pathname: '/nutrition-add', params: { date, meal: group.id }");
+    const quickAdd = readFileSync('src/app/nutrition-add.tsx', 'utf8');
+    expect(quickAdd).toContain("captureOnOpen: 'camera'");
+    for (const mode of ['text', 'label', 'manual']) expect(quickAdd).toContain(`openEntry('${mode}'`);
   });
 });
