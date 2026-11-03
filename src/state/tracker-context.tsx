@@ -3,16 +3,17 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
+import { updateQuitWidget } from '@/widgets/update-widget';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { colors, font } from '@/theme';
 
-import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings, CravingEvent, SavingsGoal } from '@/models/tracker';
 import { validateNutrientSelection } from '@/lib/nutrient-totals';
 import { markSupplementDoseSkipped, recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
 import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/lib/workouts';
-import { createFreshState, needsOnboarding, normalizeOnboardingSelections, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
+import { createFreshState, needsOnboarding, normalizeOnboardingSelections, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
@@ -43,8 +44,8 @@ import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, repla
 
 type TrackerContextValue = TrackerState & {
   hydrated: boolean;
-  setOnboardingSelections: (selected: OnboardingArea[]) => void;
-  setOnboardingSetupDraft: (draft: OnboardingSetupDraft) => void;
+  setOnboardingSelections: (selected: OnboardingArea[] | ((previous: OnboardingArea[]) => OnboardingArea[])) => void;
+  setOnboardingSetupDraft: (draft: OnboardingSetupDraft | ((previous: OnboardingSetupDraft) => OnboardingSetupDraft)) => void;
   finishOnboarding: () => Promise<void>;
   saveDashboard: (widgets: DashboardWidget[]) => void;
   setHomeHabitVisible: (id: string, visible: boolean) => void;
@@ -115,6 +116,12 @@ type TrackerContextValue = TrackerState & {
   deleteWorkoutHistory: (id: string) => void;
   saveActualOneRepMax: (record: ActualOneRepMax) => void;
   deleteActualOneRepMax: (id: string) => void;
+  logCraving: (craving: CravingEvent) => void;
+  deleteCraving: (id: string) => void;
+  saveSavingsGoal: (goal: SavingsGoal) => void;
+  deleteSavingsGoal: (id: string) => void;
+  setFeaturedTracker: (trackerId: string | undefined) => void;
+  markSwipeHintSeen: () => void;
   updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   saveSupplement: (draft: SupplementDraft, id: string) => void;
@@ -201,14 +208,21 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     if (hydrated) void writer.save(JSON.stringify(state)).catch(() => undefined);
   }, [hydrated, state, writer]);
 
+  // Keep the home-screen widget in step, without redrawing it on every keystroke.
+  useEffect(() => {
+    if (!hydrated || state.onboardingStatus === 'pending') return;
+    const timer = setTimeout(() => updateQuitWidget(state), 1500);
+    return () => clearTimeout(timer);
+  }, [hydrated, state]);
+
   const value = useMemo<TrackerContextValue>(() => ({
     ...state,
     hydrated,
     setOnboardingSelections: (selected) => setState((previous) => previous.onboardingStatus === 'pending'
-      ? { ...previous, onboardingSelections: normalizeOnboardingSelections(selected) }
+      ? { ...previous, onboardingSelections: pickedAreas(typeof selected === 'function' ? selected(pickedAreas(previous.onboardingSelections)) : selected) }
       : previous),
     setOnboardingSetupDraft: (draft) => setState((previous) => previous.onboardingStatus === 'pending'
-      ? { ...previous, onboardingSetupDraft: draft }
+      ? { ...previous, onboardingSetupDraft: typeof draft === 'function' ? draft(previous.onboardingSetupDraft ?? {}) : draft }
       : previous),
     finishOnboarding: async () => {
       if (state.onboardingStatus !== 'pending') return;
@@ -409,6 +423,12 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteWorkoutHistory: (id) => setState((previous) => ({ ...previous, workoutSessions: (previous.workoutSessions ?? []).filter((item) => item.id !== id) })),
     saveActualOneRepMax: (record) => setState((previous) => ({ ...previous, actualOneRepMaxes: [...(previous.actualOneRepMaxes ?? []).filter((item) => item.id !== record.id), record] })),
     deleteActualOneRepMax: (id) => setState((previous) => ({ ...previous, actualOneRepMaxes: (previous.actualOneRepMaxes ?? []).filter((item) => item.id !== id) })),
+    logCraving: (craving) => setState((previous) => ({ ...previous, cravings: [...(previous.cravings ?? []).filter((item) => item.id !== craving.id), craving] })),
+    deleteCraving: (id) => setState((previous) => ({ ...previous, cravings: (previous.cravings ?? []).filter((item) => item.id !== id) })),
+    saveSavingsGoal: (goal) => setState((previous) => ({ ...previous, savingsGoals: [...(previous.savingsGoals ?? []).filter((item) => item.id !== goal.id), goal] })),
+    deleteSavingsGoal: (id) => setState((previous) => ({ ...previous, savingsGoals: (previous.savingsGoals ?? []).filter((item) => item.id !== id) })),
+    setFeaturedTracker: (trackerId) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), featuredTrackerId: trackerId } })),
+    markSwipeHintSeen: () => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), swipeHintSeen: true } })),
     updateWorkoutSettings: (update) => setState((previous) => ({ ...previous, workoutSettings: { ...DEFAULT_WORKOUT_SETTINGS, ...previous.workoutSettings, ...update } })),
     setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),
     saveSupplement: (draft, id) => setState((previous) => ({ ...previous, medications: saveSupplementDraft(previous.medications ?? [], draft, id) })),
@@ -458,7 +478,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
   }), [hydrated, state, saveStatus, writer]);
 
   return <TrackerContext.Provider value={value}>{hydrated ? needsOnboarding(state)
-    ? <OnboardingScreen selected={normalizeOnboardingSelections(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />
+    ? <OnboardingScreen selected={pickedAreas(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />
     : children : !loadFailed ? <BrandedLoading /> :
     <SafeAreaView style={storageStyles.loading}>
         <Text style={storageStyles.title}>Could not open local history</Text>

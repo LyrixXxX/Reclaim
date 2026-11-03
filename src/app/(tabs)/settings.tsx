@@ -20,6 +20,7 @@ import { NavigationSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useMonetization } from '@/state/monetization-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { PRIVACY_POLICY_URL } from '@/lib/privacy-policy';
 
 const sections: { id: NavigationSection; label: string; description: string }[] = [
   { id: 'goals', label: 'Habits', description: 'Habits you are quitting, reducing, or building.' },
@@ -76,7 +77,7 @@ export default function SettingsScreen() {
       const exported = new Date(backup.exportedAt).toLocaleString(undefined, { hour12: true });
       Alert.alert(
         'Restore this Reclaim backup?',
-        `Created ${exported}\n\n${summary.trackers} trackers · ${summary.cpapReadings} CPAP nights · ${summary.weightEntries} weigh-ins · ${summary.healthRecords} health records · ${summary.nutritionEntries} food entries\n\nThis replaces the data in this copy of Reclaim. It does not change or delete data in the app that created the backup.`,
+        `Created ${exported}\n\n${summary.trackers} trackers · ${summary.weightEntries} weigh-ins · ${summary.nutritionEntries} food entries\n\nThis replaces the data in this copy of Reclaim. It does not change or delete data in the app that created the backup.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Restore backup', onPress: () => { void finishRestore(backup); } },
@@ -105,7 +106,7 @@ export default function SettingsScreen() {
     <LocalSaveStatus />
     <Text style={styles.section}>Privacy & app lock</Text>
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Privacy & data</Text><Text style={styles.backupText}>See what Reclaim stores on this device and when information leaves it.</Text><Link href={'/privacy' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Read privacy information</Text></Pressable></Link></View>
-    <Pressable onPress={() => { void Linking.openURL(process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/'); }} style={[styles.secondary, styles.privacyPolicyLink]}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
+    <Pressable onPress={() => { void Linking.openURL(PRIVACY_POLICY_URL); }} style={[styles.secondary, styles.privacyPolicyLink]}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
     <AppLockSettings />
     <Text style={styles.section}>Ads & support</Text>
     <View style={styles.backupCard}>
@@ -132,11 +133,11 @@ export default function SettingsScreen() {
     <Text style={styles.section}>Route calorie estimates</Text>
     <View style={styles.card}><SettingRow label="Add route calories to Nutrition budget" description="Include saved route estimates in your daily calorie budget." value={preferences.includeRouteCaloriesInNutrition ?? false} onChange={setRouteCaloriesInNutrition} /></View>
     <Text style={styles.section}>AI</Text>
-    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food and workout assistance</Text><Text style={styles.backupText}>No connection setup is needed. Only content you explicitly submit is sent through the Lyrix Studios relay to OpenAI. Strength planning sends your selected schedule, session preferences, and built-in exercise names—not your workout history or logged weights. Saved records remain on this device. AI requires a Google Play-installed copy; manual tracking and offline sample routines remain available.</Text></View>
+    <View style={styles.backupCard}><Text style={styles.backupTitle}>Food and workout assistance</Text><Text style={styles.backupText}>When you scan a label, describe a meal, or generate a training week, only what you submit is sent through the Lyrix Studios relay to OpenAI. Training plans use your chosen schedule and built-in exercise names, never your workout history or weights. Your saved records stay on this device.</Text></View>
     <Text style={styles.section}>Backup & transfer</Text>
     <View style={styles.backupCard}>
       <Text style={styles.backupTitle}>Your Reclaim data</Text>
-      <Text style={styles.backupText}>Export your local records and settings, including data retained from older Reclaim versions. The backup stays local until you choose where to save it.</Text>
+      <Text style={styles.backupText}>Export your local records and settings. The backup stays local until you choose where to save it.</Text>
       <Pressable disabled={backupBusy} style={[styles.primary, backupBusy && styles.disabled]} onPress={() => { void exportBackup(); }}><Text style={styles.primaryText}>{backupBusy ? 'Working…' : 'Export Reclaim backup'}</Text></Pressable>
       <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
       <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
@@ -148,7 +149,6 @@ export default function SettingsScreen() {
         else setSectionVisibility('routes', false);
       }).catch(() => Alert.alert('Could not check your route', 'Try again before hiding Routes.'));
     }} />; })}</View>
-    <View style={styles.notice}><Text style={styles.noticeTitle}>Older records stay intact</Text><Text style={styles.noticeText}>If you updated from a full-featured version, its records remain in local storage and backups. This wellness edition does not display or update them.</Text></View>
   </ScrollView></SafeAreaView>;
 }
 
@@ -199,7 +199,4 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1 },
   rowTitle: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
   rowText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 15, marginTop: 3 },
-  notice: { backgroundColor: colors.accentSoft, borderRadius: 14, padding: 14, marginTop: 20 },
-  noticeTitle: { color: colors.accent, fontSize: 11, fontFamily: font.semibold },
-  noticeText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 16, marginTop: 4 },
 });

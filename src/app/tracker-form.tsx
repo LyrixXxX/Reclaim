@@ -17,9 +17,10 @@ import {
 import { FrequencyPeriod, Tracker, TrackerMode } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { DateField } from '@/components/date-field';
 
 const ICONS = ['◇', '○', '↗', '★', '✓', '⌁', '△', '□'];
-const ACCENTS = [colors.marijuana, colors.porn, colors.nicotine, colors.caffeine, colors.accent, colors.success];
+const ACCENTS = [colors.marijuana, colors.porn, colors.nicotine, colors.caffeine, colors.accent, colors.habitsNav, '#E7C26E', '#E59A9A'];
 
 export default function TrackerFormScreen() {
   const { id, delete: deleteRequested, mode } = useLocalSearchParams<{ id?: string; delete?: string; mode?: string }>();
@@ -132,7 +133,7 @@ export default function TrackerFormScreen() {
         </Field>
 
         <Field label="START DATE" error={errors.startDate}>
-          <TextInput accessibilityLabel="Start date" value={draft.startDate} onChangeText={(value) => set('startDate', value)} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
+          <DateField accessibilityLabel="Start date" value={draft.startDate} onChangeText={(value) => set('startDate', value)} placeholderTextColor={colors.textDim} style={styles.input} />
         </Field>
         <Field label="START TIME · OPTIONAL" error={errors.startTime}>
           <Text style={timeStyles.help}>Use the local time you actually started. Leave blank to use 12:00 AM.</Text>
@@ -190,7 +191,7 @@ export default function TrackerFormScreen() {
             </View>
             <View style={styles.frequencyRow}>{(['day', 'week', 'month'] as FrequencyPeriod[]).map((unit) => <Pressable key={unit} accessibilityRole="radio" accessibilityState={{ checked: expense.everyUnit === unit }} onPress={() => set('savingsExpenses', (draft.savingsExpenses ?? []).map((item) => item.id === expense.id ? { ...item, everyUnit: unit } : item))} style={[styles.periodButton, expense.everyUnit === unit && styles.selected]}><Text style={[styles.periodText, expense.everyUnit === unit && styles.periodTextActive]}>{unit}{Number(expense.everyCount) === 1 ? '' : 's'}</Text></Pressable>)}</View>
             <Text style={styles.savingsHelp}>{existing?.savingsExpenses?.some((item) => item.id === expense.id) ? 'Changed price starts on' : 'Expense applies starting'}</Text>
-            <TextInput accessibilityLabel={`${expense.label || 'Expense'} effective date`} value={expense.effectiveDate} onChangeText={(value) => set('savingsExpenses', (draft.savingsExpenses ?? []).map((item) => item.id === expense.id ? { ...item, effectiveDate: value } : item))} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
+            <DateField accessibilityLabel={`${expense.label || 'Expense'} effective date`} value={expense.effectiveDate} onChangeText={(value) => set('savingsExpenses', (draft.savingsExpenses ?? []).map((item) => item.id === expense.id ? { ...item, effectiveDate: value } : item))} placeholderTextColor={colors.textDim} style={styles.input} />
             <Pressable accessibilityRole="button" onPress={() => set('savingsExpenses', (draft.savingsExpenses ?? []).filter((item) => item.id !== expense.id))} style={styles.savingsRemove}><Text style={styles.savingsRemoveText}>{existing?.savingsExpenses?.some((item) => item.id === expense.id) ? 'Stop this expense' : 'Remove expense'}</Text></Pressable>
           </View>)}
           {errors.savingsExpenses && <Text style={styles.error}>{errors.savingsExpenses}</Text>}

@@ -19,6 +19,7 @@ import { useTrackers } from '@/state/tracker-context';
 import { useAds } from '@/state/ads-context';
 import { colors, layout, spacing, font } from '@/theme';
 import { Chevron } from '@/components/icon';
+import { DateField } from '@/components/date-field';
 
 const numberValue = (value: string) => value.trim() ? Number(value) : null;
 
@@ -135,7 +136,7 @@ function WeightEntryModal({ entry, nutritionEntries, routes, steps, profile, onC
   };
   return <Modal visible animationType="slide" onRequestClose={onClose}><SafeAreaView style={styles.modal}><ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 240 }]}>
     <Text style={styles.modalTitle}>{entry ? 'Edit weigh-in' : 'Add weigh-in'}</Text>
-    <Text style={styles.fieldLabel}>Date</Text><TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
+    <Text style={styles.fieldLabel}>Date</Text><DateField value={date} onChangeText={setDate} placeholderTextColor={colors.textDim} style={styles.input} />
     <Text style={styles.fieldLabel}>Weight ({entry?.unit ?? 'lb'})</Text><TextInput value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="Weight" placeholderTextColor={colors.textDim} style={styles.input} />
     <Text style={styles.fieldLabel}>Calories eaten on {activityDate || 'previous day'} (optional)</Text><TextInput value={displayedCalories} onChangeText={(value) => { setCaloriesEdited(true); setCalories(value); }} keyboardType="decimal-pad" placeholder={suggestedCalories == null ? 'No food logged' : 'Calories'} placeholderTextColor={colors.textDim} style={styles.input} />
     {!entry && !caloriesEdited && <Text style={estimateStyles.note}>{suggestedCalories == null ? 'No food logged in Nutrition for that day; left blank.' : 'Suggested from Nutrition. You can change or clear this value.'}</Text>}
@@ -164,7 +165,7 @@ function TdeeSettingsModal({ profile, onClose, onSave }: { profile?: WeightTdeeP
   return <Modal visible animationType="slide" onRequestClose={onClose}><SafeAreaView style={styles.modal}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 60 }]}>
     <Text style={styles.modalTitle}>TDEE estimate setup</Text><Text style={styles.subtitle}>Optional and stored on this device. The formula choice is used only for the BMR calculation.</Text>
     <Text style={styles.fieldLabel}>Height</Text><View style={estimateStyles.formulaRow}><View style={estimateStyles.heightField}><TextInput value={feet} onChangeText={setFeet} keyboardType="number-pad" placeholder="Feet" placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={estimateStyles.heightField}><TextInput value={inches} onChangeText={setInches} keyboardType="decimal-pad" placeholder="Inches" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
-    <Text style={styles.fieldLabel}>Birth date</Text><TextInput value={birthDate} onChangeText={setBirthDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
+    <Text style={styles.fieldLabel}>Birth date</Text><DateField value={birthDate} onChangeText={setBirthDate} placeholderTextColor={colors.textDim} style={styles.input} />
     <Text style={styles.fieldLabel}>Mifflin–St Jeor formula</Text><View style={estimateStyles.formulaRow}>{(['male', 'female'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: formulaSex === choice }} onPress={() => setFormulaSex(choice)} style={[estimateStyles.formulaChoice, formulaSex === choice && estimateStyles.formulaSelected]}><Text style={styles.importText}>{choice === 'male' ? 'Male formula' : 'Female formula'}</Text></Pressable>)}</View>
     <Text style={estimateStyles.note}>This predicts resting energy expenditure. Reclaim adds estimated ordinary activity, non-route steps, saved routes and digestion for a daily TDEE estimate. It will not change older weigh-ins or Nutrition targets.</Text>
     <Pressable style={styles.primary} onPress={save}><Text style={styles.primaryText}>Save estimate setup</Text></Pressable><Pressable style={styles.cancel} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>

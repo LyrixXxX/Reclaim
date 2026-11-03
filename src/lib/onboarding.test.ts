@@ -2,7 +2,7 @@ import { createSeedState } from '@/data/seed';
 import { createLocalStateWriter, readLocalState } from './local-storage';
 import { migratePreferences, setHealthModuleVisible, setSectionVisible } from './preferences';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
-import { completeOnboarding, createFreshState, needsOnboarding, normalizeOnboardingSelections, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight, persistCompletedOnboarding, shouldEnableFirstStepTracking } from './onboarding';
+import { completeOnboarding, createFreshState, navigationOrderFromPicks, needsOnboarding, normalizeOnboardingSelections, pickedAreas, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight, persistCompletedOnboarding, shouldEnableFirstStepTracking } from './onboarding';
 import { migrateCpapState } from './cpap';
 
 describe('first-run setup', () => {
@@ -143,5 +143,31 @@ describe('first-run setup', () => {
     expect(() => parseFirstStepGoal('')).toThrow();
     expect(() => parseFirstStepGoal('12.5')).toThrow();
     expect(() => parseFirstStepGoal('100001')).toThrow();
+  });
+});
+
+describe('setup trackers and tab order', () => {
+  test('tabs follow the order areas were picked', () => {
+    expect(navigationOrderFromPicks(['habits', 'routes', 'weight'])).toEqual(['goals', 'routes', 'weight', 'activity', 'nutrition', 'workouts', 'supplements']);
+    expect(pickedAreas(['routes', 'habits', 'routes', 'labs'])).toEqual(['routes', 'habits']);
+  });
+
+  test('quits and builds become trackers when habits is picked', () => {
+    const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['habits'], onboardingSetupDraft: {
+      quits: [{ id: 'q1', name: 'Nicotine', icon: '↘', color: '#fff', startDate: '2026-10-01', weeklyCost: '25' }, { id: 'q2', name: 'Sugar', icon: '◌', color: '#fff', startDate: '2999-01-01' }],
+      builds: ['water', 'walk', 'sleep'],
+    } }, new Date(2026, 10, 3));
+    const nicotine = next.trackers.find((item) => item.name === 'Nicotine')!;
+    expect(nicotine).toMatchObject({ mode: 'abstinence', startedAt: '2026-10-01T00:00:00' });
+    expect(nicotine.savingsExpenses?.[0].rates[0]).toMatchObject({ amountCents: 2500, everyCount: 1, everyUnit: 'week' });
+    expect(next.trackers.find((item) => item.name === 'Sugar')?.startedAt).toBe('2026-11-03T00:00:00');
+    expect(next.trackers.filter((item) => item.mode === 'habit').map((item) => item.habitTemplate)).toEqual(['water', 'walk', 'sleep']);
+    expect(next.preferences?.navigationOrder?.[0]).toBe('goals');
+    expect(next.onboardingSetupDraft).toBeUndefined();
+  });
+
+  test('setup trackers are skipped when habits is not picked', () => {
+    const next = completeOnboarding({ ...createFreshState(), onboardingSelections: ['weight'], onboardingSetupDraft: { builds: ['water'] } });
+    expect(next.trackers).toEqual([]);
   });
 });

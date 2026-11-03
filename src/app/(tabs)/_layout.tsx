@@ -1,6 +1,8 @@
+import { View } from 'react-native';
 import { TopTabs } from 'expo-router/js-top-tabs';
 
 import { BottomNavigation } from '@/components/bottom-navigation';
+import { SwipeHint } from '@/components/swipe-hint';
 import { DEFAULT_PREFERENCES, normalizeNavigationOrder } from '@/lib/preferences';
 import { NavigationSection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
@@ -19,15 +21,17 @@ const sectionRoutes: Record<NavigationSection, string> = {
 
 /** Main sections as swipeable pages; the bottom bar stays in sync with the pager. */
 export default function TabsLayout() {
-  const { preferences = DEFAULT_PREFERENCES } = useTrackers();
-  return <TopTabs
+  const { preferences = DEFAULT_PREFERENCES, markSwipeHintSeen } = useTrackers();
+  const showHint = !preferences.swipeHintSeen;
+  return <View style={{ flex: 1, backgroundColor: colors.background }}><TopTabs
     tabBarPosition="bottom"
     tabBar={(props) => <BottomNavigation {...props} />}
+    screenListeners={showHint ? { swipeStart: markSwipeHintSeen } : undefined}
     screenOptions={{ lazy: true, lazyPreloadDistance: 1, sceneStyle: { backgroundColor: colors.background } }}>
     <TopTabs.Screen name="index" />
     {normalizeNavigationOrder(preferences.navigationOrder).map((section) => <TopTabs.Protected key={section} guard={!!preferences.visibleSections[section]}>
       <TopTabs.Screen name={sectionRoutes[section]} />
     </TopTabs.Protected>)}
     <TopTabs.Screen name="settings" />
-  </TopTabs>;
+  </TopTabs>{showHint && <SwipeHint onDismiss={markSwipeHintSeen} />}</View>;
 }

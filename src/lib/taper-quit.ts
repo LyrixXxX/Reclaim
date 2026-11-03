@@ -39,6 +39,6 @@ export function completedCalendarDays(startedAt: string, now = new Date()) {
 export function roundedNextCheckpoint(startedAt: string, checkpoints: number[], now = new Date()) {
   const elapsedDays = completedCalendarDays(startedAt, now);
   const targetDays = checkpoints.find((days) => days > elapsedDays)
-    ?? Math.ceil(elapsedDays / 365 + 1) * 365;
+    ?? (Math.floor(elapsedDays / 365) + 1) * 365;
   return { targetDays, remainingDays: Math.max(0, targetDays - elapsedDays), remainingHours: 0 };
 }

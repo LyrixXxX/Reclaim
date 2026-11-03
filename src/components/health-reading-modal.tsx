@@ -6,6 +6,7 @@ import { HealthReadingInput, localDateTimeParts, validateHealthReading } from '@
 import { formatClockTime, parseClockTime } from '@/lib/clock-time';
 import { HealthReading } from '@/models/tracker';
 import { colors, layout, spacing, font } from '@/theme';
+import { DateField } from '@/components/date-field';
 
 export function HealthReadingModal({ visible, reading, onClose, onSave }: { visible: boolean; reading?: HealthReading | null; onClose: () => void; onSave: (input: HealthReadingInput) => void }) {
   const parts = localDateTimeParts(reading?.measuredAt);
@@ -32,7 +33,7 @@ export function HealthReadingModal({ visible, reading, onClose, onSave }: { visi
         <View style={styles.bpRow}><NumberField label="SYSTOLIC" value={systolic} setValue={setSystolic} /><Text style={styles.slash}>/</Text><NumberField label="DIASTOLIC" value={diastolic} setValue={setDiastolic} /></View>
         <Text style={styles.unit}>mmHg</Text>
         <Text style={styles.label}>PULSE · BPM</Text><TextInput accessibilityLabel="Pulse" value={pulse} onChangeText={setPulse} keyboardType="number-pad" placeholder="65" placeholderTextColor={colors.textDim} style={styles.input} />
-        <View style={styles.dateRow}><View style={styles.flex}><Text style={styles.label}>DATE</Text><TextInput accessibilityLabel="Reading date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={styles.flex}><Text style={styles.label}>TIME</Text><TextInput accessibilityLabel="Reading time" value={time} onChangeText={setTime} autoCapitalize="characters" placeholder="9:30 AM" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
+        <View style={styles.dateRow}><View style={styles.flex}><Text style={styles.label}>DATE</Text><DateField accessibilityLabel="Reading date" value={date} onChangeText={setDate} placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={styles.flex}><Text style={styles.label}>TIME</Text><TextInput accessibilityLabel="Reading time" value={time} onChangeText={setTime} autoCapitalize="characters" placeholder="9:30 AM" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
         <Text style={styles.label}>NOTE · OPTIONAL</Text><TextInput accessibilityLabel="Reading note" value={note} onChangeText={setNote} multiline placeholder="Context for this reading" placeholderTextColor={colors.textDim} style={[styles.input, styles.note]} />
         {error && <Text style={styles.error}>{error}</Text>}
         <View style={styles.actions}><Pressable onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable><Pressable onPress={save} style={styles.save}><Text style={styles.saveText}>Save reading</Text></Pressable></View>

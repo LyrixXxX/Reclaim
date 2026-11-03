@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NutritionMealGroup } from '@/models/tracker';
 import { colors, layout, spacing, font } from '@/theme';
+import { isoToUs } from '@/lib/us-date';
 
 type Props = {
   visible: boolean;
@@ -23,7 +24,7 @@ export function NutritionMealConfirmation({ visible, groups, selectedId, eventDa
       <View style={styles.card}>
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           <Text accessibilityRole="header" style={styles.title}>What meal should this be added to?</Text>
-          <Text style={styles.help}>Logging for {eventDate}. Choose a meal, then confirm.</Text>
+          <Text style={styles.help}>Logging for {isoToUs(eventDate)}. Choose a meal, then confirm.</Text>
           <View style={styles.choices}>{groups.map((group) => {
             const selected = group.id === selectedId;
             return <Pressable key={group.id} accessibilityRole="radio" accessibilityState={{ checked: selected, disabled: busy }} disabled={busy} onPress={() => onSelect(group.id)} style={[styles.choice, selected && styles.selected]}>

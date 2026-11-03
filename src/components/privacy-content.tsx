@@ -1,10 +1,10 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from '@/lib/privacy-policy';
+import { PRIVACY_POLICY_URL, PRIVACY_SECTIONS, PRIVACY_UPDATED } from '@/lib/privacy-policy';
 import { colors, layout, spacing, font } from '@/theme';
 
 export function PrivacyContent() {
-  const publicUrl = process.env.EXPO_PUBLIC_RECLAIM_PRIVACY_URL || 'https://reclaim-privacy-policy.pages.dev/';
+  const publicUrl = PRIVACY_POLICY_URL;
   const supportEmail = process.env.EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL || 'Reclaim.LyrixStudios@gmail.com';
   return <View style={styles.content}>
     <Text style={styles.title}>Privacy & data</Text>

@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -13,6 +13,8 @@ import { feetInchesFromCm, heightCmFromFeetInches } from '@/lib/weight-tdee';
 import { NutrientSelection } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { DateField } from '@/components/date-field';
+import { isoToUs } from '@/lib/us-date';
 
 export default function NutritionSettingsScreen() {
   const params = useLocalSearchParams<{ date?: string; reviewWeight?: string; reviewUnit?: 'lb' | 'kg' }>();
@@ -113,10 +115,10 @@ export default function NutritionSettingsScreen() {
       <Pressable onPress={calculate} style={styles.primary}><Text style={styles.primaryText}>Preview starting split</Text></Pressable>
     </View>}
     <View style={styles.calorieCard}><Text style={styles.calorieLabel}>YOUR CALORIE TARGET</Text><Text style={styles.calorieValue}>{calories.trim() && Number.isFinite(calorieTarget) ? calorieTarget.toLocaleString() : '—'} <Text style={styles.calorieUnit}>kcal</Text></Text>{mode !== 'calories-only' && <><Text style={styles.formula}>Macro grams total {ratio ? macroCalories(goalNutrients).toLocaleString() : '—'} kcal · protein × 4 + carbs × 4 + fat × 9</Text>{ratio && <Text style={styles.help}>{difference === 0 ? 'Macro calories match your target.' : `${Math.abs(difference).toLocaleString()} kcal ${difference > 0 ? 'above' : 'below'} your calorie target${mode === 'calculated' ? ' from whole-gram rounding' : ''}.`}</Text>}<MacroRatioChart ratio={ratio} grams={goalNutrients} /></>}</View>
-    <Text style={styles.label}>EFFECTIVE DATE</Text><TextInput value={effectiveDate} onChangeText={setEffectiveDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
-    <Pressable onPress={saveGoal} style={styles.primary}><Text style={styles.primaryText}>Save targets from {effectiveDate}</Text></Pressable>
+    <Text style={styles.label}>EFFECTIVE DATE</Text><DateField value={effectiveDate} onChangeText={setEffectiveDate} placeholderTextColor={colors.textDim} style={styles.input} />
+    <Pressable onPress={saveGoal} style={styles.primary}><Text style={styles.primaryText}>Save targets from {isoToUs(effectiveDate)}</Text></Pressable>
     <Text style={styles.section}>Goal history</Text><View style={styles.card}>{[...nutritionGoals].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)).map((goal) => <View key={goal.id} style={styles.row}><View style={styles.flex}><Text style={styles.rowTitle}>{goal.effectiveDate} · {nutritionCalorieTarget(goal)} kcal</Text><Text style={styles.rowMeta}>{hasMacroTargets(goal) ? `${goal.carbsGrams}C · ${goal.proteinGrams}P · ${goal.fatGrams}F` : 'Calories only'}{goal.fitnessGoal ? ` · ${goal.fitnessGoal.replace('-', ' ')}` : ''}</Text></View><Pressable onPress={() => Alert.alert('Delete goal profile?', 'Days before the next profile will no longer have a goal comparison. Food logs are not affected.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteNutritionGoal(goal.id, true) }])}><Text style={styles.delete}>Delete</Text></Pressable></View>)}{!nutritionGoals.length && <Text style={styles.empty}>No goal profiles yet.</Text>}</View>
-    <Text style={styles.section}>Additional food targets</Text><Text style={styles.help}>Choose which details appear on Nutrition. Hiding a detail keeps its target and logged values. Leave a target blank to show its recorded amount without a progress bar. Missing food-label values remain unknown. Supplement doses do not affect these totals.</Text>
+    <Text style={styles.section}>Additional food targets</Text><Text style={styles.help}>Choose which details appear on Nutrition. Hiding a detail keeps its target and logged values. Leave a target blank to show its recorded amount without a progress bar. Foods without a value on their label count as 0. Supplement doses do not affect these totals.</Text>
     {(['fiber', 'cholesterol', 'sodium', 'saturated_fat'] as const).map((id, index) => <AdditionalTarget key={id} id={id} selection={nutrientSelections.find((item) => item.nutrientId === id)} initialGoal={id === 'fiber' ? savedFiberGoal : undefined} order={index} onSave={saveNutrientSelection} />)}
   </KeyboardSafeScrollView></SafeAreaView>;
 }
@@ -142,6 +144,10 @@ function AdditionalTarget({ id, selection, initialGoal, order, onSave }: { id: '
     const value = amount.trim() ? Number(amount) : undefined;
     if (value !== undefined && (!Number.isFinite(value) || value <= 0)) return Alert.alert(`Check ${definition.name} target`, 'Enter a number above zero, or leave the target blank.');
     onSave({ nutrientId: id, state: value === undefined ? 'tracked' : 'goal', goalType: value === undefined ? undefined : id === 'fiber' ? 'minimum' : 'maximum', goalAmount: value, order: selection?.order ?? order, legacyFiberGoal: false, color: nextColor, visible: selection?.visible });
+    Keyboard.dismiss();
+    Alert.alert(`${definition.name} saved`, value === undefined
+      ? `${definition.name} will show its daily amount without a target.`
+      : `Daily ${id === 'fiber' ? 'goal' : 'limit'}: ${value.toLocaleString()} ${definition.unit}${id === 'fiber' ? ' or more' : ' or less'}.`);
   };
   const saveColor = (nextColor: string) => onSave(selection ? { ...selection, color: nextColor } : { nutrientId: id, state: initialGoal ? 'goal' : 'tracked', goalType: initialGoal ? 'minimum' : undefined, goalAmount: initialGoal, order, color: nextColor });
   const toggleVisible = (visible: boolean) => onSave(selection ? { ...selection, visible } : { nutrientId: id, state: initialGoal ? 'goal' : 'tracked', goalType: initialGoal ? 'minimum' : undefined, goalAmount: initialGoal, order, visible });

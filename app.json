@@ -31,6 +31,25 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": ["./node_modules/@expo-google-fonts/manrope/700Bold/Manrope_700Bold.ttf", "./node_modules/@expo-google-fonts/manrope/800ExtraBold/Manrope_800ExtraBold.ttf"],
+          "widgets": [
+            {
+              "name": "QuitTimer",
+              "label": "Reclaim quit timer",
+              "description": "Days quit, money saved and your next milestone",
+              "minWidth": "180dp",
+              "minHeight": "150dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
       ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning.", "recordAudioAndroid": false }],
       "./plugins/with-reclaim-signing",
       [

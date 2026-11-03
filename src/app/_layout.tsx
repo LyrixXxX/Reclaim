@@ -89,6 +89,9 @@ function AppShell() {
           <Stack.Screen name="water-form" options={{ title: 'Water habit setup' }} />
           <Stack.Screen name="water-history" options={{ title: 'Water history' }} />
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
+          <Stack.Screen name="craving" options={{ title: 'Craving' }} />
+          <Stack.Screen name="savings-goal" options={{ title: 'Savings goal' }} />
+          <Stack.Screen name="share-milestone" options={{ title: 'Share progress' }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
           <Stack.Screen name="workout-routines" options={{ title: 'Routines' }} />

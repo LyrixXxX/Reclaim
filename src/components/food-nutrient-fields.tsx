@@ -3,9 +3,9 @@ import { FOOD_EXTRA_NUTRIENT_IDS, nutrientDefinition } from '@/lib/nutrient-cata
 import { colors, font } from '@/theme';
 
 export function FoodNutrientFields({ values, onChange, fiber, onFiberChange }: { values: Record<string, string>; onChange: (next: Record<string, string>) => void; fiber?: string; onFiberChange?: (value: string) => void }) {
-  return <View style={styles.root}><Text style={styles.title}>Additional food details · optional</Text><Text style={styles.help}>Use values from the food label when available. Leave a field blank when unknown.</Text>
-    {onFiberChange && <View style={styles.field}><Text style={styles.label}>Fiber · g</Text><TextInput accessibilityLabel="Fiber in g" value={fiber ?? ''} onChangeText={onFiberChange} keyboardType="decimal-pad" placeholder="Unknown" placeholderTextColor={colors.textDim} style={styles.input} /></View>}
-    {FOOD_EXTRA_NUTRIENT_IDS.map((id) => { const definition = nutrientDefinition(id)!; return <View key={id} style={styles.field}><Text style={styles.label}>{definition.name} · {definition.unit}</Text><TextInput accessibilityLabel={`${definition.name} in ${definition.unit}`} value={values[id] ?? ''} onChangeText={(value) => onChange({ ...values, [id]: value })} keyboardType="decimal-pad" placeholder="Unknown" placeholderTextColor={colors.textDim} style={styles.input} /></View>; })}
+  return <View style={styles.root}><Text style={styles.title}>Additional food details · optional</Text><Text style={styles.help}>Use values from the food label when available. Leave a field blank if it isn’t on the label; it counts as 0.</Text>
+    {onFiberChange && <View style={styles.field}><Text style={styles.label}>Fiber · g</Text><TextInput accessibilityLabel="Fiber in g" value={fiber ?? ''} onChangeText={onFiberChange} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} /></View>}
+    {FOOD_EXTRA_NUTRIENT_IDS.map((id) => { const definition = nutrientDefinition(id)!; return <View key={id} style={styles.field}><Text style={styles.label}>{definition.name} · {definition.unit}</Text><TextInput accessibilityLabel={`${definition.name} in ${definition.unit}`} value={values[id] ?? ''} onChangeText={(value) => onChange({ ...values, [id]: value })} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} /></View>; })}
   </View>;
 }
 

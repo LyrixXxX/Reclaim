@@ -55,6 +55,8 @@ export function migratePreferences(state: TrackerState): TrackerState {
       includeRouteCaloriesInNutrition: state.preferences?.includeRouteCaloriesInNutrition ?? false,
       includeWorkoutCaloriesInNutrition: state.preferences?.includeWorkoutCaloriesInNutrition ?? false,
       includeSupplementNutrientsInNutrition: state.preferences?.includeSupplementNutrientsInNutrition ?? false,
+      featuredTrackerId: typeof state.preferences?.featuredTrackerId === 'string' ? state.preferences.featuredTrackerId : undefined,
+      swipeHintSeen: state.preferences?.swipeHintSeen === true || undefined,
     },
   };
 }

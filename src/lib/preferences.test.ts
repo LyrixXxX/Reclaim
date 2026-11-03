@@ -66,3 +66,11 @@ describe('visibility preferences', () => {
     expect(migrated.preferences).not.toHaveProperty('autoImportHealthWeights');
   });
 });
+
+describe('newer preferences survive loading', () => {
+  test('keeps the featured quit and the swipe tip choice', () => {
+    const state = { trackers: [], checkIns: [], preferences: { ...DEFAULT_PREFERENCES, featuredTrackerId: 'kratom', swipeHintSeen: true } };
+    expect(migratePreferences(state).preferences).toMatchObject({ featuredTrackerId: 'kratom', swipeHintSeen: true });
+    expect(migratePreferences({ trackers: [], checkIns: [] }).preferences?.swipeHintSeen).toBeUndefined();
+  });
+});

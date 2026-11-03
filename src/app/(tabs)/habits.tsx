@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Href, Link, Redirect, useLocalSearchParams } from 'expo-router';
+import { Href, Link, Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MainScreenHeader } from '@/components/main-screen-header';
@@ -14,14 +14,17 @@ import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, type, font } from '@/theme';
 import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
 import { formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from '@/lib/taper-quit';
-import { estimateTrackerSavings, formatSavings } from '@/lib/habit-savings';
+import { formatSavings } from '@/lib/habit-savings';
+import { crossAreaInsights } from '@/lib/insights';
+import { activeSavingsGoal, cravingsBeaten, quittingStarts, totalQuitDays as sumQuitDays, totalQuitSavings } from '@/lib/quit-progress';
 import { useNow } from '@/hooks/use-now';
 import { localDateKey } from '@/lib/progress';
 import { Chevron } from '@/components/icon';
 
 export default function HabitsScreen() {
   const { deleted } = useLocalSearchParams<{ deleted?: string }>();
-  const { trackers, historicalEntries = [], waterLogs = [], goodHabitLogs = [], activityRoutes = [], taperSteps = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
+  const router = useRouter();
+  const { trackers, historicalEntries = [], waterLogs = [], goodHabitLogs = [], activityRoutes = [], taperSteps = [], cravings = [], savingsGoals = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
   const active = trackers.filter((tracker) => !tracker.archived);
   const quitting = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'quitting');
   const reduction = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'reducing');
@@ -39,13 +42,13 @@ export default function HabitsScreen() {
   const [editingOrder, setEditingOrder] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   const now = useNow(60_000);
-  const quitStarts = quitting.map((tracker) => ({ tracker, startedAt: taperQuitPhase(tracker, taperSteps)?.startedAt ?? tracker.startedAt }));
-  const totalSavings = quitStarts.reduce((sum, { tracker, startedAt }) => sum + estimateTrackerSavings(tracker.savingsExpenses, startedAt, now), 0);
-  const totalQuitMs = quitStarts.reduce((sum, { startedAt }) => {
-    const startedMs = startedAt ? Date.parse(startedAt) : NaN;
-    return sum + (Number.isFinite(startedMs) ? Math.max(0, now - startedMs) : 0);
-  }, 0);
-  const totalQuitDays = Math.floor(totalQuitMs / 86_400_000);
+  const quitStarts = quittingStarts(trackers, taperSteps);
+  const totalSavings = totalQuitSavings(quitStarts, now);
+  const totalQuitDays = sumQuitDays(quitStarts, now);
+  const totalBeaten = cravingsBeaten(cravings);
+  const goal = activeSavingsGoal(savingsGoals, totalSavings);
+  const insights = crossAreaInsights({ cravings, routes: activityRoutes, now });
+  const canCrave = quitStarts.some((item) => item.startedAt);
   const orderControls = (section: typeof active, trackerId: string) => {
     if (!editingOrder) return null;
     const index = section.findIndex((tracker) => tracker.id === trackerId);
@@ -84,6 +87,11 @@ export default function HabitsScreen() {
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'quit' }} onPress={() => selectView('quit')} style={[styles.tab, view === 'quit' && styles.tabActive]}><Text style={[styles.tabText, view === 'quit' && styles.tabTextActive]}>Quitting & Tapering</Text></Pressable>
         </View>
 
+        {view === 'quit' && canCrave && <Pressable accessibilityRole="button" onPress={() => router.push('/craving' as Href)} style={({ pressed }) => [styles.craving, pressed && { opacity: 0.85 }]}>
+            <View style={{ flex: 1 }}><Text style={styles.cravingTitle}>Having a craving?</Text><Text style={styles.cravingSub}>Two minutes of help to ride it out.</Text></View>
+            <Chevron color={colors.habitsNav} />
+          </Pressable>}
+
         {view === 'quit' && <View style={styles.summaryCard}>
           <Pressable accessibilityRole="button" accessibilityLabel="Habits overview" accessibilityState={{ expanded: summaryExpanded }} onPress={() => setSummaryExpanded((current) => !current)} style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Your progress</Text><Chevron direction={summaryExpanded ? 'up' : 'down'} color={colors.habitsNav} />
@@ -91,8 +99,21 @@ export default function HabitsScreen() {
           {summaryExpanded && <View style={styles.summaryBody}>
             <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total time saved</Text><Text style={styles.summaryValue}>{totalQuitDays.toLocaleString()} {totalQuitDays === 1 ? 'day' : 'days'}</Text></View>
             <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total money saved</Text><Text style={styles.summaryValue}>{formatSavings(totalSavings)}</Text></View>
+            {totalBeaten > 0 && <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Cravings beaten</Text><Text style={styles.summaryValue}>{totalBeaten.toLocaleString()}</Text></View>}
+            <Link href={'/savings-goal' as Href} asChild><Pressable accessibilityRole="button" style={styles.goal}>
+              {goal ? <>
+                <View style={styles.goalRow}><Text style={styles.goalName}>Saving for {goal.goal.name}</Text><Text style={styles.goalAmount}>{formatSavings(Math.min(totalSavings, goal.goal.targetCents))} / {formatSavings(goal.goal.targetCents)}</Text></View>
+                <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${Math.max(2, goal.progress * 100)}%` }]} /></View>
+                <Text style={styles.summaryNote}>{goal.remainingCents > 0 ? `${formatSavings(goal.remainingCents)} to go.` : 'Goal reached. Treat yourself, you earned it.'}</Text>
+              </> : <Text style={styles.goalAdd}>+ Set a savings goal</Text>}
+            </Pressable></Link>
             <Text style={styles.summaryNote}>Combined across current quitting trackers. Time on simultaneous trackers is counted for each one; money is an estimate from saved expenses.</Text>
           </View>}
+        </View>}
+
+        {view === 'quit' && insights.length > 0 && <View style={styles.insights}>
+          <Text style={styles.insightsTitle}>What we’ve noticed</Text>
+          {insights.map((item) => <View key={item.id} style={styles.insight}><Text style={styles.insightTitle}>{item.title}</Text><Text style={styles.insightDetail}>{item.detail}</Text></View>)}
         </View>}
 
         <View style={styles.managementRow}>
@@ -108,7 +129,7 @@ export default function HabitsScreen() {
           </View>
         </View>
         <View style={styles.cardStack}>
-          {quitting.map((tracker) => { const phase = taperQuitPhase(tracker, taperSteps); const expanded = expandedTimers[tracker.id] ?? false; const hasTimer = Boolean(phase?.startedAt ?? tracker.startedAt); return <View key={tracker.id}><TimerCard tracker={tracker} phaseStart={phase?.startedAt} phasePrecision={phase?.datePrecision} phaseStartLabel={phase ? formatTaperQuitStart(phase) : undefined} modeLabel={phase ? 'QUIT AFTER TAPER' : undefined} expanded={expanded} />{hasTimer && <Pressable accessibilityRole="button" accessibilityLabel={`${expanded ? 'Hide' : 'Show'} ${tracker.name} timer details`} accessibilityState={{ expanded }} onPress={() => setExpandedTimers((current) => ({ ...current, [tracker.id]: !expanded }))} style={styles.timerButton}><Text style={styles.timerToggle}>{expanded ? 'Hide timer details −' : 'Show timer details +'}</Text></Pressable>}{orderControls(quitting, tracker.id)}</View>; })}
+          {quitting.map((tracker) => { const phase = taperQuitPhase(tracker, taperSteps); const expanded = expandedTimers[tracker.id] ?? false; const hasTimer = Boolean(phase?.startedAt ?? tracker.startedAt); return <View key={tracker.id}><TimerCard tracker={tracker} phaseStart={phase?.startedAt} phasePrecision={phase?.datePrecision} phaseStartLabel={phase ? formatTaperQuitStart(phase) : undefined} modeLabel={phase ? 'Quit after taper' : undefined} expanded={expanded} beaten={cravingsBeaten(cravings, tracker.id)} />{hasTimer && <View style={styles.timerActions}><Pressable accessibilityRole="button" accessibilityLabel={`${expanded ? 'Hide' : 'Show'} ${tracker.name} timer details`} accessibilityState={{ expanded }} onPress={() => setExpandedTimers((current) => ({ ...current, [tracker.id]: !expanded }))} style={styles.timerButton}><Text style={styles.timerToggle}>{expanded ? 'Hide timer details' : 'Show timer details'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Share ${tracker.name} progress`} onPress={() => router.push({ pathname: '/share-milestone', params: { tracker: tracker.id } } as unknown as Href)} style={[styles.timerButton, styles.shareButton]}><Text style={styles.timerToggle}>Share</Text></Pressable></View>}{orderControls(quitting, tracker.id)}</View>; })}
         </View>
 
         {reduction.length > 0 && <>
@@ -154,6 +175,21 @@ export default function HabitsScreen() {
 }
 
 const styles = StyleSheet.create({
+  insights: { marginBottom: 14, borderRadius: layout.radius, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18, gap: 14 },
+  insightsTitle: { ...type.eyebrow, color: colors.habitsNav },
+  insight: { gap: 4 },
+  insightTitle: { color: colors.text, fontSize: 15, fontFamily: font.bold },
+  insightDetail: { color: colors.textMuted, fontSize: 13, lineHeight: 19, fontFamily: font.regular },
+  craving: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, borderRadius: layout.radius, borderWidth: 1, borderColor: `${colors.habitsNav}55`, backgroundColor: `${colors.habitsNav}14`, paddingHorizontal: 18, paddingVertical: 16 },
+  cravingTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
+  cravingSub: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, marginTop: 2 },
+  goal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14, gap: 8 },
+  goalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  goalName: { flex: 1, color: colors.text, fontSize: 14, fontFamily: font.bold },
+  goalAmount: { color: colors.success, fontSize: 13, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
+  goalTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
+  goalFill: { height: 8, borderRadius: 4, backgroundColor: colors.success },
+  goalAdd: { color: colors.habitsNav, fontSize: 14, fontFamily: font.bold },
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: {
     width: '100%',
@@ -230,7 +266,9 @@ const styles = StyleSheet.create({
   sectionMeta: { color: colors.textDim, fontSize: 13, fontFamily: font.semibold },
   sectionControls: { alignItems: 'flex-end', gap: 5 },
   timerToggle: { color: colors.habitsNav, fontSize: 11, fontFamily: font.semibold },
-  timerButton: { alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 11, marginTop: 6 },
+  shareButton: { flexGrow: 0, flexBasis: 'auto', paddingHorizontal: 22 },
+  timerActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  timerButton: { flexGrow: 1, flexBasis: 0, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 11 },
   orderControls: { flexDirection: 'row', gap: 8, marginTop: 8 },
   orderButton: { flex: 1, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 10 },
   orderText: { color: colors.text, fontSize: 12, fontFamily: font.bold },

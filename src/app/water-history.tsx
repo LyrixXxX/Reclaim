@@ -8,6 +8,8 @@ import { WaterUnit, validWaterDate, waterDisplayAmount, waterGoalOn, waterToOunc
 import { WaterLog } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { DateField } from '@/components/date-field';
+import { isoToUs } from '@/lib/us-date';
 
 export default function WaterHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,7 +25,7 @@ export default function WaterHistoryScreen() {
   if (!tracker) return <SafeAreaView style={styles.safe}><Text style={styles.body}>Water habit not found.</Text></SafeAreaView>;
   const reset = () => { setEditing(null); setDate(localDateKey()); setOunces(''); setEntryUnit(unit); setError(''); };
   const save = () => {
-    if (!validWaterDate(date) || date > localDateKey()) { setError('Enter a valid date through today as YYYY-MM-DD.'); return; }
+    if (!validWaterDate(date) || date > localDateKey()) { setError('Enter a valid date through today as MM/DD/YYYY.'); return; }
     const amount = editing && ounces === waterDisplayAmount(editing.ounces, entryUnit)
       ? editing.ounces : waterToOunces(Number(ounces), entryUnit);
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1000) { setError('Enter a valid amount greater than zero.'); return; }
@@ -33,14 +35,14 @@ export default function WaterHistoryScreen() {
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={styles.title}>Water history</Text><Text style={styles.body}>Add or correct individual drinks. Past daily totals use the goal saved for that date.</Text>
     <View style={styles.card}><Text style={styles.sectionTitle}>{editing ? 'Edit drink' : 'Add a past drink'}</Text>
-      <Text style={styles.label}>DATE · YYYY-MM-DD</Text><TextInput accessibilityLabel="Drink date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textDim} style={styles.input} />
+      <Text style={styles.label}>DATE · MM/DD/YYYY</Text><DateField accessibilityLabel="Drink date" value={date} onChangeText={setDate} placeholderTextColor={colors.textDim} style={styles.input} />
       <Text style={styles.label}>AMOUNT · {entryUnit}</Text><View style={styles.row}>{(['fl oz', 'mL'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: entryUnit === choice }} onPress={() => { const value = Number(ounces); setOunces(ounces.trim() && Number.isFinite(value) ? waterDisplayAmount(waterToOunces(value, entryUnit), choice) : ''); setEntryUnit(choice); }} style={[styles.action, entryUnit === choice && styles.selected]}><Text style={styles.secondaryText}>{choice}</Text></Pressable>)}</View><TextInput accessibilityLabel={`Drink amount in ${entryUnit}`} keyboardType="decimal-pad" value={ounces} onChangeText={setOunces} placeholder={entryUnit === 'mL' ? 'e.g. 250' : 'e.g. 8'} placeholderTextColor={colors.textDim} style={styles.input} />
       {error ? <Text style={styles.error}>{error}</Text> : null}<Pressable accessibilityRole="button" onPress={save} style={styles.button}><Text style={styles.buttonText}>{editing ? 'Save correction' : 'Add drink'}</Text></Pressable>
       {editing && <Pressable accessibilityRole="button" onPress={reset} style={styles.secondary}><Text style={styles.secondaryText}>Cancel edit</Text></Pressable>}
     </View>
     {!logs.length && <Text style={styles.body}>No drinks logged yet.</Text>}
     <HistoryPages items={logs} pageSize={10}>{(page) => page.map((log) => <View key={log.id} style={styles.card}>
-      <Text style={styles.sectionTitle}>{waterDisplayAmount(log.ounces, unit)} {unit} · {log.eventDate}</Text>
+      <Text style={styles.sectionTitle}>{waterDisplayAmount(log.ounces, unit)} {unit} · {isoToUs(log.eventDate)}</Text>
       <Text style={styles.body}>Day total: {waterDisplayAmount(waterTotalOn(waterLogs, tracker.id, log.eventDate), unit)} {unit} · Goal: {waterGoalOn(tracker, log.eventDate) === null ? 'Not set' : `${waterDisplayAmount(waterGoalOn(tracker, log.eventDate)!, unit)} ${unit}`}</Text>
       <View style={styles.row}><Pressable accessibilityRole="button" onPress={() => { setEditing(log); setDate(log.eventDate); setEntryUnit(unit); setOunces(waterDisplayAmount(log.ounces, unit)); setError(''); }} style={styles.action}><Text style={styles.secondaryText}>Edit</Text></Pressable><Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this drink?', 'This will update that day’s total and progress.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => { deleteWaterDrink(log.id); if (editing?.id === log.id) reset(); } }])} style={styles.action}><Text style={styles.error}>Delete</Text></Pressable></View>
     </View>)}</HistoryPages>

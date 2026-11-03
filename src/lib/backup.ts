@@ -29,6 +29,7 @@ const stateArrayKeys = [
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutrientSelections', 'customNutrients', 'nutritionMealGroups',
   'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs', 'strengthExercises', 'workoutRoutines', 'workoutSessions', 'actualOneRepMaxes',
+  'cravings', 'savingsGoals',
 ] as const;
 
 export function createReclaimBackup(
@@ -162,6 +163,15 @@ function validateState(value: Record<string, unknown>) {
     || !Number.isFinite(Date.parse(`${value.weightTdeeProfile.birthDate}T12:00:00`))
     || !['male', 'female'].includes(String(value.weightTdeeProfile.formulaSex)))) {
     throw new Error('This Reclaim backup contains an invalid Weight estimate profile. Nothing was restored.');
+  }
+  if (Array.isArray(value.cravings) && value.cravings.some((item) => !isObject(item) || typeof item.id !== 'string' || typeof item.at !== 'string' || !Number.isFinite(Date.parse(item.at))
+    || (item.outcome !== 'beaten' && item.outcome !== 'slipped') || (item.trackerId !== undefined && typeof item.trackerId !== 'string')
+    || (item.intensity !== undefined && ![1, 2, 3, 4, 5].includes(item.intensity as number)))) {
+    throw new Error('This Reclaim backup contains an invalid craving entry. Nothing was restored.');
+  }
+  if (Array.isArray(value.savingsGoals) && value.savingsGoals.some((goal) => !isObject(goal) || typeof goal.id !== 'string' || typeof goal.name !== 'string'
+    || typeof goal.targetCents !== 'number' || !Number.isInteger(goal.targetCents) || goal.targetCents <= 0)) {
+    throw new Error('This Reclaim backup contains an invalid savings goal. Nothing was restored.');
   }
   if (Array.isArray(value.activityRoutes) && value.activityRoutes.some((route) => !isObject(route)
     || typeof route.id !== 'string'

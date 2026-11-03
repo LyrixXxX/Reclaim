@@ -43,6 +43,13 @@ export type Tracker = {
   archived?: boolean;
 };
 
+/** What someone did to get through a craving. */
+export type CravingHelper = 'breathing' | 'walk' | 'water' | 'distraction' | 'waited';
+/** A logged urge. "beaten" means it passed without using; "slipped" is recorded separately from lapses. */
+export type CravingEvent = { id: string; trackerId?: TrackerId; at: string; intensity?: 1 | 2 | 3 | 4 | 5; outcome: 'beaten' | 'slipped'; helped?: CravingHelper; note?: string };
+/** Something to put estimated quit savings toward, like hiking boots. */
+export type SavingsGoal = { id: string; name: string; targetCents: number; createdAt: string; achievedAt?: string };
+
 export type LapseEvent = {
   id: string;
   trackerId: TrackerId;
@@ -178,6 +185,7 @@ export type CpapMaintenanceEvent = {
 };
 
 export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'supplements';
+export type OnboardingQuit = { id: string; name: string; icon: string; color: string; startDate: string; weeklyCost?: string };
 export type NavigationSection = 'activity' | 'routes' | 'goals' | 'weight' | 'nutrition' | 'workouts' | 'supplements';
 export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
@@ -193,6 +201,10 @@ export type AppPreferences = {
   includeRouteCaloriesInNutrition?: boolean;
   includeWorkoutCaloriesInNutrition?: boolean;
   includeSupplementNutrientsInNutrition?: boolean;
+  /** Quit tracker shown as the Home headline; defaults to the first quit tracker in habit order. */
+  featuredTrackerId?: string;
+  /** The one-time "swipe between sections" hint has been dismissed. */
+  swipeHintSeen?: boolean;
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
@@ -414,6 +426,10 @@ export type TrackerState = {
     weight?: { value: string; unit: 'lb' | 'kg'; skipped?: boolean };
     nutrition?: { calories?: string; carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
     activity?: { stepGoal: string; enableStepTracking: boolean; skipped?: boolean };
+    /** Things to quit, set up as abstinence trackers when setup finishes. */
+    quits?: OnboardingQuit[];
+    /** Good-habit templates to start, with sensible default goals. */
+    builds?: NonNullable<Tracker['habitTemplate']>[];
   };
   lapseEvents?: LapseEvent[];
   historicalEntries?: HistoricalEntry[];
@@ -459,6 +475,8 @@ export type TrackerState = {
   actualOneRepMaxes?: ActualOneRepMax[];
   activeWorkout?: WorkoutSession;
   workoutSettings?: WorkoutSettings;
+  cravings?: CravingEvent[];
+  savingsGoals?: SavingsGoal[];
 };
 
 export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'bloodPressure' | 'medications' | 'labs';

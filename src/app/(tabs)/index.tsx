@@ -11,6 +11,9 @@ import { DASHBOARD_WIDGETS, homeSecondaryWidgets } from '@/lib/dashboard';
 import { DashboardContent, dashboardContent, dashboardDate } from '@/lib/dashboard-content';
 import { homeOverview, nutritionGoalDetail, type HomeWalkingData } from '@/lib/home-overview';
 import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
+import { quittingStarts } from '@/lib/quit-progress';
+import { QuitHero } from '@/components/quit-hero';
+import { StartHereCard, startHereActions } from '@/components/start-here-card';
 import { DEFAULT_PREFERENCES, trainingOverviewVisibleOnHome } from '@/lib/preferences';
 import { homeGoalColor } from '@/lib/home-goal-colors';
 import { habitProgress } from '@/lib/good-habit-templates';
@@ -51,6 +54,9 @@ export default function DashboardScreen() {
   }, [preferences.visibleSections.activity]));
   const overview = homeOverview(state, steps, now, walking);
   const journeys = preferences.showQuittingTaperingOnHome === false || !preferences.visibleSections.goals ? { quitting: [], tapering: [] } : homeQuittingTapering(state.trackers, state.taperSteps ?? [], now);
+  const showQuits = preferences.showQuittingTaperingOnHome !== false && preferences.visibleSections.goals;
+  const quitStarts = showQuits ? quittingStarts(state.trackers, state.taperSteps ?? []) : [];
+  const hasTraining = (state.workoutSessions ?? []).some((item) => item.endedAt) || (state.activityRoutes ?? []).length > 0;
   const week = activityRange(stepDays, state.stepGoals ?? [], '7D', 0, now);
   const hasProgress = overview.goalCount > 0;
   const mindfulness = state.trackers.find((item) => item.habitTemplate === 'mindfulness' && !item.archived && !(preferences.hiddenHomeHabitIds ?? []).includes(item.id));
@@ -68,6 +74,10 @@ export default function DashboardScreen() {
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <Header />
     <View style={styles.heading}><View style={styles.headingText}><Text style={styles.greeting}>{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text><Text accessibilityRole="header" style={styles.date}>{greeting(now)}</Text></View><Link href={'/dashboard-edit' as Href} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit dashboard" style={styles.edit}><Icon name="sliders" size={19} color={colors.text} /></Pressable></Link></View>
+
+    {quitStarts.length > 0 && <QuitHero starts={quitStarts} featuredId={preferences.featuredTrackerId} cravings={state.cravings ?? []} goals={state.savingsGoals ?? []} now={now.getTime()} onFeature={state.setFeaturedTracker} />}
+
+    <StartHereCard actions={startHereActions(state, preferences.visibleSections)} />
 
     {overview.attention.length > 0 && <View style={styles.attentionPanel}><View style={styles.panelHeading}><Text style={styles.attentionTitle}>Needs attention</Text><Text style={styles.attentionCount}>{overview.attention.length} {overview.attention.length === 1 ? 'item' : 'items'}</Text></View>{overview.attention.map((item) => <Link key={item.id} href={item.href as Href} asChild><Pressable accessibilityRole="button" style={styles.attentionRow}><View style={styles.attentionText}><Text style={styles.attentionItemTitle}>{item.title}</Text><Text style={styles.caption}>{item.detail}</Text></View><Chevron color={colors.textMuted} /></Pressable></Link>)}</View>}
 
@@ -95,7 +105,7 @@ export default function DashboardScreen() {
       </View>
     </View>}
 
-    {trainingOverviewVisibleOnHome(preferences) && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />}
+    {trainingOverviewVisibleOnHome(preferences) && hasTraining && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />}
 
     {mindfulness && mindfulnessProgress && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${mindfulness.displayName || mindfulness.name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(mindfulness.id)}` as Href)} style={styles.mindfulnessCard}>
       <View style={styles.mindfulnessTop}><GoodHabitIcon type="mindfulness" size={54} /><View style={styles.mindfulnessCopy}><Text style={styles.cardTitle}>{mindfulness.displayName || mindfulness.name}</Text><Text style={styles.caption}>{mindfulness.mindfulnessVisualMode === 'quiet' ? 'Quiet Zen' : 'Breathing guide'} · Tap to start a session</Text></View><Chevron color={colors.textMuted} /></View>

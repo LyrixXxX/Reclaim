@@ -32,6 +32,7 @@ import { habitMilestones } from '@/lib/habit-milestones';
 import { HistoricalEntry } from '@/models/tracker';
 import { findTracker, useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
+import { DateField } from '@/components/date-field';
 
 
 export default function TrackerDetailScreen() {
@@ -275,11 +276,10 @@ export default function TrackerDetailScreen() {
             <Text style={styles.sectionEyebrow}>CHANGE START DATE</Text>
             <Text style={styles.modalTitle}>When did this begin?</Text>
             <Text style={styles.modalBody}>Recovery totals will recalculate from this calendar date.</Text>
-            <TextInput
+            <DateField
               accessibilityLabel="Tracker start date"
               value={startDateDraft}
               onChangeText={setStartDateDraft}
-              placeholder="YYYY-MM-DD"
               placeholderTextColor={colors.textDim}
               style={styles.modalInput}
             />

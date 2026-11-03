@@ -5,6 +5,7 @@ import { HistoricalEntry, TrackerId } from '@/models/tracker';
 import { localDateKey } from '@/lib/progress';
 import { colors, layout, spacing, font } from '@/theme';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
+import { DateField } from '@/components/date-field';
 
 type Props = {
   visible: boolean;
@@ -48,11 +49,10 @@ export function LapseModal({
             <Pressable accessibilityRole="button" accessibilityLabel="Previous day" onPress={() => shiftDate(-1)} style={styles.stepButton}>
               <Text style={styles.stepText}>−</Text>
             </Pressable>
-            <TextInput
+            <DateField
               accessibilityLabel="Lapse date"
               value={date}
               onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
               placeholderTextColor={colors.textDim}
               style={styles.dateInput}
             />

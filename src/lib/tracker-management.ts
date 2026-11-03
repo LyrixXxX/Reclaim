@@ -41,7 +41,7 @@ export type TrackerValidation = Partial<Record<keyof TrackerDraft, string>>;
 export function validateTrackerDraft(draft: TrackerDraft): TrackerValidation {
   const errors: TrackerValidation = {};
   if (!draft.name.trim()) errors.name = 'Tracker name is required.';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate)) errors.startDate = 'Use YYYY-MM-DD.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate)) errors.startDate = 'Use MM/DD/YYYY.';
   const timePattern = draft.startPeriod ? /^(0?[1-9]|1[0-2]):[0-5]\d$/ : /^([01]\d|2[0-3]):[0-5]\d$/;
   if (draft.startTime && !timePattern.test(draft.startTime)) {
     errors.startTime = draft.startPeriod ? 'Use a time like 8:30.' : 'Use HH:MM.';
