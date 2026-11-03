@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { updateQuitWidget } from '@/widgets/update-widget';
@@ -13,7 +13,7 @@ import { validateNutrientSelection } from '@/lib/nutrient-totals';
 import { markSupplementDoseSkipped, recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
 import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
 import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/lib/workouts';
-import { createFreshState, needsOnboarding, normalizeOnboardingSelections, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
+import { createFreshState, needsOnboarding, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
@@ -214,6 +214,14 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     const timer = setTimeout(() => updateQuitWidget(state), 1500);
     return () => clearTimeout(timer);
   }, [hydrated, state]);
+
+  // Steps change without changing saved state, so also refresh the widget whenever the app is left.
+  const widgetState = useRef(state);
+  useEffect(() => { widgetState.current = state; }, [state]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => { if (status === 'background' && widgetState.current.onboardingStatus !== 'pending') updateQuitWidget(widgetState.current); });
+    return () => subscription.remove();
+  }, []);
 
   const value = useMemo<TrackerContextValue>(() => ({
     ...state,

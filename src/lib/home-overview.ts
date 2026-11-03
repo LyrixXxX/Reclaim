@@ -12,11 +12,18 @@ import { waterProgress, waterDisplayAmount } from './water-habit';
 import { walkingMinutesOutsideRoutes, WalkingInterval } from './walking-minutes';
 
 export type HomeAttention = { id: string; title: string; detail: string; href: '/activity' | '/supplements' };
-export type HomeHabitGoal = { id: string; title: string; value: string; detail: string; progress: number; reached: boolean; href: string; weekly: boolean };
+export type HomeHabitGoal = { id: string; title: string; value: string; detail: string; /** One short line for compact tiles. */ short: string; progress: number; reached: boolean; href: string; weekly: boolean };
 export type HomeWalkingData = { date?: string; intervals: WalkingInterval[] | null; activeRoute?: { startedAt: string } | null };
 
 export function nutritionGoalReached(calories: number, budget: number, entryCount: number) {
   return entryCount > 0 && Math.abs(calories - budget) <= 200;
+}
+
+/** One short line for the compact Home tile. */
+export function nutritionShortDetail(calories: number, budget: number, entryCount: number) {
+  if (!entryCount) return 'No food logged yet';
+  const difference = Math.round(Math.abs(calories - budget)).toLocaleString();
+  return calories > budget ? `${difference} kcal over` : `${difference} kcal left`;
 }
 
 export function nutritionGoalDetail(calories: number, budget: number, entryCount: number) {
@@ -64,7 +71,10 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
     const detail = tracker.habitTemplate === 'walk'
       ? `${currentWalkingIntervals ? `${Number(phoneMinutes.toFixed(1))} phone min` : 'Phone min unavailable'} · ${Number(routeMinutes.toFixed(1))} route min${hasLegacyRoute ? ' (some estimated)' : ''} · ${Number(manualMinutes.toFixed(1))} manual min`
       : `${amount} / ${target} ${unit} ${weekly ? 'this week' : 'today'}`;
-    return [{ id: tracker.id, title: tracker.displayName || tracker.name, value: `${amount} / ${target} ${unit}`, detail, progress: progress.percent / 100,
+    const left = Math.max(0, progress.goal - progress.amount);
+    const leftText = tracker.habitTemplate === 'water' ? waterDisplayAmount(left, unit as 'fl oz' | 'mL') : Number(left.toFixed(1)).toLocaleString();
+    const short = progress.amount >= progress.goal ? 'Goal reached' : `${leftText} ${unit} to go`;
+    return [{ id: tracker.id, title: tracker.displayName || tracker.name, value: `${amount} / ${target} ${unit}`, detail, short, progress: progress.percent / 100,
       reached: progress.amount >= progress.goal, href: `/tracker/${encodeURIComponent(tracker.id)}`, weekly }];
   });
   const dailyHabitGoals = habitGoals.filter((goal) => !goal.weekly);

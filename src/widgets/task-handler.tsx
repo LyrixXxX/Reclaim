@@ -5,6 +5,7 @@ import { STATE_STORAGE_KEY } from '@/lib/local-storage';
 import { TrackerState } from '@/models/tracker';
 import { QuitWidget } from './quit-widget';
 import { quitWidgetData } from './widget-data';
+import { readWidgetStepCount } from './widget-steps';
 
 async function readState(): Promise<TrackerState | undefined> {
   try {
@@ -16,5 +17,6 @@ async function readState(): Promise<TrackerState | undefined> {
 /** Runs headless when Android adds, resizes or refreshes the widget. */
 export async function widgetTaskHandler({ widgetAction, renderWidget }: WidgetTaskHandlerProps) {
   if (widgetAction === 'WIDGET_DELETED' || widgetAction === 'WIDGET_CLICK') return;
-  renderWidget(<QuitWidget data={quitWidgetData(await readState())} />);
+  const [state, stepCount] = await Promise.all([readState(), readWidgetStepCount()]);
+  renderWidget(<QuitWidget data={quitWidgetData(state, Date.now(), stepCount)} />);
 }

@@ -16,3 +16,16 @@ describe('quit widget data', () => {
     expect(quitWidgetData({ trackers: [tracker('A', 3)], checkIns: [], preferences: { visibleSections: { goals: false } } } as unknown as TrackerState, NOW)).toEqual({ kind: 'empty' });
   });
 });
+
+describe('widget steps', () => {
+  const base = { checkIns: [], weightEntries: [{ id: 'w', date: '2026-11-01', weight: 80, unit: 'kg' as const, recordedAt: '' }], stepGoals: [{ effectiveDate: '2026-10-01', count: 8000 }] };
+  test('adds steps and calories to the quit card', () => {
+    const state = { ...base, trackers: [tracker('Nicotine', 44)] } as unknown as TrackerState;
+    expect(quitWidgetData(state, NOW, 10_000)).toMatchObject({ kind: 'quit', steps: { count: 10_000, kcal: 333 } });
+  });
+  test('shows a steps card when there is no quit timer', () => {
+    const state = { ...base, trackers: [] } as unknown as TrackerState;
+    expect(quitWidgetData(state, NOW, 4_000)).toEqual({ kind: 'steps', steps: { count: 4_000, kcal: 133 }, goal: 8000 });
+    expect(quitWidgetData(state, NOW)).toEqual({ kind: 'empty' });
+  });
+});
