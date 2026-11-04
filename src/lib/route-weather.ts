@@ -13,13 +13,14 @@ const cache = new Map<string, { expires: number; value: RouteForecast }>();
 const pending = new Map<string, Promise<RouteForecast>>();
 const HEADERS = { Accept: 'application/geo+json', 'User-Agent': 'Reclaim/1.0 (Reclaim.LyrixStudios@gmail.com)' };
 
+// Each symbol ends in U+FE0F so Android draws the color emoji, not a thin text outline.
 function symbolFor(condition: string): string {
   const value = condition.toLowerCase();
-  if (/thunder|storm/.test(value)) return '⛈';
-  if (/snow|sleet|ice|flurr/.test(value)) return '❄';
+  if (/thunder|storm/.test(value)) return '⛈️';
+  if (/snow|sleet|ice|flurr/.test(value)) return '❄️';
   if (/rain|shower|drizzle/.test(value)) return '🌧';
-  if (/cloud|overcast|fog/.test(value)) return '☁';
-  return '☀';
+  if (/cloud|overcast|fog/.test(value)) return '☁️';
+  return '☀️';
 }
 
 export function gpsAccuracyBars(accuracy: number | null | undefined): number {
