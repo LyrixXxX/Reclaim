@@ -142,7 +142,7 @@ export default function SettingsScreen() {
       <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
       <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
     </View>
-    <Text style={styles.section}>Bottom navigation</Text><Text style={styles.navHint}>Drag the handles to choose the left-to-right order. Home and Settings stay fixed.</Text><View style={styles.card}>{navigationOrder.map((id, index) => { const item = sections.find((section) => section.id === id)!; return <NavigationSettingRow key={item.id} index={index} count={navigationOrder.length} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onDragStart={() => setDraggingNavigation(true)} onDragEnd={(offset) => { setDraggingNavigation(false); const target = Math.max(0, Math.min(navigationOrder.length - 1, index + Math.round(offset / 78))); setNavigationOrder(moveNavigationSection(navigationOrder, index, target)); }} onChange={(value) => {
+    <Text style={styles.section}>Bottom navigation</Text><Text style={styles.navHint}>Drag the handles to set the order. The first three sit in the bottom bar next to Home; the rest are under More.</Text><View style={styles.card}>{navigationOrder.map((id, index) => { const item = sections.find((section) => section.id === id)!; return <NavigationSettingRow key={item.id} pinned={navigationOrder.filter((sectionId) => preferences.visibleSections[sectionId]).slice(0, 3).includes(item.id)} index={index} count={navigationOrder.length} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onDragStart={() => setDraggingNavigation(true)} onDragEnd={(offset) => { setDraggingNavigation(false); const target = Math.max(0, Math.min(navigationOrder.length - 1, index + Math.round(offset / 78))); setNavigationOrder(moveNavigationSection(navigationOrder, index, target)); }} onChange={(value) => {
       if (item.id !== 'routes' || value) { setSectionVisibility(item.id, value); return; }
       void readActiveRoute().then((route) => {
         if (route) Alert.alert('Finish your route first', 'Routes stays visible while a recording or unsaved route is in progress. Return to Routes to finish it.');
@@ -156,7 +156,7 @@ function SettingRow({ label, description, value, onChange }: { label: string; de
   return <View style={styles.row}><View style={styles.rowBody}><Text style={styles.rowTitle}>{label}</Text><Text style={styles.rowText}>{description}</Text></View><Switch value={value} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.accentSoft }} thumbColor={value ? colors.accent : colors.textDim} /></View>;
 }
 
-function NavigationSettingRow({ index, count, label, description, value, onChange, onDragStart, onDragEnd }: { index: number; count: number; label: string; description: string; value: boolean; onChange: (value: boolean) => void; onDragStart: () => void; onDragEnd: (offset: number) => void }) {
+function NavigationSettingRow({ pinned, index, count, label, description, value, onChange, onDragStart, onDragEnd }: { pinned: boolean; index: number; count: number; label: string; description: string; value: boolean; onChange: (value: boolean) => void; onDragStart: () => void; onDragEnd: (offset: number) => void }) {
   const [displacement] = useState(() => new Animated.Value(0));
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -168,7 +168,7 @@ function NavigationSettingRow({ index, count, label, description, value, onChang
   }), [displacement, onDragStart, onDragEnd]);
   return <View style={styles.row}>
     <Animated.View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={`Reorder ${label}, position ${index + 1} of ${count}`} accessibilityHint="Drag to reorder, or use accessibility actions" accessibilityActions={[{ name: 'increment', label: 'Move right' }, { name: 'decrement', label: 'Move left' }]} onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'increment' && index < count - 1) onDragEnd(78); if (event.nativeEvent.actionName === 'decrement' && index > 0) onDragEnd(-78); }} style={[styles.dragHandle, { transform: [{ translateY: displacement }] }]}><Text style={styles.dragText}>☰</Text></Animated.View>
-    <View style={styles.rowBody}><Text style={styles.rowTitle}>{label}</Text><Text style={styles.rowText}>{description}</Text></View>
+    <View style={styles.rowBody}><View style={styles.pinRow}><Text style={styles.rowTitle}>{label}</Text>{pinned && <Text style={styles.pinTag}>In bar</Text>}</View><Text style={styles.rowText}>{description}</Text></View>
     <Switch value={value} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.accentSoft }} thumbColor={value ? colors.accent : colors.textDim} />
   </View>;
 }
@@ -193,6 +193,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.55 },
   privacy: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 14, marginTop: 12 },
   row: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomColor: colors.border, borderBottomWidth: 1 },
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, pinTag: { color: colors.accent, fontSize: 11, fontFamily: font.bold, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 7, paddingVertical: 1, overflow: 'hidden' },
   navHint: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginBottom: 10 },
   dragHandle: { alignItems: 'center', justifyContent: 'center', width: 40, height: 48, borderRadius: 10, backgroundColor: colors.surfaceRaised, zIndex: 1 },
   dragText: { color: colors.textMuted, fontSize: 18, fontFamily: font.semibold },
