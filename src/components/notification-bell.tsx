@@ -46,7 +46,8 @@ export function NotificationBell({ notes, onDismiss }: { notes: HomeNotification
             {actions.length > 0 && <Text style={styles.group}>To do</Text>}
             {actions.map((note) => <Row key={note.id} note={note} onPress={() => go(note.href)} />)}
             {celebrations.length > 0 && <Text style={styles.group}>Milestones</Text>}
-            {celebrations.map((note) => <Row key={note.id} note={note} onPress={() => go(note.href)} onDismiss={() => onDismiss(note.id)} />)}
+            {/* Opening a milestone counts as seeing it, so it clears from the bell. */}
+            {celebrations.map((note) => <Row key={note.id} note={note} onPress={() => { onDismiss(note.id); go(note.href); }} onDismiss={() => onDismiss(note.id)} />)}
           </ScrollView>
         </View>
       </View>
