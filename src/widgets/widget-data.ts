@@ -3,6 +3,7 @@ import { formatSavings } from '@/lib/habit-savings';
 import { localDateKey } from '@/lib/progress';
 import { checkpointLabel, cravingsBeaten, featuredQuit, quitSummary, quittingStarts } from '@/lib/quit-progress';
 import { stepCalories } from '@/lib/step-calories';
+import { walkingStride } from '@/lib/stride';
 import { trackerDisplayName } from '@/lib/tracker-management';
 
 /** Today's steps and their estimated calories, when the phone is counting steps. */
@@ -15,7 +16,7 @@ export type QuitWidgetData =
 
 export function widgetSteps(state: TrackerState | undefined, count: number | undefined, now = Date.now()): WidgetSteps | undefined {
   if (!state || count === undefined || state.preferences?.visibleSections?.activity === false) return undefined;
-  const burn = stepCalories(count, state.weightEntries, localDateKey(new Date(now)));
+  const burn = stepCalories(count, state.weightEntries, localDateKey(new Date(now)), walkingStride(state).meters);
   return burn ? { count, kcal: burn.kcal } : undefined;
 }
 

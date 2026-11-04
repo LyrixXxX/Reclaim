@@ -2,7 +2,7 @@ import { Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { HistoryPages } from '@/components/history-pages';
@@ -15,12 +15,14 @@ import { DEFAULT_PREFERENCES } from '@/lib/preferences';
 import { readTodaySteps } from '@/lib/activity-steps';
 import { useLiveSteps } from '@/hooks/use-live-steps';
 import { stepCalories } from '@/lib/step-calories';
+import { formatMiles, stepDistanceMiles, strideNote, walkingStride } from '@/lib/stride';
 import { StepDay } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
 
 export default function ActivityOverview() {
-  const { stepGoals = [], weightEntries = [], saveStepGoal, preferences = DEFAULT_PREFERENCES, setSectionVisibility } = useTrackers();
+  const { stepGoals = [], weightEntries = [], saveStepGoal, preferences = DEFAULT_PREFERENCES, setSectionVisibility, activityRoutes, weightTdeeProfile, nutritionGoals } = useTrackers();
+  const stride = walkingStride({ activityRoutes, weightTdeeProfile, nutritionGoals });
   const { steps, refresh: refreshSteps } = useLiveSteps();
   const [days, setDays] = useState<StepDay[]>([]);
   const [now, setNow] = useState(() => new Date());
@@ -42,7 +44,8 @@ export default function ActivityOverview() {
   const goal = goalForDate(stepGoals, today);
   const count = steps.count;
   const progress = goal && count !== undefined ? Math.min(1, count / goal) : 0;
-  const burn = steps.status === 'available' ? stepCalories(count, weightEntries, today) : undefined;
+  const burn = steps.status === 'available' ? stepCalories(count, weightEntries, today, stride.meters) : undefined;
+  const miles = steps.status === 'available' && count !== undefined ? stepDistanceMiles(count, stride) : undefined;
   // Today's saved history lags the live counter; show the live count so the chart matches the ring.
   const liveDays = steps.status === 'available' && count !== undefined ? [...days.filter((day) => day.date !== today), { date: today, count, incomplete: !!steps.incomplete }] : days;
   const week = activityRange(liveDays, stepGoals, chartRange, chartOffset, now);
@@ -54,11 +57,16 @@ export default function ActivityOverview() {
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content}>
     <MainScreenHeader title="Steps" subtitle="Daily movement and your step goal." accent={colors.activityNav} />
     <View style={styles.card}>
-      <Text style={styles.title}>Today’s steps</Text>
+      <View style={styles.titleRow}><Text style={styles.title}>Today’s steps</Text>{steps.status === 'available' && <InfoButton label="About these estimates" onPress={() => Alert.alert('About these estimates', [
+        miles !== undefined ? strideNote(stride) : undefined,
+        burn ? `Calories are estimated from ${burn.fromWeighIn ? 'your latest weigh-in' : 'an average weight; add a weigh-in for a closer estimate'}.` : undefined,
+        'Steps are counted by this phone.',
+      ].filter(Boolean).join('\n\n'))} />}</View>
       <View style={styles.stepRow}><View style={styles.ring}><Svg width={164} height={164} viewBox="0 0 164 164"><Circle cx="82" cy="82" r="68" fill="none" stroke={colors.border} strokeWidth="12" /><Circle cx="82" cy="82" r="68" fill="none" stroke={colors.activityNav} strokeWidth="12" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 68}`} strokeDashoffset={2 * Math.PI * 68 * (1 - progress)} rotation="-90" origin="82, 82" /></Svg><View style={styles.ringLabel}><Text style={styles.big}>{count === undefined ? '—' : count.toLocaleString()}</Text><Text style={styles.muted}>{goal ? `of ${goal.toLocaleString()}` : 'No goal'}</Text></View></View>
         <View style={styles.goalBox}><Text style={styles.goalText}>{count === undefined ? 'Steps unavailable' : !goal ? 'Set your goal' : count >= goal ? 'Goal reached! 🎉' : `${(goal - count).toLocaleString()} steps left`}</Text><Text style={styles.muted}>Daily goal · {goal ? goal.toLocaleString() : 'Not set'}</Text>{editingGoal ? <><TextInput accessibilityLabel="Daily step goal" keyboardType="number-pad" value={goalDraft} onChangeText={setGoalDraft} style={styles.input} /><Action label="Save goal" onPress={saveGoal} /></> : <Action label="Edit goal" onPress={() => { setGoalDraft(goal ? String(goal) : ''); setEditingGoal(true); }} secondary />}</View></View>
+      {miles !== undefined && <View style={styles.burn}><Text style={styles.burnLabel}>Est. distance</Text><Text style={styles.burnValue}>{formatMiles(miles)}</Text></View>}
       {burn && <View style={styles.burn}><Text style={styles.burnLabel}>Est. calories burned</Text><Text style={styles.burnValue}>{burn.kcal.toLocaleString()} kcal</Text></View>}
-      <Text style={styles.muted}>{steps.status === 'available' ? burn ? `Source: this phone · calories estimated from ${burn.fromWeighIn ? 'your latest weigh-in' : 'an average weight; add a weigh-in for a closer estimate'}.` : 'Source: this phone.' : steps.message ?? 'Step tracking is not connected.'}</Text>
+      {steps.status !== 'available' && <Text style={styles.muted}>{steps.message ?? 'Step tracking is not connected.'}</Text>}
       {(steps.status === 'permission-needed' || steps.status === 'interrupted' || steps.status === 'error') && <Action label={steps.status === 'interrupted' ? 'Restart step tracking' : 'Enable step tracking'} onPress={() => void readTodaySteps(true).then(() => refreshSteps())} />}
     </View>
     <View style={styles.card}><Text style={styles.title}>Track an activity</Text><Text style={styles.muted}>Record a walk, hike, or run in Routes.</Text><Action label={preferences.visibleSections.routes ? 'Track activity' : 'Show Routes to track'} onPress={() => { if (!preferences.visibleSections.routes) setSectionVisibility('routes', true); router.push('/routes' as Href); }} /></View>
@@ -68,10 +76,17 @@ export default function ActivityOverview() {
   </ScrollView></SafeAreaView>;
 }
 
+function InfoButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={onPress} style={styles.info}>
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.textMuted} strokeWidth={1.9} strokeLinecap="round"><Circle cx="12" cy="12" r="9.5" /><Path d="M12 11v5.5M12 7.6v.1" /></Svg>
+  </Pressable>;
+}
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.muted}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>; }
 function Action({ label, onPress, secondary }: { label: string; onPress: () => void; secondary?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, secondary && styles.secondary]}><Text style={[styles.actionText, !secondary && { color: colors.background }]}>{label}</Text></Pressable>; }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  info: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
   burn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, backgroundColor: colors.surfaceRaised, paddingHorizontal: 14, paddingVertical: 12, marginTop: 4 },
   burnLabel: { color: colors.textMuted, fontSize: 14, fontFamily: font.semibold },
   burnValue: { color: colors.activityNav, fontSize: 18, fontFamily: font.bold, fontVariant: ['tabular-nums'] },

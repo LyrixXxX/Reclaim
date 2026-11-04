@@ -11,6 +11,7 @@ import { DASHBOARD_WIDGETS, homeSecondaryWidgets } from '@/lib/dashboard';
 import { DashboardContent, dashboardContent, dashboardDate } from '@/lib/dashboard-content';
 import { homeOverview, nutritionShortDetail } from '@/lib/home-overview';
 import { stepCalories } from '@/lib/step-calories';
+import { walkingStride } from '@/lib/stride';
 import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
 import { quittingStarts } from '@/lib/quit-progress';
 import { QuitHero } from '@/components/quit-hero';
@@ -45,7 +46,7 @@ export default function DashboardScreen() {
   const cardWidth = '100%' as const;
   const live = useLiveSteps({ enabled: preferences.visibleSections.activity, walking: true });
   const steps = live.steps;
-  const stepBurn = steps.status === 'available' ? stepCalories(steps.count, state.weightEntries, localDateKey(now)) : undefined;
+  const stepBurn = steps.status === 'available' ? stepCalories(steps.count, state.weightEntries, localDateKey(now), walkingStride(state).meters) : undefined;
   const walking = live.walking;
   useFocusEffect(useCallback(() => {
     setNow(new Date());
