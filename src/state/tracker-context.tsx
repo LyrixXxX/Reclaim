@@ -125,6 +125,7 @@ type TrackerContextValue = TrackerState & {
   setFeaturedTracker: (trackerId: string | undefined) => void;
   markSwipeHintSeen: () => void;
   updateStartHere: (update: { done?: string[]; collapsed?: boolean; dismissed?: boolean }) => void;
+  dismissNotice: (id: string) => void;
   updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   saveSupplement: (draft: SupplementDraft, id: string) => void;
@@ -440,6 +441,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     saveSavingsGoal: (goal) => setState((previous) => ({ ...previous, savingsGoals: [...(previous.savingsGoals ?? []).filter((item) => item.id !== goal.id), goal] })),
     deleteSavingsGoal: (id) => setState((previous) => ({ ...previous, savingsGoals: (previous.savingsGoals ?? []).filter((item) => item.id !== id) })),
     setFeaturedTracker: (trackerId) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), featuredTrackerId: trackerId } })),
+    dismissNotice: (id) => setState((previous) => { const preferences = previous.preferences ?? DEFAULT_PREFERENCES; const current = preferences.dismissedNotices ?? []; return current.includes(id) ? previous : { ...previous, preferences: { ...preferences, dismissedNotices: [...current, id].slice(-100) } }; }),
     updateStartHere: ({ done, collapsed, dismissed }) => setState((previous) => {
       const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
       const current = preferences.startHere ?? {};

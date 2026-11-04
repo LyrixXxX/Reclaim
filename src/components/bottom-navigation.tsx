@@ -1,28 +1,17 @@
 import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
 import { useState } from 'react';
-import { Image, ImageSourcePropType, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Rect } from 'react-native-svg';
 
 import { HomeAdBanner } from '@/components/home-ad-banner';
+import { Icon } from '@/components/icon';
 import { colors, font, radius } from '@/theme';
 import { selectionHaptic } from '@/lib/haptics';
 import { bottomBarLayout } from '@/lib/navigation';
 
 type NavIconName = 'home' | 'steps' | 'routes' | 'habits' | 'weight' | 'nutrition' | 'workouts' | 'supplements' | 'settings';
 
-// Illustrated 144px artwork, drawn at 30pt; inactive tabs are dimmed.
-const navigationIcons: Record<NavIconName, ImageSourcePropType> = {
-  home: require('../../assets/images/nav/home.png'),
-  steps: require('../../assets/images/nav/steps.png'),
-  routes: require('../../assets/images/nav/routes.png'),
-  habits: require('../../assets/images/nav/habits.png'),
-  weight: require('../../assets/images/nav/weight.png'),
-  nutrition: require('../../assets/images/nav/nutrition.png'),
-  workouts: require('../../assets/images/nav/workouts.png'),
-  supplements: require('../../assets/images/nav/supplements.png'),
-  settings: require('../../assets/images/nav/settings.png'),
-};
 
 // Keyed by route file name in app/(tabs).
 const tabDetails: Record<string, { label: string; icon: NavIconName; color: string }> = {
@@ -94,7 +83,7 @@ function Tab({ name, active, onPress, accessibilityLabel }: { name: string; acti
     <View style={styles.iconWell}>
       {/* SVG pill: Android drops borderRadius on this view. */}
       {active && <Svg style={StyleSheet.absoluteFill} viewBox="0 0 52 30"><Rect x="0" y="0" width="52" height="30" rx="15" fill={tab.color} fillOpacity={0.16} /></Svg>}
-      <Image source={navigationIcons[tab.icon]} style={[styles.icon, !active && styles.iconInactive]} resizeMode="contain" accessible={false} />
+      <Icon name={tab.icon} size={22} color={active ? tab.color : colors.textDim} strokeWidth={active ? 2.1 : 1.8} />
     </View>
     <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>{tab.label}</Text>
   </Pressable>;
@@ -115,7 +104,7 @@ function GridItem({ name, active, onPress }: { name: string; active: boolean; on
   const tab = tabDetails[name];
   if (!tab) return null;
   return <Pressable accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.gridItem, active && { borderColor: tab.color }, pressed && { opacity: 0.8 }]}>
-    <Image source={navigationIcons[tab.icon]} style={styles.gridIcon} resizeMode="contain" accessible={false} />
+    <View style={[styles.gridIconWell, { backgroundColor: `${tab.color}1F` }]}><Icon name={tab.icon} size={24} color={tab.color} strokeWidth={1.9} /></View>
     <Text style={[styles.gridLabel, active && { color: colors.text }]} numberOfLines={1}>{tab.label}</Text>
   </Pressable>;
 }
@@ -125,8 +114,6 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', maxWidth: 680, width: '100%', alignSelf: 'center' },
   tab: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3 },
   iconWell: { width: 52, height: 30, alignItems: 'center', justifyContent: 'center' },
-  icon: { width: 30, height: 30 },
-  iconInactive: { opacity: 0.55 },
   label: { color: colors.textDim, fontSize: 11, fontFamily: font.semibold },
   labelActive: { color: colors.text, fontFamily: font.bold },
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' },
@@ -135,7 +122,7 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: 20, fontFamily: font.bold, marginBottom: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: '2.75%', rowGap: 10 },
   gridItem: { width: '31.5%', alignItems: 'center', gap: 8, paddingVertical: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  gridIcon: { width: 40, height: 40 },
+  gridIconWell: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   gridLabel: { color: colors.textMuted, fontSize: 13, fontFamily: font.semibold },
   edit: { marginTop: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
   editText: { color: colors.accent, fontSize: 15, fontFamily: font.bold },

@@ -207,6 +207,8 @@ export type AppPreferences = {
   swipeHintSeen?: boolean;
   /** Start Here card: first-use steps already done, and whether it is minimized or dismissed. */
   startHere?: { done?: string[]; collapsed?: boolean; dismissed?: boolean };
+  /** Notification ids the user cleared from the bell. */
+  dismissedNotices?: string[];
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';

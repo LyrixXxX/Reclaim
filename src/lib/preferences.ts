@@ -65,6 +65,7 @@ export function migratePreferences(state: TrackerState): TrackerState {
       featuredTrackerId: typeof state.preferences?.featuredTrackerId === 'string' ? state.preferences.featuredTrackerId : undefined,
       swipeHintSeen: state.preferences?.swipeHintSeen === true || undefined,
       startHere: normalizeStartHere(state.preferences?.startHere),
+      dismissedNotices: Array.isArray(state.preferences?.dismissedNotices) ? state.preferences.dismissedNotices.filter((id): id is string => typeof id === 'string').slice(-100) : undefined,
     },
   };
 }
