@@ -52,13 +52,13 @@ async function ensureRouteMileChannel() {
   }
 }
 
-export async function notifyRouteMile(mile: number, routeId: string, test = false): Promise<void> {
+export async function notifyRouteMile(mile: number, routeId: string): Promise<void> {
   const permission = await Notifications.getPermissionsAsync();
   if (!permission.granted) throw new Error('Allow Reclaim notifications in Android settings to receive mile alerts.');
   await ensureRouteMileChannel();
   vibrateForMile();
   await Notifications.scheduleNotificationAsync({
-    content: { title: test ? '1 mile complete (test)' : `${mile} ${mile === 1 ? 'mile' : 'miles'} complete`, body: test ? 'This is what a mile alert looks like. You should have felt two buzzes.' : 'Your route is still recording.', sound: false, data: { kind: 'route-mile', routeId, mile, test } },
+    content: { title: `${mile} ${mile === 1 ? 'mile' : 'miles'} complete`, body: 'Your route is still recording.', sound: false, data: { kind: 'route-mile', routeId, mile } },
     trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
   });
 }
