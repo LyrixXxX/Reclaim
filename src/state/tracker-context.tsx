@@ -69,6 +69,7 @@ type TrackerContextValue = TrackerState & {
   editExistingTracker: (id: TrackerId, draft: TrackerDraft) => Promise<void>;
   logGoodHabit: (id: TrackerId) => void;
   saveWaterDrink: (log: WaterLog) => void;
+  setWaterShortcuts: (id: TrackerId, shortcuts: Pick<Tracker, 'waterQuickAddOz' | 'waterPresetOz'>) => void;
   deleteWaterDrink: (id: string) => void;
   saveGoodHabitLog: (log: GoodHabitLog) => void;
   deleteGoodHabitLog: (id: string) => void;
@@ -323,6 +324,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     },
     logGoodHabit: (id) => setState((previous) => logHabitCompletion(previous, id, localDateKey())),
     saveWaterDrink: (log) => setState((previous) => saveWaterLog(previous, log)),
+    setWaterShortcuts: (id, shortcuts) => setState((previous) => ({ ...previous, trackers: previous.trackers.map((tracker) => tracker.id === id ? { ...tracker, ...shortcuts } : tracker) })),
     deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
     saveGoodHabitLog: (log) => setState((previous) => {
       const tracker = previous.trackers.find((item) => item.id === log.trackerId && item.habitTemplate && item.habitTemplate !== 'water' && !item.archived);
