@@ -55,7 +55,9 @@ $syncExclusions = @('.git', 'dist', '.gradle', '.cxx', 'build', '.npm-task-cache
 # The short-path native project is the actual incremental build workspace. The
 # source checkout's older generated Android files must not overwrite it.
 if (Test-Path -LiteralPath (Join-Path $buildRootFull 'android\app\build.gradle')) {
-  $syncExclusions += 'android'
+  # A full path skips only the top-level android folder. A bare 'android' would also skip
+  # modules\*\android, so native module changes would never reach the build.
+  $syncExclusions += (Join-Path $sourceRoot 'android')
 }
 & robocopy $sourceRoot $buildRootFull /E /XD $syncExclusions /XF '.reclaim-local-build' /NFL /NDL /NJH /NJS /NP
 $robocopyExitCode = $LASTEXITCODE
