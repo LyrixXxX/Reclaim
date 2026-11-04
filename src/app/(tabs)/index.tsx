@@ -15,6 +15,7 @@ import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
 import { quittingStarts } from '@/lib/quit-progress';
 import { QuitHero } from '@/components/quit-hero';
 import { StartHereCard, startHereSteps } from '@/components/start-here-card';
+import { HomeForecast } from '@/components/home-forecast';
 import { DEFAULT_PREFERENCES, trainingOverviewVisibleOnHome } from '@/lib/preferences';
 import { homeGoalColor } from '@/lib/home-goal-colors';
 import { habitProgress } from '@/lib/good-habit-templates';
@@ -77,6 +78,8 @@ export default function DashboardScreen() {
     <View style={styles.heading}><View style={styles.headingText}><Text style={styles.greeting}>{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text><Text accessibilityRole="header" style={styles.date}>{greeting(now)}</Text></View><Link href={'/dashboard-edit' as Href} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit dashboard" style={styles.edit}><Icon name="sliders" size={19} color={colors.text} /></Pressable></Link></View>
 
     {quitStarts.length > 0 && <QuitHero starts={quitStarts} featuredId={preferences.featuredTrackerId} cravings={state.cravings ?? []} goals={state.savingsGoals ?? []} now={now.getTime()} onFeature={state.setFeaturedTracker} />}
+
+    {preferences.visibleSections.routes && <HomeForecast />}
 
     <StartHereCard steps={startHereSteps(state, preferences.visibleSections)} prefs={preferences.startHere} onUpdate={state.updateStartHere} />
 

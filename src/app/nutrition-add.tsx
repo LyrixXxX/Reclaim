@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,7 +7,7 @@ import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { Chevron } from '@/components/icon';
 import { useAds } from '@/state/ads-context';
 import { useTrackers } from '@/state/tracker-context';
-import { FoodChoice, foodMatchRank, mealChoice, recentFoodChoices, searchFoodChoices, suggestedMealGroupId } from '@/lib/food-search';
+import { FoodChoice, foodChoice, foodMatchRank, mealChoice, recentFoodChoices, searchFoodChoices, suggestedMealGroupId } from '@/lib/food-search';
 import { nutritionEntryCalories, nutritionId, prepareNutritionLogBatch, scaleNutrients, servingsForWeight } from '@/lib/nutrition';
 import { isoToUs } from '@/lib/us-date';
 import { colors, font, layout, radius, spacing } from '@/theme';
@@ -19,17 +19,19 @@ const fmt = (value: number) => Number.isInteger(round(value)) ? String(round(val
 
 /** Quick add: search what you've eaten before, pick an amount and a meal, log it. */
 export default function NutritionAddScreen() {
-  const params = useLocalSearchParams<{ date?: string; meal?: string }>();
+  const params = useLocalSearchParams<{ date?: string; meal?: string; view?: string }>();
   const date = params.date ?? today();
-  const { nutritionEntries = [], savedFoods = [], savedMeals = [], nutritionMealGroups = [], saveNutritionLogBatch, deleteNutritionEntry } = useTrackers();
+  const { nutritionEntries = [], savedFoods = [], savedMeals = [], nutritionMealGroups = [], saveNutritionLogBatch, deleteNutritionEntry, renameLoggedFood, saveNutritionFood } = useTrackers();
   const { showCompletionAd } = useAds();
   const [query, setQuery] = useState('');
+  const [view, setView] = useState<'home' | 'library'>(params.view === 'library' ? 'library' : 'home');
+  const [renaming, setRenaming] = useState<FoodChoice>();
   const [picked, setPicked] = useState<FoodChoice>();
   const [added, setAdded] = useState<{ ids: string[]; title: string; detail: string }>();
   const groups = useMemo(() => nutritionMealGroups.filter((group) => !group.archived).sort((a, b) => a.sortOrder - b.sortOrder), [nutritionMealGroups]);
   const recents = useMemo(() => recentFoodChoices(nutritionEntries), [nutritionEntries]);
   const trimmed = query.trim();
-  const results = trimmed ? searchFoodChoices(trimmed, savedFoods, savedMeals, recents) : [];
+  const results = trimmed ? searchFoodChoices(trimmed, savedFoods, savedMeals, view === 'library' ? [] : recents) : [];
   const exact = results.some((item) => foodMatchRank(item.name, trimmed) === 0 && item.name.trim().toLowerCase() === trimmed.toLowerCase());
 
   const choose = (item: FoodChoice) => {
@@ -39,36 +41,58 @@ export default function NutritionAddScreen() {
   };
   const openEntry = (mode: 'manual' | 'text' | 'label', name?: string) => router.push({ pathname: '/nutrition-log', params: { mode, date, ...(name ? { name } : {}), ...(params.meal ? { meal: params.meal } : {}), ...(mode === 'label' ? { captureOnOpen: 'camera' } : {}) } });
 
+  const actions = (item: FoodChoice) => {
+    if (item.kind === 'meal') { Alert.alert(item.name, undefined, [{ text: 'Edit meal', onPress: () => router.push({ pathname: '/nutrition-meal-form', params: { id: item.mealId } }) }, { text: 'Cancel', style: 'cancel' }]); return; }
+    const saved = item.foodId && savedFoods.some((food) => food.id === item.foodId);
+    Alert.alert(item.name, saved ? 'Saved in your food library.' : 'Logged before, not saved to your library.', [
+      { text: 'Rename', onPress: () => setRenaming(item) },
+      saved
+        ? { text: 'Edit details', onPress: () => router.push({ pathname: '/nutrition-food-form', params: { id: item.foodId! } }) }
+        : { text: 'Save to library', onPress: () => {
+          const id = nutritionId('food');
+          saveNutritionFood({ name: item.name, brand: item.brand, servingLabel: item.servingLabel || '1 serving', servingWeightGrams: item.servingWeightGrams, nutrients: item.nutrients, statedCalories: item.statedCalories, source: 'manual' }, id);
+          router.push({ pathname: '/nutrition-food-form', params: { id } });
+        } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
   const finish = () => { setAdded(undefined); void showCompletionAd('meal').finally(() => router.replace({ pathname: '/nutrition', params: { date } })); };
   const undo = () => { added?.ids.forEach((id) => deleteNutritionEntry(id, true)); setAdded(undefined); };
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}>
-    <View style={styles.searchWrap}>
-      <View style={styles.search}>
-        <TextInput accessibilityLabel="Search foods" value={query} onChangeText={setQuery} autoFocus autoCorrect={false} returnKeyType="search" placeholder="Search foods you’ve logged or saved" placeholderTextColor={colors.textDim} style={styles.searchInput} />
-        {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clear}>×</Text></Pressable>}
+    {view === 'home' ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
+      <Text style={styles.prompt}>How would you like to add it?</Text>
+      <Option icon="✦" title="Describe meal" detail="Type what you ate." onPress={() => openEntry('text')} />
+      <Option icon="⌗" title="Scan label" detail="Photograph a nutrition label." onPress={() => openEntry('label')} />
+      <Option icon="✎" title="Manual entry" detail="Enter calories and macros yourself." onPress={() => openEntry('manual')} />
+      <Option icon="▤" title="Food library" detail={savedFoods.length || savedMeals.length ? `${savedFoods.length} saved ${savedFoods.length === 1 ? 'food' : 'foods'} · ${savedMeals.length} saved ${savedMeals.length === 1 ? 'meal' : 'meals'}` : 'Foods and meals you save show up here.'} onPress={() => { setQuery(''); setView('library'); }} />
+      {recents.length > 0 && <View style={styles.headingRow}><Text style={styles.heading}>Recent</Text><Text style={styles.headingHint}>Hold a food to rename it</Text></View>}
+      {recents.slice(0, 10).map((item) => <Row key={item.key} item={item} onPress={() => choose(item)} onLongPress={() => actions(item)} />)}
+    </ScrollView> : <>
+      <View style={styles.searchWrap}>
+        <View style={styles.libraryHead}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to add food options" hitSlop={8} onPress={() => { setQuery(''); setView('home'); }}><Text style={styles.back}>‹ Add food</Text></Pressable>
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push({ pathname: '/nutrition-foods', params: { date } })}><Text style={styles.manage}>Manage</Text></Pressable>
+        </View>
+        <View style={styles.search}>
+          <TextInput accessibilityLabel="Search your food library" value={query} onChangeText={setQuery} autoCorrect={false} returnKeyType="search" placeholder="Search saved foods and meals" placeholderTextColor={colors.textDim} style={styles.searchInput} />
+          {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}><Text style={styles.clear}>×</Text></Pressable>}
+        </View>
       </View>
-      <View style={styles.methods}>
-        <Method label="Manual" onPress={() => openEntry('manual', trimmed || undefined)} />
-        <Method label="Describe" onPress={() => openEntry('text')} />
-        <Method label="Scan label" onPress={() => openEntry('label')} />
-      </View>
-    </View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
-      {trimmed ? <>
-        {results.map((item) => <Row key={item.key} item={item} query={trimmed} onPress={() => choose(item)} />)}
-        {!exact && <Pressable accessibilityRole="button" onPress={() => openEntry('manual', trimmed)} style={styles.create}>
-          <Text style={styles.createText}>{results.length ? `+ Create “${trimmed}”` : `No match. + Create “${trimmed}”`}</Text>
-          <Text style={styles.createHint}>Enter its calories and macros once; next time it shows up here.</Text>
-        </Pressable>}
-      </> : <>
-        {recents.length > 0 && <Text style={styles.heading}>Recent</Text>}
-        {recents.slice(0, 8).map((item) => <Row key={item.key} item={item} onPress={() => choose(item)} />)}
-        {savedMeals.length > 0 && <Text style={styles.heading}>Saved meals</Text>}
-        {savedMeals.slice(0, 6).map((meal) => { const item = mealChoice(meal); return <Row key={item.key} item={item} onPress={() => choose(item)} />; })}
-        {!recents.length && !savedMeals.length && <Text style={styles.empty}>Foods you log or save show up here, so the next time takes a couple of taps. Start by typing a food above, or enter one manually.</Text>}
-      </>}
-    </ScrollView>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
+        {trimmed ? <>
+          {results.map((item) => <Row key={item.key} item={item} query={trimmed} onPress={() => choose(item)} onLongPress={() => actions(item)} />)}
+          {!results.length && <Text style={styles.empty}>Nothing saved matches “{trimmed}”.</Text>}
+          {!exact && <Pressable accessibilityRole="button" onPress={() => openEntry('manual', trimmed)} style={styles.create}><Text style={styles.createText}>+ Create “{trimmed}”</Text></Pressable>}
+        </> : <>
+          {savedFoods.length > 0 && <Text style={styles.heading}>Saved foods</Text>}
+          {[...savedFoods].sort((x, y) => x.name.localeCompare(y.name)).map((food) => { const item = foodChoice(food); return <Row key={item.key} item={item} onPress={() => choose(item)} onLongPress={() => actions(item)} />; })}
+          {savedMeals.length > 0 && <Text style={styles.heading}>Saved meals</Text>}
+          {[...savedMeals].sort((x, y) => x.name.localeCompare(y.name)).map((meal) => { const item = mealChoice(meal); return <Row key={item.key} item={item} onPress={() => choose(item)} onLongPress={() => actions(item)} />; })}
+          {!savedFoods.length && !savedMeals.length && <Text style={styles.empty}>Your library is empty. Foods you enter manually are saved here when “Remember this food” is on, or hold a recent food and choose Save to library.</Text>}
+        </>}
+      </ScrollView>
+    </>}
     {picked && <AmountSheet item={picked} date={date} groups={groups} initialMeal={params.meal ?? suggestedMealGroupId(groups) ?? groups[0]?.id} onClose={() => setPicked(undefined)} onLog={(entry, mealName) => {
       const batch = { entries: [entry], foods: [] };
       prepareNutritionLogBatch(batch);
@@ -79,18 +103,37 @@ export default function NutritionAddScreen() {
       if (date === today()) setAdded({ ids: [entry.id!], title: `Added to ${mealName}`, detail: `${entry.name} · ${fmt(calories)} kcal` });
       else router.replace({ pathname: '/nutrition', params: { date } });
     }} />}
+    {renaming && <RenameDialog food={renaming} onClose={() => setRenaming(undefined)} onSave={(name) => { renameLoggedFood(renaming, name); setRenaming(undefined); }} />}
     <SavedAdConfirmation visible={!!added} title={added?.title} subject={added?.detail} onContinue={finish} onUndo={undo} />
   </SafeAreaView>;
 }
 
-function Method({ label, onPress }: { label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.method, pressed && { opacity: 0.75 }]}><Text style={styles.methodText} numberOfLines={1}>{label}</Text></Pressable>;
+function Option({ icon, title, detail, onPress }: { icon: string; title: string; detail: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityHint={detail} onPress={onPress} style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}>
+    <View style={styles.optionIcon}><Text style={styles.optionIconText}>{icon}</Text></View>
+    <View style={{ flex: 1 }}><Text style={styles.optionTitle}>{title}</Text><Text style={styles.optionDetail} numberOfLines={1}>{detail}</Text></View>
+    <Chevron size={18} color={colors.textMuted} />
+  </Pressable>;
 }
 
-function Row({ item, query, onPress }: { item: FoodChoice; query?: string; onPress: () => void }) {
+function RenameDialog({ food, onClose, onSave }: { food: FoodChoice; onClose: () => void; onSave: (name: string) => void }) {
+  const [name, setName] = useState(food.name);
+  const valid = name.trim().length > 0 && name.trim() !== food.name;
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <View style={styles.dialogShade}><View style={styles.dialog}>
+      <Text style={styles.sheetTitle}>Rename food</Text>
+      <Text style={styles.dialogHelp}>Updates every time you’ve logged {food.name}{food.foodId ? ', and its library entry' : ''}. Amounts and nutrition stay the same.</Text>
+      <TextInput accessibilityLabel="Food name" value={name} onChangeText={setName} autoFocus selectTextOnFocus maxLength={120} style={styles.dialogInput} placeholderTextColor={colors.textDim} />
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !valid }} disabled={!valid} onPress={() => onSave(name)} style={[styles.logButton, !valid && { opacity: 0.4 }]}><Text style={styles.logText}>Rename</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={onClose} style={styles.dialogCancel}><Text style={styles.methodText}>Cancel</Text></Pressable>
+    </View></View>
+  </Modal>;
+}
+
+function Row({ item, query, onPress, onLongPress }: { item: FoodChoice; query?: string; onPress: () => void; onLongPress?: () => void }) {
   const tag = item.kind === 'meal' ? 'Saved meal' : item.kind === 'food' ? 'Saved food' : 'Recent';
   const amount = item.kind === 'recent' && item.servings !== 1 ? `${fmt(item.servings)} × ` : '';
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${item.calories} calories`} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${item.calories} calories`} onPress={onPress} onLongPress={onLongPress} delayLongPress={350} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
     <View style={{ flex: 1 }}>
       <Highlighted text={item.name} query={query} />
       <Text style={styles.rowMeta} numberOfLines={1}>{amount}{item.servingLabel || '1 serving'}{item.brand ? ` · ${item.brand}` : ''} · {tag}</Text>
@@ -179,6 +222,23 @@ const styles = StyleSheet.create({
   methods: { flexDirection: 'row', gap: 8 },
   method: { flex: 1, minHeight: 42, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   methodText: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
+  prompt: { color: colors.textMuted, fontSize: 14, fontFamily: font.medium, marginTop: 6, marginBottom: 4 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 66, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 13, marginTop: 9 },
+  optionPressed: { borderColor: colors.nutritionNav },
+  optionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#211B31', alignItems: 'center', justifyContent: 'center' },
+  optionIconText: { color: colors.nutritionNav, fontSize: 18, fontFamily: font.bold },
+  optionTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
+  optionDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 2 },
+  headingRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  headingHint: { color: colors.textDim, fontSize: 11, fontFamily: font.medium },
+  libraryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { color: colors.nutritionNav, fontSize: 15, fontFamily: font.bold },
+  manage: { color: colors.nutritionNav, fontSize: 14, fontFamily: font.bold },
+  dialogShade: { flex: 1, backgroundColor: '#000B', justifyContent: 'center', padding: 24 },
+  dialog: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 20 },
+  dialogHelp: { color: colors.textMuted, fontSize: 13, lineHeight: 19, fontFamily: font.regular, marginTop: 6 },
+  dialogInput: { marginTop: 14, minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.nutritionNav, backgroundColor: colors.surfaceRaised, color: colors.text, fontSize: 16, fontFamily: font.medium, paddingHorizontal: 14 },
+  dialogCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   list: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: 6, paddingBottom: 40 },
   heading: { color: colors.textMuted, fontSize: 12, fontFamily: font.bold, letterSpacing: 1, textTransform: 'uppercase', marginTop: 18, marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },

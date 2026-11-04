@@ -41,6 +41,7 @@ import { logHabitCompletion } from '@/lib/habit-log';
 import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
 import { validHabitLog } from '@/lib/good-habit-templates';
 import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, replaceLoggedMeal, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeMealGroup, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
+import { renameFood } from '@/lib/food-search';
 
 type TrackerContextValue = TrackerState & {
   hydrated: boolean;
@@ -95,6 +96,7 @@ type TrackerContextValue = TrackerState & {
   saveNutritionLogBatch: (batch: NutritionLogBatch) => void;
   deleteNutritionEntry: (id: string, confirmed: boolean) => void;
   saveNutritionFood: (input: SavedFoodInput, id?: string) => void;
+  renameLoggedFood: (food: { foodId?: string; name: string; servingLabel: string }, name: string) => void;
   deleteNutritionFood: (id: string, confirmed: boolean) => void;
   saveNutritionSavedMeal: (input: SavedMealInput, id?: string) => void;
   saveNutritionMealBuilder: (meal: SavedMealInput, batch?: NutritionLogBatch, standaloneFoods?: SavedFoodInput[]) => void;
@@ -398,6 +400,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       setState((previous) => replaceLoggedMeal(previous, instanceId, prepared));
     },
     deleteNutritionEntry: (id, confirmed) => setState((previous) => ({ ...previous, nutritionEntries: removeNutritionEntry(previous.nutritionEntries ?? [], id, confirmed) })),
+    renameLoggedFood: (food, name) => setState((previous) => renameFood(previous, food, name)),
     saveNutritionFood: (input, id) => setState((previous) => ({ ...previous, savedFoods: upsertSavedFood(previous.savedFoods ?? [], input, id) })),
     deleteNutritionFood: (id, confirmed) => setState((previous) => ({ ...previous, savedFoods: removeSavedFood(previous.savedFoods ?? [], id, confirmed) })),
     saveNutritionSavedMeal: (input, id) => {

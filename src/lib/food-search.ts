@@ -83,3 +83,21 @@ export function suggestedMealGroupId(groups: readonly NutritionMealGroup[], now 
   const wanted = minutes < 10 * 60 + 30 ? 'meal-breakfast' : minutes < 15 * 60 ? 'meal-lunch' : minutes >= 17 * 60 && minutes < 21 * 60 + 30 ? 'meal-dinner' : 'meal-snacks';
   return (active.find((group) => group.id === wanted) ?? active[0])?.id;
 }
+
+/** True when a logged entry is the same food as a recent choice (same saved food, or same name and serving). */
+export function isSameFood(entry: Pick<NutritionEntry, 'foodId' | 'name' | 'servingLabel'>, food: Pick<FoodChoice, 'foodId' | 'name' | 'servingLabel'>) {
+  if (food.foodId) return entry.foodId === food.foodId;
+  return !entry.foodId && normalize(entry.name) === normalize(food.name) && normalize(entry.servingLabel) === normalize(food.servingLabel);
+}
+
+/** Renames a food in every log entry of it, and in the food library when it is saved there. */
+export function renameFood<T extends { nutritionEntries?: NutritionEntry[]; savedFoods?: SavedFood[] }>(state: T, food: Pick<FoodChoice, 'foodId' | 'name' | 'servingLabel'>, name: string): T {
+  const next = name.trim();
+  if (!next) return state;
+  const now = new Date().toISOString();
+  return {
+    ...state,
+    nutritionEntries: (state.nutritionEntries ?? []).map((entry) => isSameFood(entry, food) ? { ...entry, name: next, updatedAt: now } : entry),
+    savedFoods: food.foodId ? (state.savedFoods ?? []).map((saved) => saved.id === food.foodId ? { ...saved, name: next, updatedAt: now } : saved) : state.savedFoods,
+  };
+}

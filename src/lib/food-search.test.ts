@@ -1,5 +1,5 @@
 import { NutritionEntry, NutritionMealGroup, SavedFood, SavedMeal } from '@/models/tracker';
-import { foodMatchRank, recentFoodChoices, searchFoodChoices, suggestedMealGroupId } from './food-search';
+import { foodMatchRank, recentFoodChoices, renameFood, searchFoodChoices, suggestedMealGroupId } from './food-search';
 
 const nutrients = { carbsGrams: 27, proteinGrams: 1, fatGrams: 0, fiberGrams: 3 };
 const entry = (id: string, name: string, recordedAt: string, extra: Partial<NutritionEntry> = {}): NutritionEntry => ({ id, eventDate: recordedAt.slice(0, 10), recordedAt, updatedAt: recordedAt, mealGroupId: 'meal-breakfast', mealLabel: 'Breakfast', name, servingLabel: '1 medium', servings: 1, nutrients, source: 'manual', ...extra });
@@ -39,5 +39,26 @@ describe('food search', () => {
     expect(suggestedMealGroupId(groups, at(16))).toBe('meal-snacks');
     expect(suggestedMealGroupId(groups, at(19))).toBe('meal-dinner');
     expect(suggestedMealGroupId(groups, at(23))).toBe('meal-snacks');
+  });
+});
+
+describe('renaming a food', () => {
+  test('renames every log of that food and its saved copy, leaving other foods alone', () => {
+    const state = {
+      nutritionEntries: [
+        entry('a', 'Mayonnaise', '2026-11-01T12:00:00Z', { servingLabel: '1 tbsp' }),
+        entry('b', 'Mayonnaise', '2026-11-02T12:00:00Z', { servingLabel: '1 tbsp' }),
+        entry('c', 'Mayonnaise', '2026-11-02T12:00:00Z', { servingLabel: '1 tbsp', foodId: 'f1' }),
+        entry('d', 'Banana', '2026-11-02T12:00:00Z'),
+      ],
+      savedFoods: [food('f1', 'Mayonnaise')],
+    };
+    const unsaved = renameFood(state, { name: 'Mayonnaise', servingLabel: '1 tbsp' }, 'Olive oil mayonnaise');
+    expect(unsaved.nutritionEntries.map((item) => item.name)).toEqual(['Olive oil mayonnaise', 'Olive oil mayonnaise', 'Mayonnaise', 'Banana']);
+    expect(unsaved.savedFoods[0].name).toBe('Mayonnaise');
+    const saved = renameFood(state, { foodId: 'f1', name: 'Mayonnaise', servingLabel: '1 cup' }, 'Light mayo');
+    expect(saved.nutritionEntries.map((item) => item.name)).toEqual(['Mayonnaise', 'Mayonnaise', 'Light mayo', 'Banana']);
+    expect(saved.savedFoods[0].name).toBe('Light mayo');
+    expect(renameFood(state, { name: 'Banana', servingLabel: '1 medium' }, '  ')).toBe(state);
   });
 });

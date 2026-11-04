@@ -12,11 +12,11 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'Widget and shared images',
-    body: 'The home-screen widget shows your featured quit tracker’s name, days, money saved and next milestone wherever your phone shows widgets, including a cover or lock screen. Use a discreet display name if you prefer, or remove the widget. Milestone images are made on your device, show only what the preview shows (money saved is off unless you turn it on), and go only to the app you pick.',
+    body: 'The home-screen widget shows your featured quit tracker’s name, days, money saved and next milestone, plus today’s steps and estimated calories, wherever your phone shows widgets, including a cover or lock screen. Use a discreet display name if you prefer, or remove the widget. Milestone images are made on your device, show only what the preview shows (money saved is off unless you turn it on), and go only to the app you pick.',
   },
   {
     title: 'When information leaves your device',
-    body: 'If you export a backup, you choose where its file goes. If you use AI to log a food description or label photo, read a Supplement Facts photo, suggest fruit and vegetable servings for selected entries, or plan a training week, only that content is sent through Lyrix Studios\' Cloudflare relay to OpenAI. The planner sends your chosen schedule and built-in exercise names, never your workout history or weights. The relay verifies Play installs with Google Play Integrity and uses an IP-derived identifier to limit abuse. Maps load tiles from Stadia Maps, and while Routes is open an approximate location is sent to the U.S. National Weather Service for a forecast. These providers also receive network information such as your IP address.',
+    body: 'If you export a backup, you choose where its file goes. If you use AI to log a food description or label photo, read a Supplement Facts photo, suggest fruit and vegetable servings for selected entries, or plan a training week, only that content is sent through Lyrix Studios\' Cloudflare relay to OpenAI. The planner sends your chosen schedule and built-in exercise names, never your workout history or weights. The relay verifies Play installs with Google Play Integrity and uses an IP-derived identifier to limit abuse. Maps load tiles from Stadia Maps. If Routes is on and you’ve allowed location, an approximate location is sent to the U.S. National Weather Service for a forecast when Home or Routes is open. These providers also receive network information such as your IP address.',
   },
   {
     title: 'Advertising and purchases',
