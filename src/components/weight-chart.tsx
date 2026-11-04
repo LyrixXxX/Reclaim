@@ -40,8 +40,7 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
   const rangeLabel = range === 'ALL' ? 'All history' : `${range.slice(0, -1)}-day window`;
 
   return <View style={styles.card} onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width - 28)}>
-    <View style={styles.header}><View><Text style={styles.title}>Weight trend</Text><Text style={styles.subtitle}>{rangeLabel} · {series.length} {series.length === 1 ? 'entry' : 'entries'}</Text></View>{series.length > 1 ? <View style={styles.change}><Text style={styles.changeText}>{change > 0 ? '+' : ''}{format(change)} {series.at(-1)!.entry.unit}</Text></View> : null}</View>
-    {series.length > 0 && <Text style={styles.subtitle}>{series.length} weigh-in{series.length === 1 ? '' : 's'} in this window</Text>}
+    <View style={styles.header}><View><Text style={styles.title}>Weight trend</Text><Text style={styles.subtitle}>{rangeLabel} · {series.length} {series.length === 1 ? 'weigh-in' : 'weigh-ins'}</Text></View>{series.length > 1 ? <View style={styles.change}><Text style={styles.changeText}>{change > 0 ? '+' : ''}{format(change)} {series.at(-1)!.entry.unit}</Text></View> : null}</View>
     <View style={{ width: '100%', marginTop: 16 }}><RollingRangeControls range={range} onRange={setRange} offset={offset} onOffset={setOffset} start={range === 'ALL' ? allSeries[0]?.entry.date ?? bounds.end : bounds.start} end={bounds.end} accent={colors.weightNav} /></View>
     {!series.length ? <View style={styles.empty}><Text style={styles.emptyTitle}>{allSeries.length ? 'No weigh-ins in this date window' : 'No weight history yet'}</Text><Text style={styles.subtitle}>{allSeries.length ? 'Choose an older window or All to see saved weigh-ins.' : 'Import your old history or add a weigh-in.'}</Text></View> : <>
       <Svg width="100%" height={HEIGHT}>

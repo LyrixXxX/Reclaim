@@ -16,7 +16,8 @@ export function HistoryPages<T>({ items, children, startAt = 'first', pageSize }
       <Pressable accessibilityRole="button" accessibilityLabel="Next history page" disabled={result.page === result.pageCount - 1} onPress={() => setPage(result.page + 1)} style={[styles.button, result.page === result.pageCount - 1 && styles.disabled]}><Text style={styles.label}>Next</Text><Chevron size={18} color={colors.text} /></Pressable>
     </View>}
   </View>;
-  return <View>{result.total > 0 && controls}{children(result.items)}{result.pageCount > 1 && controls}</View>;
+  // One set of controls, under the list; a single page needs none.
+  return <View>{children(result.items)}{result.pageCount > 1 && controls}</View>;
 }
 
 const styles = StyleSheet.create({
