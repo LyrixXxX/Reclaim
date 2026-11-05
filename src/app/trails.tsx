@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TrailMedia } from '@/components/trail-media';
 import { getMapKey } from '@/lib/activity-maps';
-import { directionsUrl, milesBetween, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailKindLabel } from '@/lib/trails';
+import { combineTrails, directionsUrl, milesBetween, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailKindLabel } from '@/lib/trails';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout, spacing } from '@/theme';
 
@@ -21,19 +21,29 @@ export default function TrailsScreen() {
   const [origin, setOrigin] = useState<Origin>();
   const [results, setResults] = useState<TrailResult[]>();
   const [busy, setBusy] = useState<'place' | 'location' | 'trails'>();
+  /** True while the slower map search may still add trails to what's shown. */
+  const [findingMore, setFindingMore] = useState(false);
   const [error, setError] = useState('');
   const [details, setDetails] = useState<Place>();
   const searchId = useRef(0);
 
+  /**
+   * Two sources at once: Stadia answers in about a second and is shown as soon as it does; the
+   * OpenStreetMap search is slower and often busy, so its trails are added when (and if) it answers.
+   */
   const runSearch = async (from: Origin, miles: TrailRadius) => {
     const id = ++searchId.current;
-    setBusy('trails'); setError(''); setOrigin(from); setTab('nearby');
-    try {
-      const found = await searchTrails(from.latitude, from.longitude, miles);
-      if (id === searchId.current) setResults(found);
-    } catch (cause) {
-      if (id === searchId.current) { setResults(undefined); setError(cause instanceof Error ? cause.message : 'Trails couldn’t be loaded. Try again.'); }
-    } finally { if (id === searchId.current) setBusy(undefined); }
+    const current = () => id === searchId.current;
+    setBusy('trails'); setError(''); setOrigin(from); setTab('nearby'); setResults(undefined); setFindingMore(true);
+    const more = searchTrails(from.latitude, from.longitude, miles).catch(() => null);
+    const quick = await getMapKey().then((key) => searchStadiaTrails(from.latitude, from.longitude, miles, key)).catch(() => [] as TrailResult[]);
+    if (!current()) return;
+    if (quick.length) { setResults(quick); setBusy(undefined); }
+    const extra = await more;
+    if (!current()) return;
+    setFindingMore(false); setBusy(undefined);
+    if (extra) setResults(combineTrails([quick, extra]));
+    else if (!quick.length) setError('Trails couldn’t be loaded right now. Check your connection and try again.');
   };
 
   const searchNearMe = async (askPermission: boolean) => {
@@ -70,12 +80,12 @@ export default function TrailsScreen() {
   const toggleLocation = () => {
     if (!usingLocation) { void searchNearMe(true); return; }
     searchId.current += 1; // drop any search still running
-    setOrigin(undefined); setResults(undefined); setBusy(undefined); setError('');
+    setOrigin(undefined); setResults(undefined); setBusy(undefined); setFindingMore(false); setError('');
   };
 
   const changeRadius = (miles: TrailRadius) => {
     setRadius(miles);
-    if (origin && busy !== 'trails') void runSearch(origin, miles);
+    if (origin) void runSearch(origin, miles);
   };
 
   // Search near you on first open when location access was already given; never ask unprompted.
@@ -132,7 +142,7 @@ export default function TrailsScreen() {
         : !origin ? <View style={styles.state}><Text style={styles.muted}>Search a town, park or ZIP code, or use your location, to see hiking trails nearby.</Text></View>
         : !results?.length ? <View style={styles.state}><Text style={styles.muted}>No trails found within {radius} miles of {origin.label}. Try a wider radius.</Text></View>
         : <>
-          <Text style={styles.muted}>{results.length} {results.length === 1 ? 'place' : 'places'} within {radius} miles of {origin.label}</Text>
+          <View style={styles.countRow}><Text style={[styles.muted, { flex: 1 }]}>{results.length} {results.length === 1 ? 'place' : 'places'} within {radius} miles of {origin.label}</Text>{findingMore && <><ActivityIndicator size="small" color={colors.activityNav} /><Text style={styles.muted}>Finding more</Text></>}</View>
           <View style={styles.list}>{results.map(row)}</View>
         </>}
     </> : saved.length ? <>
@@ -198,6 +208,7 @@ const styles = StyleSheet.create({
   state: { paddingVertical: 28, alignItems: 'center', gap: 10 },
   muted: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
   errorText: { color: colors.danger, fontSize: 14, fontFamily: font.regular, lineHeight: 20, textAlign: 'center' },
+  countRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   list: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, paddingHorizontal: spacing.md },
   row: { paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   rowMain: { gap: 3 },

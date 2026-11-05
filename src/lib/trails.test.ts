@@ -1,4 +1,4 @@
-import { directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails } from './trails';
+import { directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
 
 const ORIGIN = { latitude: 35.95, longitude: -85.03 };
 const NOW = new Date('2026-11-04T12:00:00Z');
@@ -121,5 +121,40 @@ describe('trail search servers', () => {
     const request = jest.fn().mockResolvedValue({ ok: false, status: 400 }) as unknown as typeof fetch;
     await expect(searchTrails(35.95, -85.03, 5, request, ['a', 'b'])).rejects.toThrow('(400)');
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Stadia trail results', () => {
+  const feature = (id: string, name: string, lon: number, lat: number, extra: object = {}) => ({ geometry: { coordinates: [lon, lat] }, properties: { id, name, source: 'openstreetmap', layer: 'venue', locality: 'Fairfield Glade', region_a: 'TN', ...extra } });
+
+  it('keeps trailheads, trails and waterfalls, and skips everything else', () => {
+    const results = parseStadiaTrails([{ features: [
+      feature('node/1', 'Library Trail Trailhead', -85.03, 35.951),
+      feature('way/2', 'Fox Trail', -85.03, 35.96),
+      feature('node/3', 'Ozone Falls', -85.03, 35.97),
+      feature('node/4', 'Cumberland Trail Nemo Bridge Kiosk', -85.03, 35.952),
+      feature('node/5', 'Summers Park', -85.03, 35.953),
+      feature('x', 'Trail Branch', -85.03, 35.954, { source: 'geonames' }),
+      feature('polyline:6', 'Autumn Trail', -85.03, 35.955, { layer: 'street' }),
+      feature('node/7', 'Far Falls', -85.03, 37.5),
+    ] }], ORIGIN, 10);
+    expect(results.map((item) => [item.name, item.kind])).toEqual([['Library Trail Trailhead', 'trailhead'], ['Fox Trail', 'trail'], ['Ozone Falls', 'waterfall']]);
+    expect(results[0].address).toBe('Fairfield Glade, TN');
+  });
+
+  it('merges a place found by Stadia and by the map search into one', () => {
+    const stadia = parseStadiaTrails([{ features: [feature('node/5', 'Ozone Falls Trailhead', -85.03, 35.958)] }], ORIGIN, 10);
+    const overpass = parseTrails({ elements: [{ type: 'node', id: 5, lat: 35.958, lon: -85.03, tags: { highway: 'trailhead', name: 'Ozone Falls Trailhead', operator: 'TN State Parks' } }] }, ORIGIN, 10);
+    const combined = combineTrails([stadia, overpass]);
+    expect(combined).toHaveLength(1);
+    expect(combined[0]).toMatchObject({ id: 'node/5', operator: 'TN State Parks', address: 'Fairfield Glade, TN' });
+  });
+
+  it('runs one search per word, and none without a key', async () => {
+    const request = jest.fn(async () => ({ ok: true, json: async () => ({ features: [feature('node/1', 'Library Trail Trailhead', -85.03, 35.951)] }) })) as unknown as typeof fetch;
+    expect(await searchStadiaTrails(35.95, -85.03, 10, 'key', request)).toHaveLength(1);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(String((request as jest.Mock).mock.calls[0][0])).toContain('boundary.circle.radius=16');
+    expect(await searchStadiaTrails(35.95, -85.03, 10, '', request)).toEqual([]);
   });
 });

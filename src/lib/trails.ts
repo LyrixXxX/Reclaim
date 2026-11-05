@@ -3,7 +3,7 @@
  * place search through Stadia Maps. Nothing here is stored except the trails a person saves.
  */
 
-export type TrailKind = 'trailhead' | 'trail' | 'path';
+export type TrailKind = 'trailhead' | 'trail' | 'path' | 'waterfall';
 
 export type TrailResult = {
   /** OpenStreetMap id, such as "node/123". Stable, so saved trails can be matched to results. */
@@ -36,7 +36,8 @@ export const OVERPASS_SERVERS = [
   'https://overpass.private.coffee/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ] as const;
-const SERVER_TIMEOUT_MS = 30_000;
+/** Overpass only adds to Stadia's results, so it gets a short wait per server. */
+const SERVER_TIMEOUT_MS = 12_000;
 const TRAIL_USER_AGENT = 'Reclaim (Android app; https://lyrixstudios.com)';
 const METERS_PER_MILE = 1609.344;
 /** Named paths are numerous; past this radius only trailheads and hiking routes are searched. */
@@ -55,7 +56,7 @@ export function milesBetween(a: { latitude: number; longitude: number }, b: { la
 export function trailQuery(latitude: number, longitude: number, radiusMiles: number) {
   const around = `(around:${Math.round(radiusMiles * METERS_PER_MILE)},${latitude.toFixed(5)},${longitude.toFixed(5)})`;
   const paths = radiusMiles <= PATH_SEARCH_LIMIT_MILES ? `\n  way["highway"="path"]["name"]${around};\n  way["highway"="footway"]["name"]["sac_scale"]${around};` : '';
-  return `[out:json][timeout:25];\n(\n  node["highway"="trailhead"]${around};\n  relation["route"="hiking"]["name"]${around};${paths}\n);\nout center tags 400;`;
+  return `[out:json][timeout:25];\n(\n  node["highway"="trailhead"]${around};\n  relation["route"="hiking"]["name"]${around};${paths}\n);\nout center tags 150;`;
 }
 
 type OverpassElement = { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> };
@@ -95,7 +96,7 @@ function capitalize(value: string) {
 export function parseTrails(response: unknown, origin: { latitude: number; longitude: number }, radiusMiles: number): TrailResult[] {
   const elements = (response as { elements?: OverpassElement[] })?.elements;
   if (!Array.isArray(elements)) return [];
-  const byKey = new Map<string, TrailResult>();
+  const found: TrailResult[] = [];
   for (const element of elements) {
     const latitude = element.lat ?? element.center?.lat;
     const longitude = element.lon ?? element.center?.lon;
@@ -116,10 +117,29 @@ export function parseTrails(response: unknown, origin: { latitude: number; longi
       wikidata: /^Q\d+$/.test(tags.wikidata ?? '') ? tags.wikidata : undefined,
       wikipedia: /^[a-z-]{2,12}:.+/.test(tags.wikipedia ?? '') ? tags.wikipedia : undefined,
     };
-    // Same name and type means the same trail; unnamed trailheads stay separate.
-    const key = name === 'Trailhead' ? result.id : `${kind === 'trailhead' ? 'trailhead' : 'trail'}:${name.toLowerCase()}`;
+    found.push(result);
+  }
+  return combineTrails([found]);
+}
+
+/** Same name and type means the same trail; unnamed trailheads stay separate. */
+function trailKey(trail: TrailResult) {
+  if (trail.name === 'Trailhead') return trail.id;
+  const group = trail.kind === 'path' ? 'trail' : trail.kind;
+  return `${group}:${trail.name.toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
+/** Joins result lists from different sources: one entry per place, closest first. */
+export function combineTrails(lists: readonly (readonly TrailResult[])[]): TrailResult[] {
+  const byKey = new Map<string, TrailResult>();
+  const keyById = new Map<string, string>();
+  for (const trail of lists.flat()) {
+    const key = keyById.get(trail.id) ?? trailKey(trail);
     const existing = byKey.get(key);
-    byKey.set(key, existing ? mergeTrail(existing, result) : result);
+    const merged = existing ? mergeTrail(existing, trail) : trail;
+    byKey.set(key, merged);
+    keyById.set(trail.id, key);
+    keyById.set(merged.id, key);
   }
   return [...byKey.values()].sort((a, b) => a.distanceMiles - b.distanceMiles || a.name.localeCompare(b.name)).slice(0, MAX_TRAIL_RESULTS);
 }
@@ -170,6 +190,51 @@ export async function searchTrails(latitude: number, longitude: number, radiusMi
     } finally { clearTimeout(timer); }
   }
   throw new Error('The trail service is busy right now. Try again in a minute.');
+}
+
+type StadiaFeature = { geometry?: { coordinates?: [number, number] }; properties?: { id?: string; name?: string; source?: string; layer?: string; locality?: string; county?: string; region_a?: string } };
+
+/** Stadia searches run for these words; their results are sorted into trailheads, trails and waterfalls. */
+const STADIA_TRAIL_QUERIES = ['trailhead', 'trail', 'falls'] as const;
+const NOT_A_HIKE = /\b(kiosk|campsite|campground|conference|parking|restroom|toilet|shelter|bridge|store|shop|church|school|road|street|drive|lane|court|circle)\b/i;
+
+/** Turns Stadia place results into trails. Only OpenStreetMap places are kept, so ids match map data and saved trails. */
+export function parseStadiaTrails(responses: readonly unknown[], origin: { latitude: number; longitude: number }, radiusMiles: number): TrailResult[] {
+  const found: TrailResult[] = [];
+  for (const response of responses) {
+    for (const feature of ((response as { features?: StadiaFeature[] })?.features ?? [])) {
+      const props = feature.properties ?? {};
+      const coordinates = feature.geometry?.coordinates;
+      const name = props.name?.trim();
+      if (!name || !coordinates || props.source !== 'openstreetmap' || props.layer !== 'venue' || !props.id) continue;
+      const isTrailhead = /trail ?head/i.test(name);
+      const isWaterfall = !isTrailhead && /\b(falls|waterfall)\b/i.test(name);
+      const isTrail = !isTrailhead && !isWaterfall && /\btrails?\b/i.test(name);
+      if ((!isTrailhead && !isWaterfall && !isTrail) || NOT_A_HIKE.test(name)) continue;
+      const [longitude, latitude] = coordinates;
+      const distanceMiles = Math.round(milesBetween(origin, { latitude, longitude }) * 10) / 10;
+      if (distanceMiles > radiusMiles * 1.05) continue;
+      found.push({
+        id: props.id, name, kind: isTrailhead ? 'trailhead' : isWaterfall ? 'waterfall' : 'trail', latitude, longitude, distanceMiles,
+        address: [props.locality ?? props.county, props.region_a].filter(Boolean).join(', ') || undefined,
+      });
+    }
+  }
+  return combineTrails([found]);
+}
+
+/** Trailheads, named trails and waterfalls near a point, from Stadia. Fast, so it's shown first. */
+export async function searchStadiaTrails(latitude: number, longitude: number, radiusMiles: number, key: string, request: typeof fetch = fetch): Promise<TrailResult[]> {
+  if (!key) return [];
+  const radiusKm = Math.round(radiusMiles * 1.609344);
+  const responses = await Promise.all(STADIA_TRAIL_QUERIES.map(async (text) => {
+    const url = `https://api.stadiamaps.com/geocoding/v1/search?text=${encodeURIComponent(text)}&layers=venue&boundary.circle.lat=${latitude.toFixed(5)}&boundary.circle.lon=${longitude.toFixed(5)}&boundary.circle.radius=${radiusKm}&size=25&api_key=${encodeURIComponent(key)}`;
+    try {
+      const response = await request(url);
+      return response.ok ? await response.json() : null;
+    } catch { return null; }
+  }));
+  return parseStadiaTrails(responses, { latitude, longitude }, radiusMiles);
 }
 
 export type TrailPhoto = { url: string; width?: number; height?: number; credit: string; license?: string; sourceUrl: string };
@@ -236,7 +301,7 @@ export function directionsUrl(trail: Pick<TrailResult, 'latitude' | 'longitude'>
 }
 
 export function trailKindLabel(kind: TrailKind) {
-  return kind === 'trailhead' ? 'Trailhead' : kind === 'trail' ? 'Hiking trail' : 'Trail';
+  return kind === 'trailhead' ? 'Trailhead' : kind === 'trail' ? 'Hiking trail' : kind === 'waterfall' ? 'Waterfall' : 'Trail';
 }
 
 export function saveTrail(saved: readonly SavedTrail[], trail: TrailResult, now = new Date()): SavedTrail[] {
@@ -266,6 +331,6 @@ export function sortSavedTrails(saved: readonly SavedTrail[]): SavedTrail[] {
 export function isSavedTrail(value: unknown): value is SavedTrail {
   const item = value as SavedTrail;
   return !!item && typeof item === 'object' && typeof item.id === 'string' && typeof item.name === 'string'
-    && ['trailhead', 'trail', 'path'].includes(item.kind) && Number.isFinite(item.latitude) && Number.isFinite(item.longitude)
+    && ['trailhead', 'trail', 'path', 'waterfall'].includes(item.kind) && Number.isFinite(item.latitude) && Number.isFinite(item.longitude)
     && Math.abs(item.latitude) <= 90 && Math.abs(item.longitude) <= 180 && typeof item.savedAt === 'string';
 }
