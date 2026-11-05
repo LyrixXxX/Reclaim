@@ -4,12 +4,12 @@ import { goalForDate as nutritionGoalForDate, nutritionCalorieTarget, nutritionT
 import { exerciseCaloriesForDate } from './workouts';
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
-import { habitProgress, templateConfig } from './good-habit-templates';
+import { habitProgress, routeMinutesOn, templateConfig } from './good-habit-templates';
 import { waterDisplayAmount, waterGoalOn, waterTotalOn } from './water-habit';
 import { nutritionGoalReached } from './home-overview';
 
 /** One day of one goal. A null value means nothing to show for that day (not tracked yet, or no data). */
-export type TrendDay = { date: string; value: number | null; goal: number | null; reached: boolean | null };
+export type TrendDay = { date: string; value: number | null; goal: number | null; reached: boolean | null; /** Extra detail for the day, such as where walking minutes came from. */ parts?: string[] };
 export type TrendSeries = { id: string; title: string; kind: 'steps' | 'nutrition' | 'water' | 'habit'; unit: string; href: string; days: TrendDay[] };
 export type TrendSummaryDay = { date: string; reached: number; total: number };
 export type TrendStats = { hitDays: number; countedDays: number; average: number | null };
@@ -57,7 +57,7 @@ export function progressTrends(state: TrackerState, { stepDays, phoneMinutesByDa
       const totals = nutritionTotals(state.nutritionEntries ?? [], date);
       const goal = nutritionCalorieTarget(nutritionGoalForDate(nutritionGoals, date)) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], date, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total;
       if (!totals.entryCount) return { date, value: null, goal, reached: null };
-      return { date, value: totals.calories, goal, reached: nutritionGoalReached(totals.calories, goal, totals.entryCount) };
+      return { date, value: totals.calories, goal, reached: nutritionGoalReached(totals.calories, goal, totals.entryCount), parts: [`${totals.entryCount} ${totals.entryCount === 1 ? 'food' : 'foods'} logged`] };
     }) });
   }
 
@@ -85,7 +85,12 @@ export function progressTrends(state: TrackerState, { stepDays, phoneMinutesByDa
       if (date < started) return { date, value: null, goal: null, reached: null };
       const progress = habitProgress(tracker, state.goodHabitLogs ?? [], state.activityRoutes ?? [], new Date(`${date}T12:00:00`), tracker.habitTemplate === 'walk' ? phoneMinutesByDate[date] ?? 0 : 0);
       if (!progress.goal) return { date, value: null, goal: null, reached: null };
-      return { date, value: progress.amount, goal: progress.goal, reached: progress.amount >= progress.goal };
+      const parts = tracker.habitTemplate === 'walk' ? [
+        `Phone ${minutes(phoneMinutesByDate[date] ?? 0)}`,
+        `Routes ${minutes(routeMinutesOn(state.activityRoutes ?? [], tracker, date))}`,
+        `Logged ${minutes((state.goodHabitLogs ?? []).filter((log) => log.trackerId === tracker.id && log.eventDate === date).reduce((sum, log) => sum + log.amount, 0))}`,
+      ] : undefined;
+      return { date, value: progress.amount, goal: progress.goal, reached: progress.amount >= progress.goal, parts };
     }) });
   }
   return series;
@@ -120,8 +125,34 @@ export function allGoalsStreak(summary: readonly TrendSummaryDay[]): number {
   return streak;
 }
 
+const minutes = (value: number) => `${Number(value.toFixed(1))} min`;
+
+/** The number alone, rounded the way the item is shown. */
+export function formatTrendAmount(value: number, item: Pick<TrendSeries, 'kind' | 'unit'>): string {
+  if (item.kind === 'water') return waterDisplayAmount(Math.round(value * 10) / 10, item.unit as 'fl oz' | 'mL');
+  if (item.kind === 'habit' && item.unit !== 'done') return Number(value.toFixed(1)).toLocaleString();
+  return Math.round(value).toLocaleString();
+}
+
 export function formatTrendValue(value: number, item: Pick<TrendSeries, 'kind' | 'unit'>): string {
-  if (item.kind === 'water') return `${waterDisplayAmount(Math.round(value * 10) / 10, item.unit as 'fl oz' | 'mL')} ${item.unit}`;
-  if (item.kind === 'habit' && item.unit === 'done') return `${Math.round(value)} done`;
-  return `${Math.round(value).toLocaleString()} ${item.unit}`;
+  return `${formatTrendAmount(value, item)} ${item.unit}`;
+}
+
+export type TrendDayDetail = { heading: string; line: string; status: 'hit' | 'missed' | 'so-far' | 'empty'; parts: string[] };
+
+/** What the detail card says for one tapped day. */
+export function trendDayDetail(item: TrendSeries, day: TrendDay, today: string): TrendDayDetail {
+  const heading = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const parts = day.parts ?? [];
+  if (day.goal === null) return { heading, line: 'Not tracked yet on this day', status: 'empty', parts };
+  if (day.value === null) return { heading, line: `Nothing logged · goal ${formatTrendValue(day.goal, item)}`, status: 'empty', parts };
+  const ofGoal = `${formatTrendAmount(day.value, item)} of ${formatTrendValue(day.goal, item)}`;
+  const difference = Math.abs(day.value - day.goal);
+  if (item.kind === 'nutrition') {
+    const side = day.value > day.goal ? 'over' : 'under';
+    const gap = difference < 0.5 ? 'On budget' : `${formatTrendValue(difference, item)} ${side}`;
+    return { heading, line: `${ofGoal} · ${gap}${day.reached ? ' · goal met' : ''}`, status: day.reached ? 'hit' : day.date === today ? 'so-far' : 'missed', parts };
+  }
+  if (day.reached) return { heading, line: `${ofGoal} · Goal hit${difference > 0 ? ` · ${formatTrendAmount(difference, item)} over` : ''}`, status: 'hit', parts };
+  return { heading, line: `${ofGoal} · ${formatTrendAmount(difference, item)} ${day.date === today ? 'to go' : 'short'}`, status: day.date === today ? 'so-far' : 'missed', parts };
 }

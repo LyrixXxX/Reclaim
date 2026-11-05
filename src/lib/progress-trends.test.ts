@@ -1,5 +1,5 @@
 import { TrackerState } from '@/models/tracker';
-import { allGoalsStreak, formatTrendValue, progressTrends, trendDates, trendStats, trendSummary } from './progress-trends';
+import { allGoalsStreak, formatTrendValue, progressTrends, trendDates, trendDayDetail, trendStats, trendSummary } from './progress-trends';
 
 const TODAY = '2026-11-04';
 
@@ -59,6 +59,7 @@ describe('progressTrends', () => {
     const walk = { id: 'k', name: 'Walk more', habitTemplate: 'walk', mode: 'habit', startedAt: '2026-11-01T08:00:00', habitGoalHistory: [{ effectiveDate: '2026-11-01', value: 30 }] };
     const series = progressTrends(state({ trackers: [walk] as never }), { stepDays: [], phoneMinutesByDate: { '2026-11-04': 31 }, today: TODAY, days: 2 }).find((item) => item.id === 'k')!;
     expect(series.days.map((day) => day.reached)).toEqual([false, true]);
+    expect(series.days[1].parts).toEqual(['Phone 31 min', 'Routes 0 min', 'Logged 0 min']);
   });
 
   it('leaves out weekly, mindfulness, archived and hidden habits', () => {
@@ -90,6 +91,19 @@ describe('summary and stats', () => {
     // An unfinished today isn't a miss; a hit today counts.
     expect(trendStats(series[1].days as never, '3')).toEqual({ hitDays: 1, countedDays: 1, average: 3.5 });
     expect(trendStats(series[1].days as never, '2')).toEqual({ hitDays: 1, countedDays: 2, average: 3.5 });
+  });
+
+  it('describes a tapped day', () => {
+    const walk = { id: 'k', title: 'Walk more', kind: 'habit', unit: 'minutes', href: '', days: [] } as const;
+    expect(trendDayDetail(walk as never, { date: '2026-11-03', value: 22, goal: 30, reached: false, parts: ['Phone 12 min'] }, TODAY))
+      .toEqual({ heading: 'Tuesday, Nov 3', line: '22 of 30 minutes · 8 short', status: 'missed', parts: ['Phone 12 min'] });
+    expect(trendDayDetail(walk as never, { date: TODAY, value: 10, goal: 30, reached: false }, TODAY).line).toBe('10 of 30 minutes · 20 to go');
+    expect(trendDayDetail(walk as never, { date: TODAY, value: 35, goal: 30, reached: true }, TODAY).line).toBe('35 of 30 minutes · Goal hit · 5 over');
+    expect(trendDayDetail(walk as never, { date: TODAY, value: null, goal: null, reached: null }, TODAY).line).toBe('Not tracked yet on this day');
+    const food = { id: 'nutrition', title: 'Nutrition', kind: 'nutrition', unit: 'kcal', href: '', days: [] } as const;
+    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 1868, goal: 2200, reached: false }, TODAY).line).toBe('1,868 of 2,200 kcal · 332 kcal under');
+    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 2300, goal: 2200, reached: true }, TODAY).line).toBe('2,300 of 2,200 kcal · 100 kcal over · goal met');
+    expect(trendDayDetail(food as never, { date: '2026-11-02', value: null, goal: 2200, reached: null }, TODAY).line).toBe('Nothing logged · goal 2,200 kcal');
   });
 
   it('formats values by kind', () => {
