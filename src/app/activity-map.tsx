@@ -46,7 +46,7 @@ const ROUTE_KIND_KEY = 'reclaim-route-kind';
 
 export default function ActivityMapScreen() {
   const { showCompletionAd } = useAds();
-  const { activityRoutes = [], weightEntries = [], saveActivityRoute, setSectionVisibility } = useTrackers();
+  const { activityRoutes = [], weightEntries = [], saveActivityRoute, setSectionVisibility, savedTrails = [] } = useTrackers();
   const { routeId } = useLocalSearchParams<{ routeId?: string }>();
   const [kind, setKindState] = useState<'walk' | 'hike' | 'run'>('walk');
   const [kindPicker, setKindPicker] = useState(false);
@@ -435,6 +435,7 @@ export default function ActivityMapScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={`Activity type: ${kind}. Change`} accessibilityState={{ expanded: kindPicker }} onPress={() => setKindPicker((open) => !open)} style={styles.kindChip}><Text style={styles.kindChipText}>{kindPicker ? 'Done' : 'Change'}</Text></Pressable>
       </View>
       {kindPicker && <View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: kind === choice }} onPress={() => setKind(choice)} style={[styles.smallButton, kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View>}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Find trails${savedTrails.length ? `, ${savedTrails.length} saved` : ''}`} onPress={() => router.push('/trails' as Href)} style={({ pressed }) => [styles.trailsRow, pressed && { opacity: 0.8 }]}><Text style={styles.trailsPin}>⌖</Text><View style={{ flex: 1 }}><Text style={styles.trailsTitle}>Find trails{savedTrails.length ? ` · ${savedTrails.length} saved` : ''}</Text><Text style={styles.trailsDetail}>Hiking trails near you, with directions</Text></View><Chevron size={18} color={colors.textMuted} /></Pressable>
     </View> : null}
     </View>}
     {active && <View style={styles.card}><Text style={styles.cardTitle}>Current activity</Text><StatusRow label="Activity type" value={active.kind.charAt(0).toUpperCase() + active.kind.slice(1)} /><StatusRow label="GPS" value={gpsStatus} /><StatusRow label="Distance" value={formatMiles(activeDistance)} /><StatusRow label="Elapsed time" value={formatClock(activeDuration)} /><StatusRow label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><StatusRow label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /></View>}
@@ -525,6 +526,10 @@ const styles = StyleSheet.create({
   expandedMap: { flex: 1, position: 'relative', backgroundColor: colors.surfaceRaised },
   conditions: { flexDirection: 'row', gap: 8 },
   startRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  trailsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  trailsPin: { color: colors.activityNav, fontSize: 22, width: 24, textAlign: 'center' },
+  trailsTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  trailsDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 2 },
   kindLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   kindChip: { minWidth: 92, borderRadius: 15, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   kindChipText: { color: colors.activityNav, fontSize: 14, fontFamily: font.bold },

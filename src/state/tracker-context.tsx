@@ -3,6 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRe
 import { Alert, AppState, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
+import { removeSavedTrail, saveTrail, SavedTrail, toggleFavoriteTrail, TrailResult } from '@/lib/trails';
 import { updateQuitWidget } from '@/widgets/update-widget';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
@@ -123,6 +124,9 @@ type TrackerContextValue = TrackerState & {
   deleteCraving: (id: string) => void;
   saveSavingsGoal: (goal: SavingsGoal) => void;
   deleteSavingsGoal: (id: string) => void;
+  saveTrailPlace: (trail: TrailResult) => void;
+  toggleFavoriteTrailPlace: (trail: TrailResult | SavedTrail) => void;
+  removeTrailPlace: (id: string) => void;
   setFeaturedTracker: (trackerId: string | undefined) => void;
   markSwipeHintSeen: () => void;
   updateStartHere: (update: { done?: string[]; collapsed?: boolean; dismissed?: boolean }) => void;
@@ -442,6 +446,9 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteCraving: (id) => setState((previous) => ({ ...previous, cravings: (previous.cravings ?? []).filter((item) => item.id !== id) })),
     saveSavingsGoal: (goal) => setState((previous) => ({ ...previous, savingsGoals: [...(previous.savingsGoals ?? []).filter((item) => item.id !== goal.id), goal] })),
     deleteSavingsGoal: (id) => setState((previous) => ({ ...previous, savingsGoals: (previous.savingsGoals ?? []).filter((item) => item.id !== id) })),
+    saveTrailPlace: (trail) => setState((previous) => ({ ...previous, savedTrails: saveTrail(previous.savedTrails ?? [], trail) })),
+    toggleFavoriteTrailPlace: (trail) => setState((previous) => ({ ...previous, savedTrails: toggleFavoriteTrail(previous.savedTrails ?? [], trail) })),
+    removeTrailPlace: (id) => setState((previous) => ({ ...previous, savedTrails: removeSavedTrail(previous.savedTrails ?? [], id) })),
     setFeaturedTracker: (trackerId) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), featuredTrackerId: trackerId } })),
     dismissNotice: (id) => setState((previous) => { const preferences = previous.preferences ?? DEFAULT_PREFERENCES; const current = preferences.dismissedNotices ?? []; return current.includes(id) ? previous : { ...previous, preferences: { ...preferences, dismissedNotices: [...current, id].slice(-100) } }; }),
     updateStartHere: ({ done, collapsed, dismissed }) => setState((previous) => {

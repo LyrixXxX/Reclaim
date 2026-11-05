@@ -1,3 +1,6 @@
+import type { SavedTrail } from '@/lib/trails';
+
+export type { SavedTrail };
 export type TrackerId = string;
 export type TrackerMode = 'abstinence' | 'reduction' | 'habit';
 export type FrequencyPeriod = 'day' | 'week' | 'month';
@@ -481,6 +484,8 @@ export type TrackerState = {
   workoutSettings?: WorkoutSettings;
   cravings?: CravingEvent[];
   savingsGoals?: SavingsGoal[];
+  /** Trails saved from Find trails; favorites are pinned to the top. */
+  savedTrails?: SavedTrail[];
 };
 
 export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'bloodPressure' | 'medications' | 'labs';
