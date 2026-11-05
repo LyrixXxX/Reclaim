@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TrailMedia } from '@/components/trail-media';
 import { getMapKey } from '@/lib/activity-maps';
 import { directionsUrl, milesBetween, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailKindLabel } from '@/lib/trails';
 import { useTrackers } from '@/state/tracker-context';
@@ -148,6 +149,7 @@ export default function TrailsScreen() {
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{details.name}</Text>
           <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${detailMiles} mi away` : ''}</Text>
+          <TrailMedia trail={details} />
           <View style={styles.facts}>
             {details.lengthMiles ? <Fact label="Length" value={`${details.lengthMiles} mi`} /> : null}
             {details.difficulty ? <Fact label="Difficulty" value={details.difficulty} /> : null}

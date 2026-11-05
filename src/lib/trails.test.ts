@@ -1,4 +1,4 @@
-import { directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailQuery } from './trails';
+import { directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails } from './trails';
 
 const ORIGIN = { latitude: 35.95, longitude: -85.03 };
 const NOW = new Date('2026-11-04T12:00:00Z');
@@ -71,5 +71,55 @@ describe('saved trails', () => {
     ];
     expect(sortSavedTrails(list).map((item) => item.id)).toEqual(['c', 'b', 'a']);
     expect(removeSavedTrail(list, 'b').map((item) => item.id)).toEqual(['a', 'c']);
+  });
+});
+
+describe('trail photos', () => {
+  const commons = { query: { pages: { '1': { imageinfo: [{ thumburl: 'https://upload.wikimedia.org/thumb/800px-Trail.jpg', thumbwidth: 800, thumbheight: 600, descriptionurl: 'https://commons.wikimedia.org/wiki/File:Trail.jpg', extmetadata: { Artist: { value: '<a href="x">Jane &amp; Co</a>' }, LicenseShortName: { value: 'CC BY-SA 4.0' } } }] } } } };
+  const respond = (routes: Record<string, unknown>) => jest.fn(async (url: string) => {
+    const key = Object.keys(routes).find((part) => url.includes(part));
+    return { ok: !!key, json: async () => (key ? routes[key] : null) };
+  }) as unknown as typeof fetch;
+
+  it('follows Wikidata to a Commons photo with credit', async () => {
+    const request = respond({ 'wikidata.org': { entities: { Q1: { claims: { P18: [{ mainsnak: { datavalue: { value: 'Trail.jpg' } } }] } } } }, 'commons.wikimedia.org': commons });
+    expect(await trailPhoto({ wikidata: 'Q1' }, request)).toEqual({ url: 'https://upload.wikimedia.org/thumb/800px-Trail.jpg', width: 800, height: 600, credit: 'Jane & Co', license: 'CC BY-SA 4.0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Trail.jpg' });
+  });
+
+  it('falls back to the Wikipedia article image', async () => {
+    const request = respond({ 'en.wikipedia.org': { query: { pages: { '5': { pageimage: 'Trail.jpg' } } } }, 'commons.wikimedia.org': commons });
+    expect((await trailPhoto({ wikipedia: 'en:Cumberland Trail' }, request))?.credit).toBe('Jane & Co');
+  });
+
+  it('skips files that are not on Commons, and trails with no links', async () => {
+    const request = respond({ 'en.wikipedia.org': { query: { pages: { '5': { pageimage: 'Local.jpg' } } } }, 'commons.wikimedia.org': { query: { pages: { '-1': { missing: '' } } } } });
+    expect(await trailPhoto({ wikipedia: 'en:Some Trail' }, request)).toBeNull();
+    expect(await trailPhoto({}, request)).toBeNull();
+  });
+
+  it('reads Wikidata and Wikipedia links from the map', () => {
+    const [trail] = parseTrails({ elements: [{ type: 'relation', id: 1, center: { lat: 35.96, lon: -85.03 }, tags: { route: 'hiking', name: 'Cumberland Trail', wikidata: 'Q5194226', wikipedia: 'en:Cumberland Trail' } }] }, ORIGIN, 10);
+    expect(trail).toMatchObject({ wikidata: 'Q5194226', wikipedia: 'en:Cumberland Trail' });
+  });
+});
+
+describe('trail search servers', () => {
+  const ok = { ok: true, status: 200, json: async () => ({ elements: [{ type: 'node', id: 1, lat: 35.951, lon: -85.03, tags: { highway: 'trailhead', name: 'Ozone' } }] }) };
+  it('moves on from a busy or unreachable server', async () => {
+    const request = jest.fn()
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockRejectedValueOnce(new Error('Network request failed'))
+      .mockResolvedValueOnce(ok) as unknown as typeof fetch;
+    expect((await searchTrails(35.95, -85.03, 5, request, ['a', 'b', 'c'])).map((item) => item.name)).toEqual(['Ozone']);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+  it('says the service is busy when every server fails', async () => {
+    const request = jest.fn().mockResolvedValue({ ok: false, status: 429 }) as unknown as typeof fetch;
+    await expect(searchTrails(35.95, -85.03, 5, request, ['a', 'b'])).rejects.toThrow(/busy/);
+  });
+  it('stops on a request error', async () => {
+    const request = jest.fn().mockResolvedValue({ ok: false, status: 400 }) as unknown as typeof fetch;
+    await expect(searchTrails(35.95, -85.03, 5, request, ['a', 'b'])).rejects.toThrow('(400)');
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

@@ -19,6 +19,10 @@ export type TrailResult = {
   surface?: string;
   operator?: string;
   address?: string;
+  /** Wikidata item, such as "Q5194226"; the source for a photo when there is one. */
+  wikidata?: string;
+  /** Wikipedia article, such as "en:Cumberland Trail". */
+  wikipedia?: string;
 };
 
 export type SavedTrail = Omit<TrailResult, 'distanceMiles'> & { savedAt: string; favorite?: boolean };
@@ -26,7 +30,13 @@ export type SavedTrail = Omit<TrailResult, 'distanceMiles'> & { savedAt: string;
 export const TRAIL_RADII = [5, 10, 25, 50] as const;
 export type TrailRadius = (typeof TRAIL_RADII)[number];
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+/** Public Overpass servers, tried in order when one is busy, down or slow. */
+export const OVERPASS_SERVERS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+] as const;
+const SERVER_TIMEOUT_MS = 30_000;
 const TRAIL_USER_AGENT = 'Reclaim (Android app; https://lyrixstudios.com)';
 const METERS_PER_MILE = 1609.344;
 /** Named paths are numerous; past this radius only trailheads and hiking routes are searched. */
@@ -103,6 +113,8 @@ export function parseTrails(response: unknown, origin: { latitude: number; longi
       surface: tags.surface ? capitalize(tags.surface) : undefined,
       operator: tags.operator,
       address: address(tags),
+      wikidata: /^Q\d+$/.test(tags.wikidata ?? '') ? tags.wikidata : undefined,
+      wikipedia: /^[a-z-]{2,12}:.+/.test(tags.wikipedia ?? '') ? tags.wikipedia : undefined,
     };
     // Same name and type means the same trail; unnamed trailheads stay separate.
     const key = name === 'Trailhead' ? result.id : `${kind === 'trailhead' ? 'trailhead' : 'trail'}:${name.toLowerCase()}`;
@@ -128,19 +140,78 @@ function mergeTrail(a: TrailResult, b: TrailResult): TrailResult {
     surface: nearer.surface ?? a.surface ?? b.surface,
     operator: a.operator ?? b.operator,
     address: a.address ?? b.address,
+    wikidata: route?.wikidata ?? a.wikidata ?? b.wikidata,
+    wikipedia: route?.wikipedia ?? a.wikipedia ?? b.wikipedia,
   };
 }
 
-export async function searchTrails(latitude: number, longitude: number, radiusMiles: number, request: typeof fetch = fetch): Promise<TrailResult[]> {
-  const response = await request(OVERPASS_URL, {
-    method: 'POST',
-    // Overpass rejects requests without an identifying User-Agent (Android's default gets HTTP 406).
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': TRAIL_USER_AGENT },
-    body: `data=${encodeURIComponent(trailQuery(latitude, longitude, radiusMiles))}`,
-  });
-  if (response.status === 429 || response.status === 504) throw new Error('The trail service is busy right now. Try again in a minute.');
-  if (!response.ok) throw new Error(`Trails couldn’t be loaded (${response.status}). Try again in a minute.`);
-  return parseTrails(await response.json(), { latitude, longitude }, radiusMiles);
+/**
+ * Asks each Overpass server in turn. A busy (429), failing (5xx), slow or unreachable server moves on
+ * to the next; any other error is the search's fault and stops right away.
+ */
+export async function searchTrails(latitude: number, longitude: number, radiusMiles: number, request: typeof fetch = fetch, servers: readonly string[] = OVERPASS_SERVERS): Promise<TrailResult[]> {
+  const body = `data=${encodeURIComponent(trailQuery(latitude, longitude, radiusMiles))}`;
+  for (const server of servers) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SERVER_TIMEOUT_MS);
+    try {
+      const response = await request(server, {
+        method: 'POST',
+        // Overpass rejects requests without an identifying User-Agent (Android's default gets HTTP 406).
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'User-Agent': TRAIL_USER_AGENT },
+        body, signal: controller.signal,
+      });
+      if (response.status === 429 || response.status >= 500) continue;
+      if (!response.ok) throw new Error(`Trails couldn’t be loaded (${response.status}). Try again in a minute.`);
+      return parseTrails(await response.json(), { latitude, longitude }, radiusMiles);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Trails couldn’t be loaded')) throw error;
+      // Timeouts and network errors: try the next server.
+    } finally { clearTimeout(timer); }
+  }
+  throw new Error('The trail service is busy right now. Try again in a minute.');
+}
+
+export type TrailPhoto = { url: string; width?: number; height?: number; credit: string; license?: string; sourceUrl: string };
+
+const json = async (request: typeof fetch, url: string) => {
+  const response = await request(url, { headers: { Accept: 'application/json', 'User-Agent': TRAIL_USER_AGENT } });
+  return response.ok ? response.json() : null;
+};
+
+/** Plain text from Commons' HTML metadata, such as an author link. */
+export function plainText(html: string | undefined) {
+  return (html ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A freely licensed photo for a trail, when its map entry links to Wikidata or Wikipedia.
+ * Only Wikimedia Commons files are used, since those can be reused with credit. Most trails have none.
+ */
+export async function trailPhoto(trail: Pick<TrailResult, 'wikidata' | 'wikipedia'>, request: typeof fetch = fetch): Promise<TrailPhoto | null> {
+  let file: string | undefined;
+  if (trail.wikidata) {
+    const data = await json(request, `https://www.wikidata.org/wiki/Special:EntityData/${encodeURIComponent(trail.wikidata)}.json`);
+    file = data?.entities?.[trail.wikidata]?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
+  }
+  if (!file && trail.wikipedia) {
+    const [lang, ...rest] = trail.wikipedia.split(':');
+    const data = await json(request, `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&piprop=name&titles=${encodeURIComponent(rest.join(':'))}`);
+    const pages = Object.values(data?.query?.pages ?? {}) as { pageimage?: string }[];
+    file = pages[0]?.pageimage;
+  }
+  if (!file) return null;
+  const data = await json(request, `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=800&titles=${encodeURIComponent(`File:${file}`)}`);
+  const page = (Object.values(data?.query?.pages ?? {}) as { missing?: string; imageinfo?: { thumburl?: string; thumbwidth?: number; thumbheight?: number; descriptionurl?: string; extmetadata?: Record<string, { value?: string }> }[] }[])[0];
+  const info = page && !('missing' in page) ? page.imageinfo?.[0] : undefined;
+  if (!info?.thumburl || !info.descriptionurl) return null;
+  const meta = info.extmetadata ?? {};
+  return {
+    url: info.thumburl, width: info.thumbwidth, height: info.thumbheight,
+    credit: plainText(meta.Artist?.value) || 'Wikimedia Commons',
+    license: plainText(meta.LicenseShortName?.value) || undefined,
+    sourceUrl: info.descriptionurl,
+  };
 }
 
 export type PlaceResult = { label: string; latitude: number; longitude: number };
