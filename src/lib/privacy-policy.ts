@@ -1,4 +1,4 @@
-export const PRIVACY_UPDATED = 'November 3, 2026';
+export const PRIVACY_UPDATED = 'November 4, 2026';
 export const PRIVACY_POLICY_URL = 'https://lyrixstudios.com/reclaim/privacy/';
 
 export const PRIVACY_SECTIONS = [
