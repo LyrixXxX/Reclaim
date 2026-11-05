@@ -1,6 +1,6 @@
 import { Tracker, TrackerState, WaterLog } from '@/models/tracker';
 import { localDateKey } from '@/lib/progress';
-import { removeWaterLog, saveWaterLog, waterDisplayAmount, waterGoalOn, waterProgress, waterStreak, waterToOunces, waterTotalOn } from '@/lib/water-habit';
+import { removeWaterLog, renameDefaultWaterHabit, saveWaterLog, waterDisplayAmount, waterGoalOn, waterProgress, waterStreak, waterToOunces, waterTotalOn } from '@/lib/water-habit';
 import { permanentlyDeleteTracker, trackerFromDraft, trackerHasHistory } from '@/lib/tracker-management';
 
 const tracker: Tracker = { id: 'water', name: 'Drink more water', mode: 'habit', habitTemplate: 'water', icon: '💧', color: '#00ff99', startedAt: '2026-10-01T00:00:00', waterQuickAddOz: 8, waterGoals: [{ effectiveDate: '2026-10-01', ounces: 32 }] };
@@ -67,5 +67,15 @@ describe('water habit', () => {
     expect(edited.waterDisplayUnit).toBe('mL');
     expect(edited.waterPresetOz).toEqual([8, 12]);
     expect(waterGoalOn(edited, '2026-10-10')).toBe(32);
+  });
+});
+
+describe('renameDefaultWaterHabit', () => {
+  it('renames the old default and leaves custom names alone', () => {
+    const state = { trackers: [tracker, { ...tracker, id: 'w2', name: 'Hydrate' }, { ...tracker, id: 'w3', name: 'Water', displayName: 'Drink more water' }, { ...tracker, id: 'r', habitTemplate: 'reading', name: 'Drink more water' }], checkIns: [] } as unknown as TrackerState;
+    const renamed = renameDefaultWaterHabit(state).trackers;
+    expect(renamed.map((item) => [item.name, item.displayName])).toEqual([['Drink Water', undefined], ['Hydrate', undefined], ['Water', 'Drink Water'], ['Drink more water', undefined]]);
+    const already = { trackers: [{ ...tracker, name: 'Drink Water' }], checkIns: [] } as unknown as TrackerState;
+    expect(renameDefaultWaterHabit(already)).toBe(already);
   });
 });

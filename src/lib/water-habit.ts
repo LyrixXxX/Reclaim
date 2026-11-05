@@ -90,3 +90,16 @@ export function removeWaterShortcut(tracker: Tracker, ounces: number): Pick<Trac
   const { main, others } = waterShortcuts(tracker);
   return { waterQuickAddOz: main, waterPresetOz: others.filter((amount) => Math.abs(amount - ounces) > 0.001) };
 }
+
+export const WATER_HABIT_NAME = 'Drink Water';
+const OLD_WATER_HABIT_NAME = 'Drink more water';
+
+/** The old default name was cut off on Home tiles. Habits still using it get the shorter name; renamed ones are left alone. */
+export function renameDefaultWaterHabit(state: TrackerState): TrackerState {
+  if (!state.trackers?.some((tracker) => tracker.habitTemplate === 'water' && (tracker.name === OLD_WATER_HABIT_NAME || tracker.displayName === OLD_WATER_HABIT_NAME))) return state;
+  return { ...state, trackers: state.trackers.map((tracker) => tracker.habitTemplate !== 'water' ? tracker : {
+    ...tracker,
+    name: tracker.name === OLD_WATER_HABIT_NAME ? WATER_HABIT_NAME : tracker.name,
+    displayName: tracker.displayName === OLD_WATER_HABIT_NAME ? WATER_HABIT_NAME : tracker.displayName,
+  }) };
+}

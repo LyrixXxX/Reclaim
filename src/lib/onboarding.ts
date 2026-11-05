@@ -5,6 +5,7 @@ import { localDateKey } from './progress';
 import { upsertWeightEntry } from './weight';
 import { generateTrackerId, trackerFromDraft, TrackerDraft } from './tracker-management';
 import { GOOD_HABIT_TEMPLATES } from './good-habit-templates';
+import { WATER_HABIT_NAME } from './water-habit';
 import { AppPreferences, DashboardWidgetId, NavigationSection, OnboardingArea, OnboardingQuit, Tracker, TrackerState } from '@/models/tracker';
 import { colors } from '@/theme';
 
@@ -68,7 +69,7 @@ export const QUIT_SUGGESTIONS: Omit<OnboardingQuit, 'id' | 'startDate' | 'weekly
 
 /** Good habits offered during setup, each with a gentle default goal you can change later. */
 export const BUILD_SUGGESTIONS: { id: NonNullable<Tracker['habitTemplate']>; label: string; goal: string }[] = [
-  { id: 'water', label: 'Drink more water', goal: 'Starts at 64 fl oz a day' },
+  { id: 'water', label: 'Drink water', goal: 'Starts at 64 fl oz a day' },
   { id: 'walk', label: 'Walk more', goal: 'Starts at 30 minutes a day' },
   { id: 'sleep', label: 'Sleep routine', goal: 'Wind down, get ready, lights out' },
   { id: 'exercise', label: 'Exercise', goal: 'Starts at 3 workouts a week' },
@@ -100,7 +101,7 @@ export function trackersFromSetup(draft: OnboardingSetupDraft | undefined, now =
     return trackerFromDraft(trackerDraft, generateTrackerId());
   });
   const builds = (draft?.builds ?? []).map((template) => {
-    if (template === 'water') return trackerFromDraft({ name: 'Water', mode: 'habit', habitTemplate: 'water', startDate: today, icon: '💧', color: colors.habitsNav, waterGoalOz: '64', waterQuickAddOz: '8' }, generateTrackerId());
+    if (template === 'water') return trackerFromDraft({ name: WATER_HABIT_NAME, mode: 'habit', habitTemplate: 'water', startDate: today, icon: '💧', color: colors.habitsNav, waterGoalOz: '64', waterQuickAddOz: '8' }, generateTrackerId());
     const config = GOOD_HABIT_TEMPLATES.find((item) => item.id === template)!;
     return trackerFromDraft({ name: config.title, mode: 'habit', habitTemplate: config.id, startDate: today, icon: config.icon, color: colors.habitsNav, habitGoalValue: BUILD_GOALS[template],
       habitChecklistItems: (config.suggestions ?? []).map((label, index) => ({ id: `step-${index}`, label })), exerciseGoalMode: 'times', exerciseRegimenRows: [], producePresets: [0.5, 1] }, generateTrackerId());

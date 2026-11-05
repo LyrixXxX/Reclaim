@@ -39,7 +39,7 @@ import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
 import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
 import { logHabitCompletion } from '@/lib/habit-log';
-import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
+import { removeWaterLog, renameDefaultWaterHabit, saveWaterLog } from '@/lib/water-habit';
 import { validHabitLog } from '@/lib/good-habit-templates';
 import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, replaceLoggedMeal, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeMealGroup, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 import { renameFood } from '@/lib/food-search';
@@ -527,7 +527,7 @@ const storageStyles = StyleSheet.create({
 
 function migrateStoredState(parsed: TrackerState): TrackerState {
   // Keep older medical records untouched for future full-edition restores.
-  const migrated = migratePreferences(migrateNutritionState(migrateTaperState(parsed)));
+  const migrated = migratePreferences(renameDefaultWaterHabit(migrateNutritionState(migrateTaperState(parsed))));
   return { ...migrated, trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
 }
 

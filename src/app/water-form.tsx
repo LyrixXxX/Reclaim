@@ -6,7 +6,7 @@ import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
 import { formatClockTime } from '@/lib/clock-time';
 import { localDateKey } from '@/lib/progress';
 import { generateTrackerId, TrackerDraft, validateTrackerDraft } from '@/lib/tracker-management';
-import { WaterUnit, waterDisplayAmount, waterToOunces, waterTotalOn } from '@/lib/water-habit';
+import { WATER_HABIT_NAME, WaterUnit, waterDisplayAmount, waterToOunces, waterTotalOn } from '@/lib/water-habit';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
 import { GoodHabitIcon } from '@/components/good-habit-icon';
@@ -26,7 +26,7 @@ export default function WaterFormScreen() {
   const existing = trackers.find((tracker) => tracker.id === id && tracker.habitTemplate === 'water');
   const today = localDateKey();
   const currentGoal = existing?.waterGoals?.filter((goal) => goal.effectiveDate <= today).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
-  const [name, setName] = useState(existing?.name ?? 'Drink more water');
+  const [name, setName] = useState(existing?.name ?? WATER_HABIT_NAME);
   const [unit, setUnit] = useState<WaterUnit>(existing?.waterDisplayUnit ?? 'fl oz');
   const [goalOz, setGoalOz] = useState<number | null>(currentGoal?.ounces ?? null);
   const [goalText, setGoalText] = useState(currentGoal ? waterDisplayAmount(currentGoal.ounces, existing?.waterDisplayUnit ?? 'fl oz') : '');
@@ -82,7 +82,7 @@ export default function WaterFormScreen() {
   const todayAmount = existing ? waterTotalOn(waterLogs, existing.id, today) : 0;
   const previewPercent = goalOz && goalOz > 0 ? Math.min(100, Math.round(todayAmount / goalOz * 100)) : 0;
   return <SafeAreaView style={styles.safe} edges={['bottom']}><KeyboardSafeScrollView contentContainerStyle={styles.content}>
-    <View style={styles.hero}><GoodHabitIcon type="water" size={76} /><View style={styles.heroCopy}><Text style={styles.heroTitle}>Drink more water</Text><Text style={styles.help}>Track drinks with a daily goal that works for you.</Text></View></View>
+    <View style={styles.hero}><GoodHabitIcon type="water" size={76} /><View style={styles.heroCopy}><Text style={styles.heroTitle}>Drink water</Text><Text style={styles.help}>Track drinks with a daily goal that works for you.</Text></View></View>
     <View style={styles.tags}><Text style={styles.tag}>▥  Daily goal</Text><Text style={styles.tag}>ϟ  Quick add</Text><Text style={styles.tag}>◷  Reminders</Text></View>
     <Text style={styles.label}>Habit name</Text><View style={styles.nameRow}><TextInput accessibilityLabel="Water habit name" maxLength={50} value={name} onChangeText={setName} style={styles.nameInput} placeholderTextColor={colors.textDim} /><Pressable accessibilityRole="button" accessibilityLabel="Clear habit name" onPress={() => setName('')} style={styles.clear}><Text style={styles.clearText}>×</Text></Pressable></View><Text style={styles.counter}>{name.length}/50</Text>
     <Text style={styles.label}>Daily goal</Text><View style={styles.amountRow}><Text style={styles.fieldIcon}>◎</Text><TextInput accessibilityLabel={`Daily water goal in ${unit}`} keyboardType="decimal-pad" value={goalText} onChangeText={(value) => { setGoalText(value); setGoalOz(enteredOunces(value, unit)); }} placeholder="Your goal" placeholderTextColor={colors.textDim} style={styles.amountInput} /><UnitChoice unit={unit} onChange={changeUnit} /></View><Text style={styles.help}>Set a daily water goal that works for you. Reclaim does not prescribe an amount.</Text>
