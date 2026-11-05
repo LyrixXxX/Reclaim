@@ -104,6 +104,7 @@ export default function SettingsScreen() {
   return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} scrollEnabled={!draggingNavigation}>
     <MainScreenHeader title="Settings" subtitle="Choose what appears in Reclaim and keep a portable copy of your local data." accent={colors.settingsNav} />
     <LocalSaveStatus />
+    <View style={[styles.backupCard, styles.whatsNewCard]}><Text style={styles.backupTitle}>What’s new</Text><Text style={styles.backupText}>See what changed in each update.</Text><Link href={'/whats-new' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Read release notes</Text></Pressable></Link></View>
     <Text style={styles.section}>Privacy & app lock</Text>
     <View style={styles.backupCard}><Text style={styles.backupTitle}>Privacy & data</Text><Text style={styles.backupText}>See what Reclaim stores on this device and when information leaves it.</Text><Link href={'/privacy' as Href} asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Read privacy information</Text></Pressable></Link></View>
     <Pressable onPress={() => { void Linking.openURL(PRIVACY_POLICY_URL); }} style={[styles.secondary, styles.privacyPolicyLink]}><Text style={styles.secondaryText}>Open public privacy policy</Text></Pressable>
@@ -182,6 +183,7 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingBottom: 50 },
   section: { color: colors.text, fontSize: 18, fontFamily: font.semibold, marginTop: 26, marginBottom: 10 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, overflow: 'hidden' },
+  whatsNewCard: { marginTop: 14 },
   backupCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: layout.radius, padding: spacing.lg },
   backupTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
   backupText: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 17, marginTop: 6 },

@@ -9,6 +9,7 @@ import { AccessibilityInfo, BackHandler, Platform, StyleSheet, ToastAndroid, Vie
 import { AppLockScreen } from '@/components/app-lock-screen';
 import { LocalSaveStatus } from '@/components/local-save-status';
 import { PlayUpdatePrompt } from '@/components/play-update-prompt';
+import { WhatsNewPrompt } from '@/components/whats-new';
 import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
 import { MonetizationProvider } from '@/state/monetization-context';
@@ -115,9 +116,11 @@ function AppShell() {
           <Stack.Screen name="nutrition-meal-groups" options={{ title: 'Edit meal groups' }} />
           <Stack.Screen name="nutrition-settings" options={{ title: 'Macros' }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
+          <Stack.Screen name="whats-new" options={{ title: 'What’s new' }} />
         </Stack>
         <LocalSaveStatus errorsOnly />
         <PlayUpdatePrompt active={!privateContent} />
+        <WhatsNewPrompt active={!privateContent} />
       </View>
       {(!ready || locked) && <AppLockScreen loading={!ready} />}
     </>
