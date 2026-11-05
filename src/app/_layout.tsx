@@ -91,6 +91,7 @@ function AppShell() {
           <Stack.Screen name="tracker/[id]" options={{ title: 'Tracker' }} />
           <Stack.Screen name="craving" options={{ title: 'Craving' }} />
           <Stack.Screen name="savings-goal" options={{ title: 'Savings goal' }} />
+          <Stack.Screen name="progress-trends" options={{ title: 'Progress trends' }} />
           <Stack.Screen name="share-milestone" options={{ title: 'Share progress' }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
