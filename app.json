@@ -50,7 +50,7 @@
           ]
         }
       ],
-      ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning.", "recordAudioAndroid": false }],
+      ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning, and to take photos for your saved routes.", "recordAudioAndroid": false }],
       "./plugins/with-reclaim-signing",
       [
         "expo-splash-screen",
@@ -63,8 +63,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Reclaim to select nutrition labels for food logging.",
-          "cameraPermission": "Allow Reclaim to photograph nutrition labels for food logging.",
+          "photosPermission": "Allow Reclaim to select nutrition labels for food logging and photos for your saved routes.",
+          "cameraPermission": "Allow Reclaim to photograph nutrition labels for food logging and take photos for your saved routes.",
           "microphonePermission": false
         }
       ],

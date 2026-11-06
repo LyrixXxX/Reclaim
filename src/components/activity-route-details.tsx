@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { RoutePhotos } from '@/components/route-photos';
 import { ActivityRoute } from '@/models/tracker';
 import { colors, spacing, font } from '@/theme';
 
@@ -31,11 +32,12 @@ function RouteDetailsEditor({ route, onClose, onSave }: { route: ActivityRoute; 
   return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.shade}><View style={styles.card}>
       <Text style={styles.title}>Route details</Text>
-      <Text style={styles.help}>The route is already saved. Add a name or note if you like.</Text>
+      <Text style={styles.help}>The route is already saved. Add a name, note or photos if you like.</Text>
       <Text style={styles.label}>Name</Text>
       <TextInput accessibilityLabel="Route name" value={name} onChangeText={setName} maxLength={120} placeholder={route ? routeDisplayName(route) : 'Route'} placeholderTextColor={colors.textDim} style={styles.input} />
       <Text style={styles.label}>Notes</Text>
       <TextInput accessibilityLabel="Route notes" value={notes} onChangeText={setNotes} maxLength={2000} multiline placeholder="Anything you want to remember" placeholderTextColor={colors.textDim} style={[styles.input, styles.notes]} />
+      <RoutePhotos routeId={route.id} photos={route.photos} onChange={(photos) => void onSave({ ...route, photos })} />
       <Pressable accessibilityRole="button" disabled={saving} onPress={() => void save()} style={styles.primary}><Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save details'}</Text></Pressable>
       <Pressable accessibilityRole="button" disabled={saving} onPress={onClose} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
     </View></View>

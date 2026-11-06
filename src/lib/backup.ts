@@ -1,3 +1,4 @@
+import { isRoutePhotoName } from './route-photo-names';
 import { isSavedTrail } from './trails';
 import { TrackerState } from '@/models/tracker';
 import { validWaterDate } from '@/lib/water-habit';
@@ -192,6 +193,7 @@ function validateState(value: Record<string, unknown>) {
     || (route.routeStepStatus !== undefined && !['available', 'unavailable', 'partial'].includes(String(route.routeStepStatus)))
     || (route.name !== undefined && (typeof route.name !== 'string' || route.name.length > 120))
     || (route.notes !== undefined && (typeof route.notes !== 'string' || route.notes.length > 2000))
+    || (route.photos !== undefined && (!Array.isArray(route.photos) || !route.photos.every(isRoutePhotoName)))
     || !Array.isArray(route.points)
     || route.points.some((point: unknown) => !isObject(point)
       || typeof point.latitude !== 'number' || !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90

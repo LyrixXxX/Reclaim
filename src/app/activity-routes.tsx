@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityRouteDetails, routeDisplayName } from '@/components/activity-route-details';
 import { HistoryPages } from '@/components/history-pages';
 import { RouteMapPreview } from '@/components/route-map-preview';
+import { RoutePhotos } from '@/components/route-photos';
 import { activityDurationMs, averagePaceMinPerMile, routeMovingDurationMs } from '@/lib/activity';
 import { rasterMapStyle } from '@/lib/activity-map-style';
 import { getMapKey } from '@/lib/activity-maps';
@@ -45,9 +46,10 @@ export default function SavedRoutesScreen() {
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
           <View style={styles.openRow}><Text style={styles.open}>View on map</Text><Chevron size={16} color={colors.activityNav} /></View>
         </Pressable>
+        <RoutePhotos routeId={route.id} photos={route.photos} />
         <View style={styles.actions}>
           <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit details</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this route?', 'This removes the saved route and its GPS points from Reclaim.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteActivityRoute(route.id) }])} style={styles.action}><Text style={styles.deleteText}>Delete</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this route?', route.photos?.length ? 'This removes the saved route, its GPS points and its photos from Reclaim. Gallery copies aren’t touched.' : 'This removes the saved route and its GPS points from Reclaim.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteActivityRoute(route.id) }])} style={styles.action}><Text style={styles.deleteText}>Delete</Text></Pressable>
         </View>
       </View>;
     })}</HistoryPages>

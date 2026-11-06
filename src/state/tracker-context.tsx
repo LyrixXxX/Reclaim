@@ -33,6 +33,7 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
+import { deleteRoutePhotos } from '@/lib/route-photos';
 import { DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
@@ -438,7 +439,10 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       await writer.save(JSON.stringify(next));
       setState(next);
     },
-    deleteActivityRoute: (id) => setState((previous) => ({ ...previous, activityRoutes: (previous.activityRoutes ?? []).filter((route) => route.id !== id) })),
+    deleteActivityRoute: (id) => {
+      deleteRoutePhotos((state.activityRoutes ?? []).find((route) => route.id === id)?.photos);
+      setState((previous) => ({ ...previous, activityRoutes: (previous.activityRoutes ?? []).filter((route) => route.id !== id) }));
+    },
     saveStepGoal: (date, count) => setState((previous) => ({ ...previous, stepGoals: setDailyStepGoal(previous.stepGoals ?? [], date, count) })),
     saveStrengthExercise: (exercise) => setState((previous) => ({ ...previous, strengthExercises: [...(previous.strengthExercises ?? []).filter((item) => item.id !== exercise.id), exercise] })),
     saveWorkoutRoutine: (routine) => setState((previous) => ({ ...previous, workoutRoutines: [...(previous.workoutRoutines ?? []).filter((item) => item.id !== routine.id), routine] })),
