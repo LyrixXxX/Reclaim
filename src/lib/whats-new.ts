@@ -6,6 +6,18 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.70',
+    date: 'November 6, 2026',
+    notes: [
+      'Share a finished route as an image. The map is off unless you turn it on.',
+      'Add photos to your saved routes. They stay on your phone.',
+      'Good habits now have their own badge art, and the Trophy case has separate tabs for good habits and quitting.',
+      'Fixed Home steps sometimes not updating until you reopened the app.',
+      'GPS signal bars now update while you stand still.',
+      'The step goal box is easier to see.',
+    ],
+  },
+  {
     version: '1.0.69',
     date: 'November 6, 2026',
     notes: [
