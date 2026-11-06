@@ -14,8 +14,15 @@ export type TrailResult = {
   longitude: number;
   /** Straight-line miles from the search point. */
   distanceMiles: number;
+  /** Measured from map data, so it's shown as approximate. See trailLengthLabel. */
   lengthMiles?: number;
+  climbFt?: number;
   difficulty?: string;
+  difficultySource?: 'official' | 'osm' | 'estimated';
+  /** Where to drive to, when the trail has a parking lot or trailhead nearby. */
+  parking?: { latitude: number; longitude: number };
+  /** The trail's shape: encoded polylines, space-separated. See decodeTrailPath. */
+  path?: string;
   surface?: string;
   operator?: string;
   address?: string;
@@ -38,7 +45,7 @@ export const OVERPASS_SERVERS = [
 ] as const;
 /** Overpass only adds to Stadia's results, so it gets a short wait per server. */
 const SERVER_TIMEOUT_MS = 12_000;
-const TRAIL_USER_AGENT = 'Reclaim (Android app; https://lyrixstudios.com)';
+export const TRAIL_USER_AGENT = 'Reclaim (Android app; https://lyrixstudios.com)';
 const METERS_PER_MILE = 1609.344;
 /** Named paths are numerous; past this radius only trailheads and hiking routes are searched. */
 const PATH_SEARCH_LIMIT_MILES = 10;
@@ -61,8 +68,10 @@ export function trailQuery(latitude: number, longitude: number, radiusMiles: num
 
 type OverpassElement = { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> };
 
+// "hiking" is the lowest step of a mountaineering scale and gets put on most trails, hard ones too,
+// so it doesn't mean Easy and isn't shown.
 const SAC_SCALE: Record<string, string> = {
-  hiking: 'Easy', mountain_hiking: 'Moderate', demanding_mountain_hiking: 'Challenging',
+  mountain_hiking: 'Moderate', demanding_mountain_hiking: 'Challenging',
   alpine_hiking: 'Difficult', demanding_alpine_hiking: 'Very difficult', difficult_alpine_hiking: 'Expert',
 };
 
@@ -156,7 +165,11 @@ function mergeTrail(a: TrailResult, b: TrailResult): TrailResult {
     id: route?.id ?? (a.id < b.id ? a.id : b.id),
     kind: route ? 'trail' : nearer.kind,
     lengthMiles: route?.lengthMiles ?? a.lengthMiles ?? b.lengthMiles,
+    climbFt: a.climbFt ?? b.climbFt,
     difficulty: a.difficulty ?? b.difficulty,
+    difficultySource: a.difficulty ? a.difficultySource : b.difficultySource,
+    parking: a.parking ?? b.parking,
+    path: a.path ?? b.path,
     surface: nearer.surface ?? a.surface ?? b.surface,
     operator: a.operator ?? b.operator,
     address: a.address ?? b.address,
@@ -267,8 +280,23 @@ export async function trailPhoto(trail: Pick<TrailResult, 'wikidata' | 'wikipedi
   }
   if (!file) return null;
   const data = await json(request, `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=800&titles=${encodeURIComponent(`File:${file}`)}`);
-  const page = (Object.values(data?.query?.pages ?? {}) as { missing?: string; imageinfo?: { thumburl?: string; thumbwidth?: number; thumbheight?: number; descriptionurl?: string; extmetadata?: Record<string, { value?: string }> }[] }[])[0];
-  const info = page && !('missing' in page) ? page.imageinfo?.[0] : undefined;
+  const page = (Object.values(data?.query?.pages ?? {}) as (CommonsPage & { missing?: string })[])[0];
+  return commonsPhoto(page && !('missing' in page) ? page.imageinfo?.[0] : undefined);
+}
+
+/** Words of a name that a photo's title should contain: "CT - Ozone Falls Trail" looks for "ozone falls". */
+export function photoSearchName(name: string) {
+  return name.replace(/^CT\s*[-_]\s*/i, '').replace(/\b(trail ?head|trail|loop|connector|spur)s?\b/gi, ' ').replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+const PHOTO_MAX_MILES = 5;
+
+type CommonsPage = {
+  index?: number; title?: string; coordinates?: { lat: number; lon: number }[];
+  imageinfo?: { thumburl?: string; thumbwidth?: number; thumbheight?: number; descriptionurl?: string; extmetadata?: Record<string, { value?: string }> }[];
+};
+
+function commonsPhoto(info: NonNullable<CommonsPage['imageinfo']>[number] | undefined): TrailPhoto | null {
   if (!info?.thumburl || !info.descriptionurl) return null;
   const meta = info.extmetadata ?? {};
   return {
@@ -279,14 +307,122 @@ export async function trailPhoto(trail: Pick<TrailResult, 'wikidata' | 'wikipedi
   };
 }
 
+/**
+ * A freely licensed photo found by name, for the many trails with no link to one. A wrong photo is
+ * worse than none, and names repeat ("Black Mountain" is also a town in North Carolina), so a file
+ * must be geotagged near the trail and have the whole name in its title. Names of one word are too
+ * common to trust.
+ */
+export async function nearbyTrailPhoto(trail: Pick<TrailResult, 'name' | 'latitude' | 'longitude'>, request: typeof fetch = fetch): Promise<TrailPhoto | null> {
+  const name = photoSearchName(trail.name);
+  const words = name.toLowerCase().split(' ').filter(Boolean);
+  if (words.length < 2) return null;
+  const data = await json(request, `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=10&gsrsearch=${encodeURIComponent(`"${name}" filetype:bitmap`)}&prop=coordinates|imageinfo&iiprop=url|extmetadata&iiurlwidth=800&colimit=max`);
+  const pages = (Object.values(data?.query?.pages ?? {}) as CommonsPage[]).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  for (const page of pages) {
+    const point = page.coordinates?.[0];
+    if (!point || milesBetween(trail, { latitude: point.lat, longitude: point.lon }) > PHOTO_MAX_MILES) continue;
+    const title = (page.title ?? '').toLowerCase().replace(/[-_]+/g, ' ');
+    if (!words.every((word) => title.includes(word))) continue;
+    const photo = commonsPhoto(page.imageinfo?.[0]);
+    if (photo) return photo;
+  }
+  return null;
+}
+
+/** Trail lengths come from map data and can differ from signs, so they're always "about". */
+export function trailLengthLabel(miles: number | undefined) {
+  if (!miles) return undefined;
+  const shown = miles >= 100 ? Math.round(miles).toLocaleString('en-US') : String(Math.round(miles * 10) / 10);
+  return `about ${shown} mi`;
+}
+
+export function trailDifficultyLabel(trail: Pick<TrailResult, 'difficulty' | 'difficultySource'>) {
+  if (!trail.difficulty) return undefined;
+  return trail.difficultySource === 'estimated' ? `${trail.difficulty} (estimated)` : trail.difficulty;
+}
+
+/** The second line of a list row: only what's known, with no blanks. */
+export function trailRowDetails(trail: Pick<TrailResult, 'kind' | 'lengthMiles' | 'difficulty' | 'difficultySource'>, milesAway: number | undefined) {
+  const length = trailLengthLabel(trail.lengthMiles);
+  return [
+    trail.kind === 'trailhead' || trail.kind === 'waterfall' ? trailKindLabel(trail.kind) : undefined,
+    milesAway !== undefined ? `${milesAway} mi away` : undefined,
+    length ? `${length} long` : undefined,
+    trailDifficultyLabel(trail),
+  ].filter(Boolean).join(' · ');
+}
+
+/** Each piece of a trail as a list of [longitude, latitude] points. */
+export function decodeTrailPath(path: string | undefined): [number, number][][] {
+  const lines: [number, number][][] = [];
+  for (const piece of (path ?? '').split(' ')) {
+    let index = 0;
+    let latitude = 0;
+    let longitude = 0;
+    const next = () => {
+      let result = 0;
+      let shift = 0;
+      let byte: number;
+      do {
+        byte = piece.charCodeAt(index) - 63;
+        index += 1;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < piece.length);
+      return result & 1 ? ~(result >> 1) : result >> 1;
+    };
+    const line: [number, number][] = [];
+    while (index < piece.length) {
+      latitude += next();
+      longitude += next();
+      line.push([longitude / 1e5, latitude / 1e5]);
+    }
+    if (line.length > 1) lines.push(line);
+  }
+  return lines;
+}
+
+/** Miles to the nearest point of a trail when its shape is known, or else to its spot on the map. */
+export function milesToPlace(origin: { latitude: number; longitude: number }, place: Pick<TrailResult, 'latitude' | 'longitude' | 'path'>) {
+  let nearest = milesBetween(origin, place);
+  for (const line of decodeTrailPath(place.path)) {
+    for (const [longitude, latitude] of line) nearest = Math.min(nearest, milesBetween(origin, { latitude, longitude }));
+  }
+  return Math.round(nearest * 10) / 10;
+}
+
+export type TrailDatabaseResponse = { trails: TrailResult[]; coverage: 'full' | 'partial' | 'none' };
+
+/** Checks a trail database response. Anything unexpected is treated as no answer. */
+export function parseTrailDatabase(response: unknown): TrailDatabaseResponse | null {
+  const body = response as Partial<TrailDatabaseResponse> | null;
+  if (!body || !Array.isArray(body.trails) || !['full', 'partial', 'none'].includes(body.coverage as string)) return null;
+  const trails = body.trails.filter((trail) => !!trail && typeof trail.id === 'string' && typeof trail.name === 'string'
+    && ['trailhead', 'trail', 'path', 'waterfall'].includes(trail.kind) && Number.isFinite(trail.latitude) && Number.isFinite(trail.longitude) && Number.isFinite(trail.distanceMiles));
+  return { trails, coverage: body.coverage as TrailDatabaseResponse['coverage'] };
+}
+
+/**
+ * The saved copy of a place. Ids can change when a place comes from a different source, so the
+ * same name close by counts too; otherwise a saved trail would look unsaved in new results.
+ */
+export function findSavedTrail(saved: readonly SavedTrail[], place: Pick<TrailResult, 'id' | 'name' | 'latitude' | 'longitude'>) {
+  const name = place.name.toLowerCase();
+  return saved.find((item) => item.id === place.id) ?? saved.find((item) => item.name.toLowerCase() === name && milesBetween(item, place) <= 1);
+}
+
 export type PlaceResult = { label: string; latitude: number; longitude: number };
 
-/** Finds a town, park or ZIP code with Stadia Maps. */
-export async function searchPlace(text: string, key: string, request: typeof fetch = fetch): Promise<PlaceResult | null> {
+/**
+ * Finds a town, park or ZIP code with Stadia Maps. `near` makes close matches win: without it,
+ * "Ozone Falls" finds a place in Arkansas rather than the one in Tennessee.
+ */
+export async function searchPlace(text: string, key: string, request: typeof fetch = fetch, near?: { latitude: number; longitude: number }): Promise<PlaceResult | null> {
   const query = text.trim();
   if (!query) return null;
   if (!key) throw new Error('Place search isn’t available in this build. Use your location instead.');
-  const response = await request(`https://api.stadiamaps.com/geocoding/v1/search?text=${encodeURIComponent(query)}&size=1&api_key=${encodeURIComponent(key)}`);
+  const response = await request(`https://api.stadiamaps.com/geocoding/v1/search?text=${encodeURIComponent(query)}&size=1${near ? `&focus.point.lat=${near.latitude.toFixed(2)}&focus.point.lon=${near.longitude.toFixed(2)}` : ''}&api_key=${encodeURIComponent(key)}`);
   if (!response.ok) throw new Error(`Place search failed (${response.status}). Try again.`);
   const data = await response.json() as { features?: { geometry?: { coordinates?: [number, number] }; properties?: { label?: string; name?: string } }[] };
   const feature = data.features?.[0];
@@ -295,9 +431,10 @@ export async function searchPlace(text: string, key: string, request: typeof fet
   return { label: feature.properties?.label ?? feature.properties?.name ?? query, longitude: coordinates[0], latitude: coordinates[1] };
 }
 
-/** Opens Google Maps (the app when installed) with directions to the trail. */
-export function directionsUrl(trail: Pick<TrailResult, 'latitude' | 'longitude'>) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${trail.latitude.toFixed(6)},${trail.longitude.toFixed(6)}`;
+/** Opens Google Maps (the app when installed) with directions to the parking spot, or else the trail. */
+export function directionsUrl(trail: Pick<TrailResult, 'latitude' | 'longitude' | 'parking'>) {
+  const { latitude, longitude } = trail.parking ?? trail;
+  return `https://www.google.com/maps/dir/?api=1&destination=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
 }
 
 export function trailKindLabel(kind: TrailKind) {

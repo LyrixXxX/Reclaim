@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TrailMedia } from '@/components/trail-media';
 import { getMapKey } from '@/lib/activity-maps';
-import { combineTrails, directionsUrl, milesBetween, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailKindLabel } from '@/lib/trails';
+import { searchTrailDatabase } from '@/lib/trail-database';
+import { combineTrails, directionsUrl, findSavedTrail, milesToPlace, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailDifficultyLabel, trailKindLabel, trailLengthLabel, trailRowDetails } from '@/lib/trails';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout, spacing } from '@/theme';
 
@@ -28,22 +29,29 @@ export default function TrailsScreen() {
   const searchId = useRef(0);
 
   /**
-   * Two sources at once: Stadia answers in about a second and is shown as soon as it does; the
-   * OpenStreetMap search is slower and often busy, so its trails are added when (and if) it answers.
+   * The trail database comes first, since it has lengths and shapes. Where it fully covers the
+   * area, that's the answer. Elsewhere, two more sources run at once: Stadia answers in about a
+   * second and is shown as soon as it does; the OpenStreetMap search is slower and often busy, so
+   * its trails are added when (and if) it answers.
    */
   const runSearch = async (from: Origin, miles: TrailRadius) => {
     const id = ++searchId.current;
     const current = () => id === searchId.current;
-    setBusy('trails'); setError(''); setOrigin(from); setTab('nearby'); setResults(undefined); setFindingMore(true);
+    setBusy('trails'); setError(''); setOrigin(from); setTab('nearby'); setResults(undefined); setFindingMore(false);
+    const database = await searchTrailDatabase(from.latitude, from.longitude, miles);
+    if (!current()) return;
+    if (database?.coverage === 'full') { setResults(database.trails); setBusy(undefined); return; }
+    const known = database?.trails ?? [];
+    setFindingMore(true);
     const more = searchTrails(from.latitude, from.longitude, miles).catch(() => null);
     const quick = await getMapKey().then((key) => searchStadiaTrails(from.latitude, from.longitude, miles, key)).catch(() => [] as TrailResult[]);
     if (!current()) return;
-    if (quick.length) { setResults(quick); setBusy(undefined); }
+    if (quick.length || known.length) { setResults(combineTrails([known, quick])); setBusy(undefined); }
     const extra = await more;
     if (!current()) return;
     setFindingMore(false); setBusy(undefined);
-    if (extra) setResults(combineTrails([quick, extra]));
-    else if (!quick.length) setError('Trails couldn’t be loaded right now. Check your connection and try again.');
+    if (extra) setResults(combineTrails([known, quick, extra]));
+    else if (!quick.length && !known.length) setError(`Trails couldn’t be loaded near ${from.label} right now. Check your connection and try again.`);
   };
 
   const searchNearMe = async (askPermission: boolean) => {
@@ -66,7 +74,10 @@ export default function TrailsScreen() {
     if (!query.trim()) return;
     setBusy('place'); setError('');
     try {
-      const place = await searchPlace(query, await getMapKey());
+      // Never asks for permission here: searching a place has to work without location access.
+      const permission = await Location.getForegroundPermissionsAsync();
+      const last = permission.granted ? await Location.getLastKnownPositionAsync().catch(() => null) : null;
+      const place = await searchPlace(query, await getMapKey(), fetch, last?.coords);
       if (!place) { setBusy(undefined); setError(`No place found for “${query.trim()}”. Try a town, park or ZIP code.`); return; }
       await runSearch({ latitude: place.latitude, longitude: place.longitude, label: place.label }, radius);
     } catch (cause) {
@@ -96,32 +107,32 @@ export default function TrailsScreen() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once, on first open
 
   const saved = sortSavedTrails(savedTrails);
-  const savedById = new Map(savedTrails.map((item) => [item.id, item]));
-  const distanceFrom = (place: Place) => 'distanceMiles' in place ? place.distanceMiles : origin ? Math.round(milesBetween(origin, place) * 10) / 10 : undefined;
+  const distanceFrom = (place: Place) => 'distanceMiles' in place ? place.distanceMiles : origin ? milesToPlace(origin, place) : undefined;
   const openDirections = (place: Place) => { void Linking.openURL(directionsUrl(place)).catch(() => Alert.alert('Directions', 'Google Maps couldn’t be opened.')); };
   const toggleSaved = (place: Place) => {
-    if (savedById.has(place.id)) Alert.alert('Remove from saved?', `${place.name} will be removed from your saved trails.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => removeTrailPlace(place.id) }]);
+    const savedItem = findSavedTrail(savedTrails, place);
+    if (savedItem) Alert.alert('Remove from saved?', `${place.name} will be removed from your saved trails.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => removeTrailPlace(savedItem.id) }]);
     else saveTrailPlace(place as TrailResult);
   };
+  const toggleFavorite = (place: Place) => toggleFavoriteTrailPlace(findSavedTrail(savedTrails, place) ?? place);
 
   const row = (place: Place) => {
-    const savedItem = savedById.get(place.id);
-    const miles = distanceFrom(place);
-    const meta = [trailKindLabel(place.kind), miles !== undefined ? `${miles} mi away` : undefined, place.lengthMiles ? `${place.lengthMiles} mi long` : undefined, place.difficulty].filter(Boolean).join(' · ');
+    const savedItem = findSavedTrail(savedTrails, place);
+    const meta = trailRowDetails(place, distanceFrom(place));
     return <View key={place.id} style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${place.name}. ${meta}. Show details`} onPress={() => setDetails(place)} onLongPress={() => savedItem && toggleSaved(place)} style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.75 }]}>
-        <Text style={styles.rowTitle} numberOfLines={2}>{savedItem?.favorite ? '★ ' : ''}{place.name}</Text>
-        <Text style={styles.muted} numberOfLines={1}>{meta}</Text>
+        <Text style={styles.rowTitle} numberOfLines={2}>{place.name}</Text>
+        <Text style={styles.rowDetails} numberOfLines={2}>{meta}</Text>
       </Pressable>
       <View style={styles.rowActions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Directions to ${place.name}`} onPress={() => openDirections(place)} style={[styles.smallButton, styles.primarySmall]}><Text style={styles.primarySmallText}>Directions</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={savedItem ? `Remove ${place.name} from saved` : `Save ${place.name}`} onPress={() => toggleSaved(place)} style={styles.smallButton}><Text style={styles.smallButtonText}>{savedItem ? 'Saved ✓' : 'Save'}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={savedItem?.favorite ? `Unfavorite ${place.name}` : `Favorite ${place.name}`} accessibilityState={{ selected: !!savedItem?.favorite }} onPress={() => toggleFavoriteTrailPlace(place)} hitSlop={6} style={styles.starButton}><Text style={[styles.star, savedItem?.favorite && styles.starOn]}>{savedItem?.favorite ? '★' : '☆'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Details for ${place.name}`} onPress={() => setDetails(place)} hitSlop={6} style={styles.detailsLink}><Text style={styles.detailsLinkText}>Details ›</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={savedItem?.favorite ? `Unfavorite ${place.name}` : `Favorite ${place.name}`} accessibilityState={{ selected: !!savedItem?.favorite }} onPress={() => toggleFavorite(place)} hitSlop={6} style={styles.starButton}><Text style={[styles.star, savedItem?.favorite && styles.starOn]}>{savedItem?.favorite ? '★' : '☆'}</Text></Pressable>
       </View>
     </View>;
   };
 
-  const detailItem = details ? savedById.get(details.id) : undefined;
+  const detailItem = details ? findSavedTrail(savedTrails, details) : undefined;
   const detailMiles = details ? distanceFrom(details) : undefined;
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -150,34 +161,41 @@ export default function TrailsScreen() {
       <View style={styles.list}>{saved.map(row)}</View>
     </> : <View style={styles.state}><Text style={styles.muted}>Trails you save show up here. Star the ones you want to visit again.</Text></View>}
 
-    <Text style={styles.footnote}>Trail data © OpenStreetMap contributors. Distances are straight-line from where you searched; check conditions and access before you go.</Text>
+    <Text style={styles.footnote}>Trail data © OpenStreetMap contributors. Distances are straight-line from where you searched, and lengths are measured from map data, so they’re approximate. Check conditions and access before you go.</Text>
 
     <Modal visible={!!details} transparent animationType="slide" onRequestClose={() => setDetails(undefined)}>
       <View style={styles.overlay}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close details" onPress={() => setDetails(undefined)} style={StyleSheet.absoluteFill} />
         {details && <SafeAreaView edges={['bottom']} style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>{details.name}</Text>
-          <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${detailMiles} mi away` : ''}</Text>
-          <TrailMedia trail={details} />
-          <View style={styles.facts}>
-            {details.lengthMiles ? <Fact label="Length" value={`${details.lengthMiles} mi`} /> : null}
-            {details.difficulty ? <Fact label="Difficulty" value={details.difficulty} /> : null}
-            {details.surface ? <Fact label="Surface" value={details.surface} /> : null}
-            {details.operator ? <Fact label="Managed by" value={details.operator} /> : null}
-            {details.address ? <Fact label="Address" value={details.address} /> : null}
-            <Fact label="Location" value={`${details.latitude.toFixed(5)}, ${details.longitude.toFixed(5)}`} />
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => openDirections(details)} style={styles.bigButton}><Text style={styles.bigButtonText}>Directions in Google Maps</Text></Pressable>
-          <View style={styles.sheetRow}>
-            <Pressable accessibilityRole="button" onPress={() => toggleSaved(details)} style={[styles.sheetButton]}><Text style={styles.smallButtonText}>{detailItem ? 'Saved ✓' : 'Save'}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => toggleFavoriteTrailPlace(details)} style={[styles.sheetButton, detailItem?.favorite && styles.favoriteOn]}><Text style={[styles.smallButtonText, detailItem?.favorite && styles.starOn]}>{detailItem?.favorite ? '★ Favorite' : '☆ Favorite'}</Text></Pressable>
-          </View>
+          <ScrollView contentContainerStyle={styles.sheetContent}>
+            <Text style={styles.sheetTitle}>{details.name}</Text>
+            <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${detailMiles} mi away` : ''}</Text>
+            {details.lengthMiles ? <View style={styles.lengthBlock}>
+              <Text style={styles.lengthValue}>{capitalize(trailLengthLabel(details.lengthMiles))}</Text>
+              <Text style={styles.muted}>Measured from map data, so it can differ from trail signs. It may be one way rather than a round trip.</Text>
+            </View> : null}
+            <TrailMedia key={details.id} trail={details} />
+            <View style={styles.facts}>
+              {details.climbFt ? <Fact label="Climb" value={`${details.climbFt.toLocaleString('en-US')} ft`} /> : null}
+              {details.difficulty ? <Fact label="Difficulty" value={trailDifficultyLabel(details) ?? details.difficulty} /> : null}
+              {details.surface ? <Fact label="Surface" value={details.surface} /> : null}
+              {details.operator ? <Fact label="Managed by" value={details.operator} /> : null}
+              {details.address ? <Fact label="Address" value={details.address} /> : null}
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => openDirections(details)} style={styles.bigButton}><Text style={styles.bigButtonText}>{details.parking ? 'Directions to parking' : 'Directions in Google Maps'}</Text></Pressable>
+            <View style={styles.sheetRow}>
+              <Pressable accessibilityRole="button" onPress={() => toggleSaved(details)} style={[styles.sheetButton]}><Text style={styles.smallButtonText}>{detailItem ? 'Saved ✓' : 'Save'}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => toggleFavorite(details)} style={[styles.sheetButton, detailItem?.favorite && styles.favoriteOn]}><Text style={[styles.smallButtonText, detailItem?.favorite && styles.starOn]}>{detailItem?.favorite ? '★ Favorite' : '☆ Favorite'}</Text></Pressable>
+            </View>
+          </ScrollView>
         </SafeAreaView>}
       </View>
     </Modal>
   </ScrollView></SafeAreaView>;
 }
+
+const capitalize = (text = '') => text.charAt(0).toUpperCase() + text.slice(1);
 
 function Fact({ label, value }: { label: string; value: string }) {
   return <View style={styles.fact}><Text style={styles.factLabel}>{label}</Text><Text style={styles.factValue}>{value}</Text></View>;
@@ -213,17 +231,22 @@ const styles = StyleSheet.create({
   row: { paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   rowMain: { gap: 3 },
   rowTitle: { color: colors.text, fontSize: 16, fontFamily: font.semibold },
+  rowDetails: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 18 },
+  detailsLink: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
+  detailsLinkText: { color: colors.activityNav, fontSize: 13, fontFamily: font.semibold },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smallButton: { minHeight: 36, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   smallButtonText: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
-  primarySmall: { backgroundColor: colors.activityNav, borderColor: colors.activityNav },
   primarySmallText: { color: colors.background, fontSize: 13, fontFamily: font.bold },
   starButton: { marginLeft: 'auto', width: 40, height: 36, alignItems: 'center', justifyContent: 'center' },
   star: { color: colors.textMuted, fontSize: 22 },
   starOn: { color: '#F2C94C' },
   footnote: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 16, textAlign: 'center', marginTop: 8 },
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16, gap: 10 },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingTop: 10, maxHeight: '90%' },
+  sheetContent: { gap: 10, paddingBottom: 16 },
+  lengthBlock: { gap: 2, marginTop: 2 },
+  lengthValue: { color: colors.text, fontSize: 22, fontFamily: font.bold },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.textDim, alignSelf: 'center', marginBottom: 6 },
   sheetTitle: { color: colors.text, fontSize: 20, fontFamily: font.bold },
   facts: { gap: 8, marginTop: 4 },

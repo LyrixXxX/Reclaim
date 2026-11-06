@@ -1,7 +1,109 @@
-import { directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
+import { decodeTrailPath, findSavedTrail, milesToPlace, nearbyTrailPhoto, parseTrailDatabase, photoSearchName, trailDifficultyLabel, trailLengthLabel, trailRowDetails, directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
 
 const ORIGIN = { latitude: 35.95, longitude: -85.03 };
 const NOW = new Date('2026-11-04T12:00:00Z');
+
+describe('trail database results', () => {
+  const place = { id: 'way/1', name: 'Bluff Trail', kind: 'path' as const, latitude: 35.95, longitude: -85.03, distanceMiles: 1 };
+
+  it('shows lengths as approximate, and nothing when unknown', () => {
+    expect(trailLengthLabel(8.6)).toBe('about 8.6 mi');
+    expect(trailLengthLabel(1615.6)).toBe('about 1,616 mi');
+    expect(trailLengthLabel(undefined)).toBeUndefined();
+    expect(trailLengthLabel(0)).toBeUndefined();
+  });
+
+  it('marks estimated difficulty', () => {
+    expect(trailDifficultyLabel({ difficulty: 'Easy', difficultySource: 'osm' })).toBe('Easy');
+    expect(trailDifficultyLabel({ difficulty: 'Easy', difficultySource: 'estimated' })).toBe('Easy (estimated)');
+    expect(trailDifficultyLabel({})).toBeUndefined();
+  });
+
+  it('builds a list row from only what is known', () => {
+    expect(trailRowDetails({ kind: 'path', lengthMiles: 8.6, difficulty: 'Moderate' }, 3.2)).toBe('3.2 mi away · about 8.6 mi long · Moderate');
+    expect(trailRowDetails({ kind: 'path' }, 3.2)).toBe('3.2 mi away');
+    expect(trailRowDetails({ kind: 'waterfall' }, 1)).toBe('Waterfall · 1 mi away');
+    expect(trailRowDetails({ kind: 'trail', lengthMiles: 2 }, undefined)).toBe('about 2 mi long');
+  });
+
+  it('decodes a trail in several pieces', () => {
+    expect(decodeTrailPath('_p~iF~ps|U_ulLnnqC_mqNvxq`@ _p~iF~ps|U_ulLnnqC')).toEqual([
+      [[-120.2, 38.5], [-120.95, 40.7], [-126.453, 43.252]],
+      [[-120.2, 38.5], [-120.95, 40.7]],
+    ]);
+    expect(decodeTrailPath(undefined)).toEqual([]);
+    expect(decodeTrailPath('_p~iF~ps|U')).toEqual([]);
+  });
+
+  it('measures to the nearest point of a trail with a known shape', () => {
+    const origin = { latitude: 38.5, longitude: -120.2 };
+    expect(milesToPlace(origin, { latitude: 43.252, longitude: -126.453, path: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })).toBe(0);
+    expect(milesToPlace(origin, { latitude: 38.5, longitude: -120.2 })).toBe(0);
+    expect(milesToPlace(origin, { latitude: 39.5, longitude: -120.2 })).toBeCloseTo(69.1, 0);
+  });
+
+  it('accepts a good database response and rejects a bad one', () => {
+    expect(parseTrailDatabase({ trails: [place, { id: 3 }], coverage: 'full' })).toEqual({ trails: [place], coverage: 'full' });
+    expect(parseTrailDatabase({ trails: [], coverage: 'huge' })).toBeNull();
+    expect(parseTrailDatabase({ coverage: 'full' })).toBeNull();
+    expect(parseTrailDatabase(null)).toBeNull();
+  });
+
+  it('sends directions to parking when known', () => {
+    expect(directionsUrl({ latitude: 1, longitude: 2, parking: { latitude: 3, longitude: 4 } })).toContain('destination=3.000000,4.000000');
+  });
+
+  it('finds a saved trail by id, or by name close by', () => {
+    const saved = { id: 'openstreetmap:venue:way/9', name: 'bluff trail', kind: 'trail' as const, latitude: 35.955, longitude: -85.03, savedAt: 'x' };
+    expect(findSavedTrail([saved], place)).toBe(saved);
+    expect(findSavedTrail([{ ...saved, latitude: 36.5 }], place)).toBeUndefined();
+    expect(findSavedTrail([{ ...saved, id: 'way/1', name: 'Other', latitude: 40 }], place)?.id).toBe('way/1');
+  });
+});
+
+describe('place search near you', () => {
+  const found = async () => ({ ok: true, json: async () => ({ features: [] }) });
+
+  it('prefers close matches when a location is known, rounded to a rough area', async () => {
+    const request = jest.fn(found) as unknown as typeof fetch;
+    await searchPlace('Ozone Falls', 'key', request, { latitude: 35.9512, longitude: -85.0345 });
+    expect((request as jest.Mock).mock.calls[0][0]).toContain('focus.point.lat=35.95&focus.point.lon=-85.03');
+  });
+
+  it('sends no location when none is known', async () => {
+    const request = jest.fn(found) as unknown as typeof fetch;
+    await searchPlace('Ozone Falls', 'key', request);
+    expect((request as jest.Mock).mock.calls[0][0]).not.toContain('focus.point');
+  });
+});
+
+describe('trail photos found by name', () => {
+  const page = (title: string, lat?: number) => ({ title, index: 1, coordinates: lat === undefined ? undefined : [{ lat, lon: -85.03 }], imageinfo: [{ thumburl: `https://img/${title}`, descriptionurl: 'https://commons/x', extmetadata: {} }] });
+  const answer = (pages: unknown[]) => (async () => ({ ok: true, json: async () => ({ query: { pages } }) })) as unknown as typeof fetch;
+  const trail = { name: 'Fall Creek Falls Trail', latitude: 35.95, longitude: -85.03 };
+
+  it('searches the distinctive part of a name', () => {
+    expect(photoSearchName('CT - Ozone Falls Trail')).toBe('Ozone Falls');
+    expect(photoSearchName('Twin Arches Loop Trail')).toBe('Twin Arches');
+  });
+
+  it('uses a geotagged photo near the trail with the name in its title', async () => {
+    const found = await nearbyTrailPhoto(trail, answer([page('File:Fall-creek_falls 2.jpg', 35.96)]));
+    expect(found?.url).toContain('Fall-creek_falls');
+  });
+
+  it('refuses photos far away, without a geotag or with another title', async () => {
+    expect(await nearbyTrailPhoto(trail, answer([page('File:Fall Creek Falls.jpg', 36.5)]))).toBeNull();
+    expect(await nearbyTrailPhoto(trail, answer([page('File:Fall Creek Falls.jpg')]))).toBeNull();
+    expect(await nearbyTrailPhoto(trail, answer([page('File:A nearby mushroom.jpg', 35.96)]))).toBeNull();
+  });
+
+  it('does not search names of one word', async () => {
+    const request = jest.fn() as unknown as typeof fetch;
+    expect(await nearbyTrailPhoto({ ...trail, name: 'Ridge Trail' }, request)).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+  });
+});
 
 describe('trail search', () => {
   it('measures miles between points', () => {

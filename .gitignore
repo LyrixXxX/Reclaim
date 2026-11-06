@@ -47,6 +47,10 @@ services/nutrition-ai/.wrangler/
 services/play-purchases/.dev.vars*
 services/play-purchases/.env*
 services/play-purchases/.wrangler/
+services/trails/.dev.vars*
+services/trails/.env*
+services/trails/.wrangler/
+services/trails/.data/
 
 # typescript
 *.tsbuildinfo

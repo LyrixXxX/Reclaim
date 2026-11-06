@@ -78,6 +78,7 @@
     "test": "jest --runInBand",
     "test:relay": "node --test services/nutrition-ai/worker.test.mjs",
     "test:purchases": "node --test services/play-purchases/worker.test.mjs",
+    "test:trails": "node --test services/trails/worker.test.mjs services/trails/import/build-trails.test.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run test:relay"
   },
   "jest": {
