@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { readActiveRoute } from '@/lib/activity-recording';
@@ -21,7 +21,6 @@ let watchers = 0;
 let walkWatchers = 0;
 let stepTimer: ReturnType<typeof setInterval> | undefined;
 let walkTimer: ReturnType<typeof setInterval> | undefined;
-let appState: AppStateStatus = (AppState.currentState ?? 'active') as AppStateStatus;
 let appSubscription: { remove: () => void } | undefined;
 
 const emit = (next: Partial<Snapshot>) => { snapshot = { ...snapshot, ...next }; listeners.forEach((listener) => listener()); };
@@ -41,13 +40,14 @@ async function refreshWalking() {
 }
 
 function schedule() {
-  const active = appState === 'active';
+  // Ask each time: nothing listens while no screen is watching, so a remembered state can go stale and stop refreshes.
+  const active = AppState.currentState === 'active';
   if (active && watchers > 0 && !stepTimer) { void refreshSteps(); stepTimer = setInterval(() => { void refreshSteps(); }, STEP_POLL_MS); }
   if ((!active || watchers === 0) && stepTimer) { clearInterval(stepTimer); stepTimer = undefined; }
   if (active && walkWatchers > 0 && !walkTimer) { void refreshWalking(); walkTimer = setInterval(() => { void refreshWalking(); }, WALK_POLL_MS); }
   if ((!active || walkWatchers === 0) && walkTimer) { clearInterval(walkTimer); walkTimer = undefined; }
   if (watchers + walkWatchers > 0 && !appSubscription) {
-    appSubscription = AppState.addEventListener('change', (status) => { appState = status; schedule(); });
+    appSubscription = AppState.addEventListener('change', schedule);
   } else if (watchers + walkWatchers === 0 && appSubscription) {
     appSubscription.remove(); appSubscription = undefined;
   }
