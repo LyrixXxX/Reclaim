@@ -23,6 +23,9 @@ function symbolFor(condition: string): string {
   return '☀️';
 }
 
+/** Fixes arrive every few seconds, so one this old means the signal has really gone. */
+export const GPS_FIX_STALE_MS = 30_000;
+
 export function gpsAccuracyBars(accuracy: number | null | undefined): number {
   if (accuracy == null || !Number.isFinite(accuracy) || accuracy < 0) return 0;
   if (accuracy <= 10) return 4;

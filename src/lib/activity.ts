@@ -9,6 +9,13 @@ export function pointDistanceMeters(a: ActivityPoint, b: ActivityPoint): number 
   return 12_742_000 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
+/** Small GPS drift shouldn't move the map, so the position only changes after a real move. */
+export function movedEnoughToUpdate(previous: [number, number] | null, next: [number, number], minMeters = 10): boolean {
+  if (!previous) return true;
+  const point = ([longitude, latitude]: [number, number]) => ({ longitude, latitude, timestamp: 0 });
+  return pointDistanceMeters(point(previous), point(next)) >= minMeters;
+}
+
 export function routeDistanceMeters(points: ActivityPoint[]): number {
   return points.reduce((total, point, index) => index && (point.segment ?? 0) === (points[index - 1].segment ?? 0) ? total + pointDistanceMeters(points[index - 1], point) : total, 0);
 }

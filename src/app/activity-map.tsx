@@ -14,7 +14,7 @@ import { RouteMapPreview } from '@/components/route-map-preview';
 import { RoutePreview } from '@/components/route-preview';
 import { RouteElevationCard } from '@/components/route-elevation-card';
 import { activityToday } from '@/lib/activity-overview';
-import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs } from '@/lib/activity';
+import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs, movedEnoughToUpdate } from '@/lib/activity';
 import { motionTotals } from '@/lib/activity-motion';
 import { readRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
 import { formatMiles } from '@/lib/activity-units';
@@ -23,7 +23,7 @@ import { localDateKey } from '@/lib/progress';
 import { routeMapBounds } from '@/lib/route-map-preview';
 import { readRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
 import { compassDirection, directionArrowCoordinates, headingDelta, smoothHeading, usableCompassHeading } from '@/lib/route-compass';
-import { gpsAccuracyBars } from '@/lib/route-weather';
+import { GPS_FIX_STALE_MS, gpsAccuracyBars } from '@/lib/route-weather';
 import { clearFinishedRoute, finishRoute, isRouteRecording, pauseRoute, readActiveRoute, readPendingRoute, resumeRoute, setPendingRoutePhotos, startRoute, ActiveRoute } from '@/lib/activity-recording';
 import { deleteRoutePhotos } from '@/lib/route-photos';
 import { RoutePhotos } from '@/components/route-photos';
@@ -141,15 +141,17 @@ export default function ActivityMapScreen() {
         setGpsAccuracy(initial.coords.accuracy);
         setGpsFixTime(initial.timestamp);
       }
-      locationSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 5000 }, (location) => {
+      // No distance filter: Android would send nothing while standing still, freezing the signal bars.
+      locationSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 0, timeInterval: 5000 }, (location) => {
         if (cancelled) return;
-        const coordinate: [number, number] = [location.coords.longitude, location.coords.latitude];
-        setPosition(coordinate);
-        positionRef.current = coordinate;
-        setCenter((previous) => previous ?? coordinate);
         setGpsAccuracy(location.coords.accuracy);
         setGpsFixTime(location.timestamp);
         setLocationMessage('');
+        const coordinate: [number, number] = [location.coords.longitude, location.coords.latitude];
+        if (!movedEnoughToUpdate(positionRef.current, coordinate)) return;
+        setPosition(coordinate);
+        positionRef.current = coordinate;
+        setCenter((previous) => previous ?? coordinate);
         if (followingRef.current && !(mapModeRef.current === 'follow' && headingRef.current !== null)) cameraRef.current?.easeTo({ center: coordinate, duration: 400 });
       });
       if (cancelled) locationSubscription.remove();
@@ -366,7 +368,7 @@ export default function ActivityMapScreen() {
   const routeStatus = active?.pausedAt ? 'Manually paused' : active?.autoPausedAt ? 'Auto-paused' : recording ? 'Recording…' : 'Interrupted';
   const gpsStatus = !position ? 'Finding signal' : active?.pausedAt ? 'Paused' : recording ? 'Tracking' : 'Needs attention';
   // Fixes only arrive after moving ~10 m, so a still phone keeps its last reading for a couple of minutes.
-  const currentAccuracy = now && now - gpsFixTime > 120_000 ? null : gpsAccuracy;
+  const currentAccuracy = now && now - gpsFixTime > GPS_FIX_STALE_MS ? null : gpsAccuracy;
   const accuracyBars = gpsAccuracyBars(currentAccuracy);
   const today = activityToday(activityRoutes, new Date());
   const openExpandedMap = () => { setCameraStart(viewportRef.current); setMapExpanded(true); };

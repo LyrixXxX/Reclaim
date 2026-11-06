@@ -1,4 +1,4 @@
-import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, routeMovingDurationMs, validActivityPoint } from './activity';
+import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, routeMovingDurationMs, validActivityPoint, movedEnoughToUpdate } from './activity';
 import { createFreshState, completeOnboarding } from './onboarding';
 import { DEFAULT_PREFERENCES, migratePreferences } from './preferences';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
@@ -75,4 +75,10 @@ describe('Activity route data', () => {
     expect(migrated.preferences?.visibleSections).toMatchObject({ activity: true, routes: true });
     expect(migratePreferences({ ...migrated, preferences: { ...migrated.preferences!, visibleSections: { ...migrated.preferences!.visibleSections, routes: false } } }).preferences?.visibleSections.routes).toBe(false);
   });
+});
+
+test('GPS drift does not move the map, but a real move does', () => {
+  expect(movedEnoughToUpdate(null, [-85, 36])).toBe(true);
+  expect(movedEnoughToUpdate([-85, 36], [-85, 36.00002])).toBe(false);
+  expect(movedEnoughToUpdate([-85, 36], [-85, 36.0002])).toBe(true);
 });
