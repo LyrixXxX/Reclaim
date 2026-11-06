@@ -12,7 +12,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     title: 'Widget and shared images',
-    body: 'The home-screen widget shows your featured quit tracker’s name, days, money saved and next milestone, plus today’s steps and estimated calories, wherever your phone shows widgets, including a cover or lock screen. Use a discreet display name if you prefer, or remove the widget. Milestone images are made on your device, show only what the preview shows (money saved is off unless you turn it on), and go only to the app you pick.',
+    body: 'The home-screen widget shows your featured quit tracker’s name, days, money saved and next milestone, plus today’s steps and estimated calories, wherever your phone shows widgets, including a cover or lock screen. Use a discreet display name if you prefer, or remove the widget. Milestone images are made on your device, show only what the preview shows (money saved is off unless you turn it on), and go only to the app you pick. Route images are made the same way and show the route’s name, date and stats and its shape. The map behind it, which shows where you went, is off unless you turn it on.',
   },
   {
     title: 'When information leaves your device',

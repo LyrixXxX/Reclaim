@@ -48,7 +48,8 @@ export default function SavedRoutesScreen() {
         </Pressable>
         <RoutePhotos routeId={route.id} photos={route.photos} />
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit details</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Share ${routeDisplayName(route)}`} onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(route.id)}` as Href)} style={styles.action}><Text style={styles.actionText}>Share</Text></Pressable>
           <Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this route?', route.photos?.length ? 'This removes the saved route, its GPS points and its photos from Reclaim. Gallery copies aren’t touched.' : 'This removes the saved route and its GPS points from Reclaim.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteActivityRoute(route.id) }])} style={styles.action}><Text style={styles.deleteText}>Delete</Text></Pressable>
         </View>
       </View>;

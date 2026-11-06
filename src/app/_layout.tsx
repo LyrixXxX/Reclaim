@@ -96,6 +96,7 @@ function AppShell() {
           <Stack.Screen name="progress-trends" options={{ title: 'Progress trends' }} />
           <Stack.Screen name="trails" options={{ title: 'Find trails' }} />
           <Stack.Screen name="share-milestone" options={{ title: 'Share progress' }} />
+          <Stack.Screen name="share-route" options={{ title: 'Share route' }} />
           <Stack.Screen name="trophy-case" options={{ title: 'Trophy case' }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
