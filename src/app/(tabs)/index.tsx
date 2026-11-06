@@ -45,6 +45,7 @@ export default function DashboardScreen() {
   const widgets = homeSecondaryWidgets(preferences);
   const [now, setNow] = useState(() => new Date());
   const [stepDays, setStepDays] = useState<StepDay[]>([]);
+  const [showAllTiles, setShowAllTiles] = useState(false);
   const cardWidth = '100%' as const;
   const live = useLiveSteps({ enabled: preferences.visibleSections.activity, walking: true });
   const steps = live.steps;
@@ -76,6 +77,11 @@ export default function DashboardScreen() {
     ...(overview.stepProgress ? [{ name: 'Steps', color: goalColor('steps', colors.activityNav), progress: (overview.stepProgress.count ?? 0) / overview.stepProgress.target }] : []),
     ...overview.dailyHabitGoals.map((goal) => ({ name: goal.title, color: goalColor(goal.id, colors.habitsNav), progress: goal.progress })),
   ];
+  const progressTiles = [
+    ...(overview.stepProgress ? [<ProgressTile key="steps" title="Steps" value={`${overview.stepProgress.count === null ? '—' : overview.stepProgress.count.toLocaleString()} / ${overview.stepProgress.target.toLocaleString()}`} detail={stepBurn ? <>Est. calories: <Text style={styles.tileStrong}>{stepBurn.kcal.toLocaleString()}</Text></> : 'Awaiting step data'} progress={(overview.stepProgress.count ?? 0) / overview.stepProgress.target} color={goalColor('steps', colors.activityNav)} href="/activity" />] : []),
+    ...overview.dailyHabitGoals.map((goal) => <ProgressTile key={goal.id} title={goal.title} value={goal.value} detail={goal.short} progress={goal.progress} color={goalColor(goal.id, colors.habitsNav)} href={goal.href} />),
+  ];
+  const hiddenTiles = progressTiles.length - PROGRESS_TILES_SHOWN;
   const ringSize = 132;
   const ringCenter = ringSize / 2;
   const ringRadius = 55;
@@ -108,9 +114,9 @@ export default function DashboardScreen() {
         <View style={styles.legend}>{ringSegments.map((segment) => <View key={segment.name} style={styles.legendRow}><View style={[styles.cardDot, { backgroundColor: segment.color }]} /><Text style={styles.legendName} numberOfLines={1}>{segment.name}</Text><Text style={[styles.legendValue, segment.progress > 1 && { color: segment.color }]}>{Math.round(Math.max(0, segment.progress) * 100)}%</Text></View>)}</View>
         </View>
         <View style={styles.progressTiles}>
-          {overview.stepProgress && <ProgressTile title="Steps" value={`${overview.stepProgress.count === null ? '—' : overview.stepProgress.count.toLocaleString()} / ${overview.stepProgress.target.toLocaleString()}`} detail={stepBurn ? <>Est. calories: <Text style={styles.tileStrong}>{stepBurn.kcal.toLocaleString()}</Text></> : 'Awaiting step data'} progress={(overview.stepProgress.count ?? 0) / overview.stepProgress.target} color={goalColor('steps', colors.activityNav)} href="/activity" />}
-          {overview.dailyHabitGoals.map((goal) => <ProgressTile key={goal.id} title={goal.title} value={goal.value} detail={goal.short} progress={goal.progress} color={goalColor(goal.id, colors.habitsNav)} href={goal.href} />)}
+          {showAllTiles ? progressTiles : progressTiles.slice(0, PROGRESS_TILES_SHOWN)}
         </View>
+        {hiddenTiles > 0 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllTiles }} onPress={() => setShowAllTiles((shown) => !shown)} style={styles.moreTiles}><Text style={styles.moreTilesText}>{showAllTiles ? 'Show less' : `More (${hiddenTiles})`}</Text></Pressable>}
       </View>
     </View>}
 
@@ -161,6 +167,8 @@ function JourneyList({ title, items }: { title: string; items: HomeJourney[] }) 
 }
 
 /** A compact, tappable goal: a name, one bold line, one small line, and a progress bar. */
+const PROGRESS_TILES_SHOWN = 4;
+
 function ProgressTile({ title, value, detail, progress, color, valueColor, href }: { title: string; value: string; detail: ReactNode; progress: number; color: string; valueColor?: string; href: string }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={() => router.push(href as Href)} style={({ pressed }) => [styles.progressTile, pressed && { opacity: 0.8 }]}>
     <View style={styles.tileTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.tileTitle} numberOfLines={1}>{title}</Text></View>
@@ -211,7 +219,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, marginTop: 10, marginBottom: 4 }, headingText: { flex: 1, minWidth: 180, gap: 2 }, greeting: { color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, date: { color: colors.text, ...type.display }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 }, edit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.pill }, editText: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
   panelTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  progressPanel: { ...card, padding: 18, gap: 16 }, panelHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, progressTitle: { color: colors.text, ...type.title }, panelCount: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, progressBody: { gap: 16 }, progressHero: { flexDirection: 'row', alignItems: 'center', gap: 20 }, legend: { flex: 1, gap: 10 }, legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, legendName: { flex: 1, color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, legendValue: { color: colors.text, fontSize: 14, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, goalRing: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center' }, goalRingLabel: { position: 'absolute', alignItems: 'center' }, goalRingValue: { color: colors.text, fontSize: 28, fontFamily: font.extrabold, letterSpacing: -0.6 }, goalRingCaption: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, progressTiles: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, progressTile: { flexBasis: '48%', flexGrow: 0, width: '48.5%', minWidth: 0, height: 108, justifyContent: 'space-between', borderRadius: radius.md, backgroundColor: colors.surfaceRaised, padding: 12 }, tileDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.medium }, tileStrong: { color: colors.text, fontFamily: font.bold }, tileTitle: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, flexShrink: 1 }, tileValue: { color: colors.text, fontSize: 17, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden', marginTop: 4 }, fill: { height: '100%', borderRadius: 3 },
+  progressPanel: { ...card, padding: 18, gap: 16 }, panelHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, progressTitle: { color: colors.text, ...type.title }, panelCount: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, progressBody: { gap: 16 }, progressHero: { flexDirection: 'row', alignItems: 'center', gap: 20 }, legend: { flex: 1, gap: 10 }, legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, legendName: { flex: 1, color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, legendValue: { color: colors.text, fontSize: 14, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, goalRing: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center' }, goalRingLabel: { position: 'absolute', alignItems: 'center' }, goalRingValue: { color: colors.text, fontSize: 28, fontFamily: font.extrabold, letterSpacing: -0.6 }, goalRingCaption: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, moreTiles: { alignSelf: 'stretch', minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: 10 }, moreTilesText: { color: colors.text, fontSize: 14, fontFamily: font.semibold }, progressTiles: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, progressTile: { flexBasis: '48%', flexGrow: 0, width: '48.5%', minWidth: 0, height: 108, justifyContent: 'space-between', borderRadius: radius.md, backgroundColor: colors.surfaceRaised, padding: 12 }, tileDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.medium }, tileStrong: { color: colors.text, fontFamily: font.bold }, tileTitle: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, flexShrink: 1 }, tileValue: { color: colors.text, fontSize: 17, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden', marginTop: 4 }, fill: { height: '100%', borderRadius: 3 },
   arrow: { color: colors.textDim, fontSize: 22, fontFamily: font.medium },
   journeyPanel: { ...card, padding: 18, gap: 12 }, journeyTitle: { color: colors.text, ...type.title }, journeyScroll: { maxHeight: 244 }, journeyScrollContent: { gap: 8 }, journeyHint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center' }, journeyList: { gap: 8 }, journeyGroup: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, letterSpacing: 0.6, textTransform: 'uppercase' }, journeyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 58, padding: 12, borderRadius: radius.md, backgroundColor: colors.surfaceRaised }, journeyName: { color: colors.text, fontSize: 15, fontFamily: font.semibold, marginBottom: 2 },
   nutritionCard: { ...card, padding: 18, gap: 8 },
