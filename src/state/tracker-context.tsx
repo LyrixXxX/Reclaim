@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
@@ -34,7 +34,7 @@ import {
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
 import { deleteRoutePhotos } from '@/lib/route-photos';
-import { DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
+import { assignHomeGoalColors, DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -150,7 +150,9 @@ type TrackerContextValue = TrackerState & {
 const TrackerContext = createContext<TrackerContextValue | null>(null);
 
 export function TrackerProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<TrackerState>(() => migrateStoredState(createFreshState()));
+  const [state, setStoredState] = useState<TrackerState>(() => migrateStoredState(createFreshState()));
+  // Every change passes through here, so a new goal has its own Home color as soon as it exists.
+  const setState = useCallback<typeof setStoredState>((update) => setStoredState((previous) => assignHomeGoalColors(typeof update === 'function' ? update(previous) : update)), []);
   const [hydrated, setHydrated] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -214,7 +216,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       })
       .catch(() => { if (active) setLoadFailed(true); });
     return () => { active = false; };
-  }, [loadAttempt]);
+  }, [setState, loadAttempt]);
 
   useEffect(() => {
     if (hydrated) void writer.save(JSON.stringify(state)).catch(() => undefined);
@@ -518,7 +520,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
         throw new Error('The imported history is open in memory but could not be saved on this device. Keep Reclaim open and use Retry save.');
       }
     },
-  }), [hydrated, state, saveStatus, writer]);
+  }), [setState, hydrated, state, saveStatus, writer]);
 
   return <TrackerContext.Provider value={value}>{hydrated ? needsOnboarding(state)
     ? <OnboardingScreen selected={pickedAreas(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />

@@ -1,6 +1,7 @@
 import { AppPreferences, AppSection, HealthModule, NavigationSection, TrackerState } from '@/models/tracker';
 import { defaultDashboard, normalizeDashboard } from './dashboard';
-import { normalizeHomeGoalColors } from './home-goal-colors';
+import { templateConfig } from './good-habit-templates';
+import { assignGoalColors, ColoredGoal, normalizeHomeGoalColors } from './home-goal-colors';
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   dashboard: defaultDashboard(),
@@ -83,6 +84,24 @@ export function setHomeHabitVisible(state: TrackerState, id: string, visible: bo
 export function setHomeGoalColors(state: TrackerState, selected: Record<string, string>): TrackerState {
   const preferences = state.preferences ?? DEFAULT_PREFERENCES;
   return { ...state, preferences: { ...preferences, homeGoalColors: normalizeHomeGoalColors(selected) } };
+}
+
+/** Everything that can hold a Home color, including sections and habits that are hidden for now. */
+export function homeColorGoals(state: Pick<TrackerState, 'trackers' | 'stepGoals' | 'nutritionGoals'>): ColoredGoal[] {
+  return [
+    ...(state.stepGoals?.length ? [{ id: 'steps', kind: 'steps' }] : []),
+    ...(state.nutritionGoals?.length ? [{ id: 'nutrition', kind: 'nutrition' }] : []),
+    ...state.trackers.filter((item) => !item.archived && (item.habitTemplate === 'water' || templateConfig(item.habitTemplate))).map((item) => ({ id: item.id, kind: item.habitTemplate ?? 'habit' })),
+  ];
+}
+
+/** Returns the same state when every goal already has its own color, so calling it often is cheap. */
+export function assignHomeGoalColors(state: TrackerState): TrackerState {
+  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
+  const saved = preferences.homeGoalColors ?? {};
+  const assigned = assignGoalColors(homeColorGoals(state), saved);
+  const changed = Object.keys(assigned).some((id) => assigned[id] !== saved[id]);
+  return changed ? { ...state, preferences: { ...preferences, homeGoalColors: assigned } } : state;
 }
 
 export function setQuittingTaperingOnHome(state: TrackerState, visible: boolean): TrackerState {
