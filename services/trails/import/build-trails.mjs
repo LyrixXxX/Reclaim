@@ -8,6 +8,12 @@ import { milesBetween, tileId } from '../worker.mjs';
 export const GAP_MILES = 0.5;
 export const PARKING_MILES = 0.3;
 export const MIN_TRAIL_MILES = 0.1;
+/** Routes past this aren't a hike to pick from a list: their parts are listed on their own. */
+export const MAX_ROUTE_MILES = 50;
+/** Connector and spur scraps are how you reach a trail, not somewhere to go. */
+const MIN_LINK_MILES = 0.25;
+const LINK_NAME = /\b(connector|spur)\b/i;
+const MAX_ACCESS_POINTS = 12;
 const METERS_PER_MILE = 1609.344;
 const SIMPLIFY_METERS = 5;
 const PARKING_GRID_DEGREES = 0.01;
@@ -240,6 +246,21 @@ export function findParking(ends, nearby, maxMiles = PARKING_MILES) {
   return best;
 }
 
+/** Every parking lot or trailhead near any part of a trail, trailheads first. */
+export function findAccessPoints(lines, nearby, maxMiles = PARKING_MILES) {
+  const found = new Set();
+  for (const line of lines) {
+    for (const point of line) {
+      for (const spot of nearby(point)) {
+        if (!found.has(spot) && milesBetween(point, spot) <= maxMiles) found.add(spot);
+      }
+    }
+  }
+  return [...found].sort((a, b) => Number(b.trailhead) - Number(a.trailhead)).slice(0, MAX_ACCESS_POINTS);
+}
+
+const encodeAccessPoints = (spots) => spots.map((spot) => `${spot.lat.toFixed(5)},${spot.lon.toFixed(5)}`).join(' ') || null;
+
 /**
  * Tiles safe to call fully imported: every neighbor has map data too. A region's edge tiles may be
  * cut off by the border, and marking them filled would hide trails just over the line, so they
@@ -258,7 +279,7 @@ export function interiorTiles(seen) {
   return interior;
 }
 
-function toRow({ id, name, kind, lines, tags, sacScale, surface, lengthMiles, parking, center, now }) {
+function toRow({ id, name, kind, lines, tags, sacScale, surface, lengthMiles, parking, accessPoints = [], center, now }) {
   const chains = stitchLines(lines);
   return {
     id,
@@ -273,6 +294,7 @@ function toRow({ id, name, kind, lines, tags, sacScale, surface, lengthMiles, pa
     surface: surface ?? null,
     parking_lat: parking?.lat ?? null,
     parking_lon: parking?.lon ?? null,
+    access_points: encodeAccessPoints(accessPoints),
     center_lat: center.lat,
     center_lon: center.lon,
     wikidata: wikidataOf(tags) ?? null,
@@ -336,6 +358,8 @@ export function buildTrails({ ways, relations, points = [], parkingWays = [], co
   }
   const nearby = parkingIndex(spots);
   const parkingFor = (lines) => findParking(stitchLines(lines).flatMap((chain) => [chain[0], chain[chain.length - 1]]), nearby);
+  // Stitching can reorder pieces, but every point stays in the list, which is all this looks at.
+  const accessFor = (lines) => findAccessPoints(lines, nearby);
 
   const rows = [];
   const routeWaysByName = new Map();
@@ -352,12 +376,15 @@ export function buildTrails({ ways, relations, points = [], parkingWays = [], co
     const whole = complete && found.length === wayIds.size;
     const measured = found.reduce((sum, way) => sum + way.miles, 0);
     const tagged = distanceTagMiles(relation.tags.distance);
-    const lines = found.map((way) => way.points);
     // Cut off by the region's border: a sum of what's here would be wrong, so use the tag or nothing.
+    const lengthMiles = whole ? measured : tagged;
+    // Also true of anything too long to measure, such as a proposed route around the whole country.
+    if (lengthMiles === undefined || lengthMiles > MAX_ROUTE_MILES) continue;
+    const lines = found.map((way) => way.points);
     const row = toRow({
       id: `relation/${relation.id}`, name, kind: 'trail', lines, tags: relation.tags,
       sacScale: relation.tags.sac_scale ?? dominant(found, 'sac_scale'), surface: relation.tags.surface ?? dominant(found, 'surface'),
-      lengthMiles: whole ? measured : tagged, parking: parkingFor(lines), center: middlePoint(lines), now,
+      lengthMiles, parking: parkingFor(lines), accessPoints: accessFor(lines), center: middlePoint(lines), now,
     });
     rows.push({ ...row, distanceTag: tagged });
   }
@@ -373,7 +400,7 @@ export function buildTrails({ ways, relations, points = [], parkingWays = [], co
     const route = routeWaysByName.get(key);
     for (const piece of connectedPieces(group)) {
       const miles = piece.reduce((sum, way) => sum + way.miles, 0);
-      if (miles < MIN_TRAIL_MILES) continue;
+      if (miles < MIN_TRAIL_MILES || (miles < MIN_LINK_MILES && LINK_NAME.test(key))) continue;
       // Already listed as a hiking route of the same name.
       if (route && piece.reduce((sum, way) => sum + (route.has(way.id) ? way.miles : 0), 0) >= miles / 2) continue;
       const lines = piece.map((way) => way.points);
@@ -383,7 +410,7 @@ export function buildTrails({ ways, relations, points = [], parkingWays = [], co
         id: `way/${piece.map((way) => String(way.id)).sort()[0]}`,
         name: trailName(piece[0].tags), kind: 'path', lines, tags,
         sacScale: dominant(piece, 'sac_scale'), surface: dominant(piece, 'surface'),
-        lengthMiles: miles, parking: parkingFor(lines), center: middlePoint(lines), now,
+        lengthMiles: miles, parking: parkingFor(lines), accessPoints: accessFor(lines), center: middlePoint(lines), now,
       }));
     }
   }
@@ -395,13 +422,15 @@ export function buildTrails({ ways, relations, points = [], parkingWays = [], co
     if (!name || name.toLowerCase() === 'trailhead' || (!trailhead && !waterfall)) continue;
     rows.push(toRow({
       id: `node/${point.id}`, name, kind: trailhead ? 'trailhead' : 'waterfall', lines: [], tags: point.tags,
+      // A waterfall's own spot can be deep in the woods. A trailhead is its own destination.
+      accessPoints: waterfall ? findAccessPoints([[point]], nearby) : [],
       center: { lat: point.lat, lon: point.lon }, now,
     }));
   }
   return rows;
 }
 
-const ROW_COLUMNS = ['id', 'tile_id', 'name', 'kind', 'path', 'length_mi', 'climb_ft', 'sac_scale', 'surface', 'parking_lat', 'parking_lon', 'center_lat', 'center_lon', 'wikidata', 'wikipedia', 'updated_at'];
+const ROW_COLUMNS = ['id', 'tile_id', 'name', 'kind', 'path', 'length_mi', 'climb_ft', 'sac_scale', 'surface', 'parking_lat', 'parking_lon', 'access_points', 'center_lat', 'center_lon', 'wikidata', 'wikipedia', 'updated_at'];
 
 /** Writes rows and filled tiles to a database that has the trail schema. */
 export function writeTrails(db, rows, tiles, { filledAt = 0, sourceVersion = null } = {}) {

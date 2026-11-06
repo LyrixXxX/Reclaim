@@ -14,7 +14,7 @@ The token's request hash must be the SHA-256 of `` `${path}?${query}\n` ``, usin
 { "trails": [], "coverage": "none", "attribution": "© OpenStreetMap contributors" }
 ```
 
-- `trails` is the 60 closest, in the app's `TrailResult` shape plus `climbFt`, `difficultySource`, `parking` and `path`. Unknown values are left out, as is a `path` over 8,000 characters. `distanceMiles` is to the nearest point of the trail.
+- `trails` is the 60 closest, in the app's `TrailResult` shape plus `climbFt`, `difficultySource`, `parking` and `path`. Unknown values are left out, as is a `path` over 8,000 characters. `distanceMiles` is straight-line to the closest of `accessPoints`, which is also `parking`, or to the nearest point of the trail when none is known.
 - The lowest `sac_scale` value, `hiking`, isn't shown as a difficulty: it gets put on most trails, hard ones too.
 - `coverage` is `full`, `partial` or `none`: how many of the searched tiles have been imported. The app should use its current sources unless it's `full`, since an empty list can mean "not imported yet".
 
@@ -29,12 +29,16 @@ npm install --prefix services/trails/import --ignore-scripts
 node services/trails/import/import-region.mjs services/trails/.data/tennessee-latest.osm.pbf services/trails/.data/tennessee.sqlite
 ```
 
+- Then add climb, which downloads free USGS terrain tiles once and keeps them in `services/trails/.data/terrain`: `node services/trails/import/add-climb.mjs services/trails/.data/tennessee.sqlite services/trails/.data/terrain`. Tennessee needs about 2,000 tiles, about 220 MB.
+- Terrain tiles come from AWS Open Data (`elevation-tiles-prod`). Credit required by the [tile attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md): "United States 3DEP (formerly NED) and global GMTED2010 and SRTM terrain data courtesy of the U.S. Geological Survey." Areas outside the US have other sources to credit.
+- Routes over 50 miles, or too incomplete to measure, are left out: their named sections are listed on their own, but a route with none, such as the Appalachian Trail here, currently isn't listed at all.
+- Climb counts the harder direction of each piece of a trail, so a hike into a gorge includes the climb back out. It isn't measured past 60 miles. Difficulty is a map rating when one exists, or else estimated from climb and length.
 - To try a database in the dev app, run `dev-server.mjs` (the `trails-test-data` entry in `.claude/launch.json`) and `adb reverse tcp:8788 tcp:8788`. It has no Play Integrity check, listens on this PC only, and only development builds call it. Stop it before re-importing, since Windows won't replace an open database.
 - `services/trails/.data/` is gitignored and holds extracts and built databases. Tennessee takes about a minute and makes a 1 MB database.
 - `osm-pbf-parser-node` is pinned because npm marks it as no longer supported. Its code was read before use: it only reads the file and decompresses it. Re-check it before changing versions.
 - `path` holds encoded polylines, with spaces between the pieces of a trail that doesn't connect.
 - Only tiles surrounded by other tiles with map data are marked filled. A border tile may be cut off, so it stays unfilled until the neighboring region is imported.
-- Not done yet: climb, estimated difficulty, the Forest Service merge, parking from the nearest road, and uploading to D1.
+- Not done yet: the Forest Service merge, parking from the nearest road, and uploading to D1.
 
 ## Licensing
 

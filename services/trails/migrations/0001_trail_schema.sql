@@ -23,6 +23,7 @@ CREATE TABLE osm_trails (
   surface TEXT,
   parking_lat REAL,
   parking_lon REAL,
+  access_points TEXT,                -- every parking lot or trailhead along it: "lat,lon lat,lon"
   center_lat REAL NOT NULL,
   center_lon REAL NOT NULL,
   wikidata TEXT,

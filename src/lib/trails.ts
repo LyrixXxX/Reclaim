@@ -21,6 +21,8 @@ export type TrailResult = {
   difficultySource?: 'official' | 'osm' | 'estimated';
   /** Where to drive to, when the trail has a parking lot or trailhead nearby. */
   parking?: { latitude: number; longitude: number };
+  /** Every known way onto the trail, when there's more than one. See nearestAccess. */
+  accessPoints?: { latitude: number; longitude: number }[];
   /** The trail's shape: encoded polylines, space-separated. See decodeTrailPath. */
   path?: string;
   surface?: string;
@@ -169,6 +171,7 @@ function mergeTrail(a: TrailResult, b: TrailResult): TrailResult {
     difficulty: a.difficulty ?? b.difficulty,
     difficultySource: a.difficulty ? a.difficultySource : b.difficultySource,
     parking: a.parking ?? b.parking,
+    accessPoints: a.accessPoints ?? b.accessPoints,
     path: a.path ?? b.path,
     surface: nearer.surface ?? a.surface ?? b.surface,
     operator: a.operator ?? b.operator,
@@ -337,6 +340,17 @@ export function trailLengthLabel(miles: number | undefined) {
   return `about ${shown} mi`;
 }
 
+/** Says it's straight-line, since the drive is often much longer. */
+export function trailDistanceLabel(miles: number) {
+  return `${miles < 0.1 ? 'Under 0.1' : miles} mi straight-line`;
+}
+
+/** Terrain data can't support exact feet, so climb is rounded to the nearest 10. */
+export function trailClimbLabel(feet: number | undefined) {
+  if (!feet) return undefined;
+  return `About ${(Math.round(feet / 10) * 10).toLocaleString('en-US')} ft`;
+}
+
 export function trailDifficultyLabel(trail: Pick<TrailResult, 'difficulty' | 'difficultySource'>) {
   if (!trail.difficulty) return undefined;
   return trail.difficultySource === 'estimated' ? `${trail.difficulty} (estimated)` : trail.difficulty;
@@ -347,7 +361,7 @@ export function trailRowDetails(trail: Pick<TrailResult, 'kind' | 'lengthMiles' 
   const length = trailLengthLabel(trail.lengthMiles);
   return [
     trail.kind === 'trailhead' || trail.kind === 'waterfall' ? trailKindLabel(trail.kind) : undefined,
-    milesAway !== undefined ? `${milesAway} mi away` : undefined,
+    milesAway !== undefined ? trailDistanceLabel(milesAway) : undefined,
     length ? `${length} long` : undefined,
     trailDifficultyLabel(trail),
   ].filter(Boolean).join(' · ');
@@ -383,13 +397,53 @@ export function decodeTrailPath(path: string | undefined): [number, number][][] 
   return lines;
 }
 
-/** Miles to the nearest point of a trail when its shape is known, or else to its spot on the map. */
-export function milesToPlace(origin: { latitude: number; longitude: number }, place: Pick<TrailResult, 'latitude' | 'longitude' | 'path'>) {
-  let nearest = milesBetween(origin, place);
-  for (const line of decodeTrailPath(place.path)) {
-    for (const [longitude, latitude] of line) nearest = Math.min(nearest, milesBetween(origin, { latitude, longitude }));
-  }
-  return Math.round(nearest * 10) / 10;
+type Point = { latitude: number; longitude: number };
+type AccessPlace = Pick<TrailResult, 'latitude' | 'longitude' | 'path' | 'parking' | 'accessPoints'>;
+
+/**
+ * Where to go for a trail, seen from a point: the closest parking lot or trailhead when there is
+ * one, or else the closest point of the trail. Distance and Directions must both use this, so the
+ * number shown is to the same place Google Maps is sent.
+ */
+export function nearestAccess(origin: Point, place: AccessPlace): Point & { parking: boolean } {
+  const spots = place.accessPoints?.length ? place.accessPoints : place.parking ? [place.parking] : [];
+  const line = spots.length ? [] : decodeTrailPath(place.path).flat().map(([longitude, latitude]) => ({ latitude, longitude }));
+  const options: Point[] = spots.length ? spots : line.length ? line : [place];
+  let best = options[0];
+  for (const option of options) if (milesBetween(origin, option) < milesBetween(origin, best)) best = option;
+  return { latitude: best.latitude, longitude: best.longitude, parking: spots.length > 0 };
+}
+
+export function milesToPlace(origin: Point, place: AccessPlace) {
+  return Math.round(milesBetween(origin, nearestAccess(origin, place)) * 10) / 10;
+}
+
+export type DriveRoute = { miles: number; minutes: number };
+
+/**
+ * The real driving distance and time from Stadia Maps. Each request uses paid credits, so call it
+ * only when someone opens a trail, never for a whole list. The start is rounded to about 100 yards,
+ * which is enough for a route and doesn't send an exact position. Null when no route is found.
+ */
+export async function drivingRoute(from: Point, to: Point, key: string, request: typeof fetch = fetch): Promise<DriveRoute | null> {
+  if (!key) return null;
+  const response = await request(`https://api.stadiamaps.com/route/v1?api_key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      locations: [{ lat: Number(from.latitude.toFixed(3)), lon: Number(from.longitude.toFixed(3)) }, { lat: to.latitude, lon: to.longitude }],
+      costing: 'auto', units: 'miles',
+    }),
+  });
+  if (!response.ok) return null;
+  const summary = (await response.json() as { trip?: { summary?: { length?: number; time?: number } } }).trip?.summary;
+  if (!Number.isFinite(summary?.length) || !Number.isFinite(summary?.time)) return null;
+  return { miles: Math.round(summary!.length! * 10) / 10, minutes: Math.max(1, Math.round(summary!.time! / 60)) };
+}
+
+export function driveLabel({ miles, minutes }: DriveRoute) {
+  const time = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+  return `About ${time} drive (${miles} mi)`;
 }
 
 export type TrailDatabaseResponse = { trails: TrailResult[]; coverage: 'full' | 'partial' | 'none' };
@@ -431,9 +485,9 @@ export async function searchPlace(text: string, key: string, request: typeof fet
   return { label: feature.properties?.label ?? feature.properties?.name ?? query, longitude: coordinates[0], latitude: coordinates[1] };
 }
 
-/** Opens Google Maps (the app when installed) with directions to the parking spot, or else the trail. */
-export function directionsUrl(trail: Pick<TrailResult, 'latitude' | 'longitude' | 'parking'>) {
-  const { latitude, longitude } = trail.parking ?? trail;
+/** Opens Google Maps (the app when installed) with directions to the closest way onto the trail. */
+export function directionsUrl(trail: AccessPlace, origin?: Point) {
+  const { latitude, longitude } = origin ? nearestAccess(origin, trail) : trail.parking ?? trail;
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
 }
 

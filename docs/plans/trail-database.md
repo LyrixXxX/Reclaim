@@ -1,6 +1,6 @@
 # Trail database: Phase 1 plan
 
-Status, November 5, 2026: the Worker skeleton and the Tennessee import run on the PC, and the new Find trails screens use them in development builds through a test server. Nothing is deployed, so release builds keep today's trail sources until `EXPO_PUBLIC_RECLAIM_TRAILS_URL` is set. Climb and estimated difficulty aren't built yet.
+Status, November 5, 2026: the Worker skeleton and the Tennessee import run on the PC, and the new Find trails screens use them in development builds through a test server. Nothing is deployed, so release builds keep today's trail sources until `EXPO_PUBLIC_RECLAIM_TRAILS_URL` is set. 
 
 Decided: map-measured lengths show as "about X mi". In 8 trails checked against published figures, 3 were close and 5 were off by 13% or more.
 
@@ -129,7 +129,9 @@ The API response merges these into the same `TrailResult` shape the app uses now
 4. Add up the rises larger than 3 m, so noise doesn't count as climbing.
 5. Store the total ascent in feet.
 
-For loops and out-and-backs the climb is one direction; label it "climb", not "elevation gain round trip".
+Each piece of a trail counts its harder direction, since a map line can point either way and a hike into a gorge needs the climb back out. Label it "climb", not "elevation gain round trip".
+
+Terrain data is the free USGS tile set on AWS Open Data, chosen over Stadia Elevation (5 credits per request) because it has no ongoing cost and runs on the PC.
 
 **Difficulty,** using the first source available:
 1. **Forest Service `trail_class`:**
@@ -177,6 +179,10 @@ For loops and out-and-backs the climb is one direction; label it "climb", not "e
 4. **Forest Service merge.** Match by name and distance, then prefer official miles and class.
 5. **App switch-over.** Call the Worker first, fall back to the current sources, update the row and details sheet, update privacy text.
 6. **On-demand tiles** for areas outside the imported states, with the 30-day refresh.
+
+## Driving distance
+
+The list shows straight-line miles to the closest way onto a trail. Opening a trail looks up the real drive from Stadia Routing at 20 credits a request, cached for the session. Doing this for every row would be about 600 credits a search, so it's limited to details unless ad income justifies more.
 
 ## Later idea: lengths from walked routes (not started)
 

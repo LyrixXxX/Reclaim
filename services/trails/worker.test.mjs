@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { requestHash } from '../nutrition-ai/play-integrity.mjs';
 import { encodePolyline } from './import/build-trails.mjs';
-import { decodePath, handleRequest, milesBetween, parseSearch, tileId, tilesInRadius } from './worker.mjs';
+import { decodePath, estimateDifficulty, handleRequest, milesBetween, parseSearch, tileId, tilesInRadius } from './worker.mjs';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
 const GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ client_email: 'relay@example.test', private_key: privateKey });
@@ -169,21 +169,56 @@ test('returns nearby trails closest first, in the app shape', async () => {
   const body = await response.json();
   assert.deepEqual(body.trails.map((trail) => trail.id), ['relation/1', 'relation/2']);
   assert.deepEqual(body.trails[0], {
-    id: 'relation/1', name: 'Ozone Falls Trail', kind: 'trail', latitude: 35.951, longitude: -85.03, distanceMiles: 0.1,
+    id: 'relation/1', name: 'Ozone Falls Trail', kind: 'trail', latitude: 35.951, longitude: -85.03, distanceMiles: 0,
     lengthMiles: 0.8, climbFt: 180, difficulty: 'Moderate', difficultySource: 'osm', surface: 'Fine gravel',
     parking: { latitude: 35.95, longitude: -85.03 }, path, wikidata: 'Q1', wikipedia: 'en:Ozone Falls',
   });
   assert.deepEqual(Object.keys(body.trails[1]).sort(), ['distanceMiles', 'id', 'kind', 'latitude', 'longitude', 'name']);
-  assert.equal(body.attribution, '© OpenStreetMap contributors');
+  assert.equal(body.attribution, '© OpenStreetMap contributors. Terrain data courtesy of the U.S. Geological Survey.');
 });
 
-test('distance is to the nearest point of the trail, not its middle', async () => {
+test('distance and parking are the closest way onto the trail, not a line passing nearby', async () => {
+  const db = fakeD1();
+  const path = encodePolyline([{ lat: 35.951, lon: -85.03 }, { lat: 36.05, lon: -85.03 }]);
+  db.sqlite.exec('DELETE FROM osm_trails');
+  addTrail(db, { lat: 36.0, lon: -85.03, path, parking_lat: 36.05, parking_lon: -85.03 });
+  db.sqlite.prepare("UPDATE osm_trails SET access_points = '36.05000,-85.03000 35.98000,-85.03000'").run();
+  const { trails } = await (await search(CROSSVILLE, { db })).json();
+  assert.equal(trails[0].distanceMiles, 2.1, 'to the closer lot, not the 0.1 mile trail line');
+  assert.deepEqual(trails[0].parking, { latitude: 35.98, longitude: -85.03 });
+  assert.equal(trails[0].accessPoints.length, 2);
+});
+
+test('with no known parking, distance is to the nearest point of the trail, not its middle', async () => {
   const db = fakeD1();
   const path = `${encodePolyline([{ lat: 36.05, lon: -85.03 }, { lat: 36.0, lon: -85.03 }])} ${encodePolyline([{ lat: 35.951, lon: -85.03 }, { lat: 35.96, lon: -85.03 }])}`;
   addTrail(db, { lat: 36.0, lon: -85.03, path });
   const { trails } = await (await search(CROSSVILLE, { db })).json();
   assert.equal(trails[0].distanceMiles, 0.1);
   assert.equal(decodePath(path).length, 4);
+});
+
+test('estimates difficulty from climb and length', () => {
+  assert.equal(estimateDifficulty(50, 1), 'Easy');
+  assert.equal(estimateDifficulty(625, 2), 'Moderate');
+  assert.equal(estimateDifficulty(1100, 5), 'Moderately strenuous');
+  assert.equal(estimateDifficulty(2000, 6), 'Strenuous');
+  assert.equal(estimateDifficulty(3000, 8), 'Very strenuous');
+  assert.equal(estimateDifficulty(0, 2), 'Easy', 'flat is easy');
+  assert.equal(estimateDifficulty(null, 2), undefined);
+  assert.equal(estimateDifficulty(100, null), undefined);
+  assert.equal(estimateDifficulty(3000, 8, { name: 'Clarksville Greenway' }), 'Moderate');
+  assert.equal(estimateDifficulty(3000, 8, { name: 'River Walk', surface: 'asphalt' }), 'Moderate');
+  assert.equal(estimateDifficulty(50, 1, { name: 'Short Greenway' }), 'Easy');
+});
+
+test('labels a difficulty by where it came from, and a map rating wins', async () => {
+  const db = fakeD1();
+  addTrail(db, { id: 'way/1', lat: 35.951, lon: -85.03, climb_ft: 1100, length_mi: 5 });
+  addTrail(db, { id: 'way/2', name: 'Rated', lat: 35.952, lon: -85.03, climb_ft: 50, length_mi: 1, sac_scale: 'demanding_mountain_hiking' });
+  addTrail(db, { id: 'way/3', name: 'Lowest step', lat: 35.953, lon: -85.03, climb_ft: 50, length_mi: 1, sac_scale: 'hiking' });
+  const { trails } = await (await search(CROSSVILLE, { db })).json();
+  assert.deepEqual(trails.map((trail) => [trail.difficulty, trail.difficultySource]), [['Moderately strenuous', 'estimated'], ['Challenging', 'osm'], ['Easy', 'estimated']]);
 });
 
 test('the lowest mountaineering rating is not shown as easy', async () => {

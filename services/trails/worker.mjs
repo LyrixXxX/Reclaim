@@ -6,6 +6,7 @@ const MAX_RADIUS_MILES = 50;
 const MAX_TRAIL_RESULTS = 60; // Matches src/lib/trails.ts.
 const TILES_PER_DEGREE = 10;
 const D1_MAX_BOUND_PARAMETERS = 100;
+const ATTRIBUTION = '© OpenStreetMap contributors. Terrain data courtesy of the U.S. Geological Survey.';
 const TILE_MARGIN_MILES = 1; // Tile edges curve at distance; never drop one the circle might touch.
 const MAX_PATH_CHARACTERS = 8000; // Keeps a search small. Only the longest few long-distance routes go over.
 
@@ -15,6 +16,23 @@ const SAC_SCALE = {
   mountain_hiking: 'Moderate', demanding_mountain_hiking: 'Challenging',
   alpine_hiking: 'Difficult', demanding_alpine_hiking: 'Very difficult', difficult_alpine_hiking: 'Expert',
 };
+
+const PAVED_SURFACE = new Set(['asphalt', 'concrete', 'paved', 'paving_stones']);
+
+/**
+ * The Shenandoah National Park rating: the square root of climb in feet x 2 x miles. Based on climb
+ * and length alone, so it's always shown as an estimate. Unmeasured trails get no rating. The formula
+ * counts distance heavily, which suits the woods but not a long paved greenway, so those stop at Moderate.
+ */
+export function estimateDifficulty(climbFt, miles, { name = '', surface } = {}) {
+  if (climbFt == null || !miles) return undefined;
+  const rating = Math.sqrt(climbFt * 2 * miles);
+  if (rating < 50) return 'Easy';
+  if (rating < 100 || PAVED_SURFACE.has(surface) || /\bgreenway\b/i.test(name)) return 'Moderate';
+  if (rating < 150) return 'Moderately strenuous';
+  if (rating < 200) return 'Strenuous';
+  return 'Very strenuous';
+}
 
 export default { fetch: (request, env) => handleRequest(request, env) };
 
@@ -107,7 +125,7 @@ export function tilesInRadius({ lat, lon, radius }) {
   return [...found];
 }
 
-const TRAIL_COLUMNS = 'id, name, kind, path, length_mi, climb_ft, sac_scale, surface, parking_lat, parking_lon, center_lat, center_lon, wikidata, wikipedia';
+const TRAIL_COLUMNS = 'id, name, kind, path, length_mi, climb_ft, sac_scale, surface, parking_lat, parking_lon, access_points, center_lat, center_lon, wikidata, wikipedia';
 
 export async function findTrails(db, search) {
   const tiles = tilesInRadius(search);
@@ -129,7 +147,7 @@ export async function findTrails(db, search) {
     .slice(0, MAX_TRAIL_RESULTS);
   // An empty list from an area not imported yet is different from an area with no trails.
   const coverage = filled === 0 ? 'none' : filled === tiles.length ? 'full' : 'partial';
-  return { trails, coverage, attribution: '© OpenStreetMap contributors' };
+  return { trails, coverage, attribution: ATTRIBUTION };
 }
 
 /** Encoded polylines, space-separated, to a list of points. */
@@ -160,28 +178,55 @@ export function decodePath(path) {
   return points;
 }
 
-/** How far to the trail itself, not its middle: a 200-mile trail can pass right by the search point. */
-function milesToTrail(row, search) {
-  let nearest = milesBetween(search, { lat: row.center_lat, lon: row.center_lon });
-  for (const point of decodePath(row.path)) nearest = Math.min(nearest, milesBetween(search, point));
-  return nearest;
+function accessPoints(row) {
+  const points = (row.access_points ?? '').split(' ').filter(Boolean).map((text) => {
+    const [lat, lon] = text.split(',').map(Number);
+    return { lat, lon };
+  });
+  if (row.parking_lat != null && row.parking_lon != null && !points.some((point) => point.lat === row.parking_lat && point.lon === row.parking_lon)) points.push({ lat: row.parking_lat, lon: row.parking_lon });
+  return points;
+}
+
+function nearestOf(search, points) {
+  let best;
+  let bestMiles = Infinity;
+  for (const point of points) {
+    const miles = milesBetween(search, point);
+    if (miles < bestMiles) { bestMiles = miles; best = point; }
+  }
+  return best ? { point: best, miles: bestMiles } : undefined;
+}
+
+/**
+ * How far to where you'd actually go: the closest parking lot or trailhead when there is one. A
+ * trail passing behind a house isn't "close" if the way onto it is miles off, and this must match
+ * where Directions goes. With no known access, it's the nearest point of the trail.
+ */
+function milesToAccess(row, search, access) {
+  if (access) return access.miles;
+  const onTrail = nearestOf(search, decodePath(row.path));
+  return onTrail ? onTrail.miles : milesBetween(search, { lat: row.center_lat, lon: row.center_lon });
 }
 
 function toTrailResult(row, search) {
-  const difficulty = SAC_SCALE[row.sac_scale];
+  const points = accessPoints(row);
+  const access = nearestOf(search, points);
+  const rated = SAC_SCALE[row.sac_scale];
+  const difficulty = rated ?? estimateDifficulty(row.climb_ft, row.length_mi, row);
   return {
     id: row.id,
     name: row.name,
     kind: row.kind,
     latitude: row.center_lat,
     longitude: row.center_lon,
-    distanceMiles: Math.round(milesToTrail(row, search) * 10) / 10,
+    distanceMiles: Math.round(milesToAccess(row, search, access) * 10) / 10,
     lengthMiles: row.length_mi ?? undefined,
     climbFt: row.climb_ft ?? undefined,
     difficulty,
-    difficultySource: difficulty ? 'osm' : undefined,
+    difficultySource: rated ? 'osm' : difficulty ? 'estimated' : undefined,
     surface: row.surface ? row.surface.charAt(0).toUpperCase() + row.surface.slice(1).replace(/_/g, ' ') : undefined,
-    parking: row.parking_lat != null && row.parking_lon != null ? { latitude: row.parking_lat, longitude: row.parking_lon } : undefined,
+    parking: access ? { latitude: access.point.lat, longitude: access.point.lon } : undefined,
+    accessPoints: points.length > 1 ? points.map((point) => ({ latitude: point.lat, longitude: point.lon })) : undefined,
     path: row.path && row.path.length <= MAX_PATH_CHARACTERS ? row.path : undefined,
     wikidata: row.wikidata ?? undefined,
     wikipedia: row.wikipedia ?? undefined,

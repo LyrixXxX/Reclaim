@@ -136,14 +136,47 @@ test('a route is measured from its ways, unnamed ones too, and replaces same-nam
   assert.ok(Math.abs(rows[0].distanceTag - 2.98) < 0.01);
 });
 
-test('a route cut off by the border uses its distance tag, or shows no length', () => {
+test('a route cut off by the border uses its distance tag, and is left out without one', () => {
   const input = sample();
   addWay(input, 1, line(input.coordinates, 100, START, 2), { highway: 'path' });
-  input.relations.push({ id: 5, members: [{ type: 'way', ref: 1 }, { type: 'way', ref: 999 }], tags: { type: 'route', route: 'hiking', name: 'Long Trail', distance: '100 mi' } });
-  input.relations.push({ id: 6, members: [{ type: 'way', ref: 1 }, { type: 'way', ref: 999 }], tags: { type: 'route', route: 'hiking', name: 'Other Long Trail' } });
-  const [tagged, untagged] = buildTrails(input);
-  assert.equal(lengthOf(tagged), 100);
-  assert.equal(lengthOf(untagged), null);
+  input.relations.push({ id: 5, members: [{ type: 'way', ref: 1 }, { type: 'way', ref: 999 }], tags: { type: 'route', route: 'hiking', name: 'Border Trail', distance: '40 mi' } });
+  input.relations.push({ id: 6, members: [{ type: 'way', ref: 1 }, { type: 'way', ref: 999 }], tags: { type: 'route', route: 'hiking', name: 'American Perimeter Trail' } });
+  const rows = buildTrails(input);
+  assert.deepEqual(rows.map((row) => [row.name, row.length_mi]), [['Border Trail', 40]]);
+});
+
+test('routes too long to be a hike are left out, and their parts stay', () => {
+  const input = sample();
+  addWay(input, 1, line(input.coordinates, 100, START, 8), { highway: 'path', name: 'CT - Daddy\'s Creek Trail' });
+  input.relations.push({ id: 5, members: [{ type: 'way', ref: 1 }, { type: 'way', ref: 999 }], tags: { type: 'route', route: 'hiking', name: 'Great Eastern Trail', distance: '1600 mi' } });
+  assert.deepEqual(buildTrails(input).map((row) => row.name), ['CT - Daddy\'s Creek Trail']);
+});
+
+test('short connectors and spurs are left out, but long ones stay', () => {
+  const input = sample();
+  addWay(input, 1, line(input.coordinates, 100, START, 0.15), { highway: 'path', name: 'CT - Trailhead Connector' });
+  addWay(input, 2, line(input.coordinates, 200, { lat: START.lat + 1, lon: START.lon }, 1), { highway: 'path', name: 'Long Connector' });
+  assert.deepEqual(buildTrails(input).map((row) => row.name), ['Long Connector']);
+});
+
+test('keeps every access point along a trail, not just at its ends', () => {
+  const input = sample();
+  addWay(input, 1, line(input.coordinates, 100, START, 4, 8), { highway: 'path', name: 'Long Trail' });
+  input.points.push({ id: 50, lat: START.lat + 2 * MILE, lon: START.lon + 0.001, tags: { highway: 'trailhead' } });
+  input.points.push({ id: 51, lat: START.lat - 0.1 * MILE, lon: START.lon, tags: { amenity: 'parking' } });
+  input.points.push({ id: 52, lat: START.lat + 2 * MILE, lon: START.lon + 0.1, tags: { amenity: 'parking' } });
+  const [row] = buildTrails(input);
+  const points = row.access_points.split(' ');
+  assert.equal(points.length, 2, 'the far lot is left out');
+  assert.equal(points[0], `${(START.lat + 2 * MILE).toFixed(5)},${(START.lon + 0.001).toFixed(5)}`, 'trailheads first');
+});
+
+test('a waterfall lists parking near it', () => {
+  const input = sample();
+  input.points.push({ id: 1, ...START, tags: { waterway: 'waterfall', name: 'Ozone Falls' } });
+  input.points.push({ id: 2, lat: START.lat + 0.1 * MILE, lon: START.lon, tags: { amenity: 'parking' } });
+  const [row] = buildTrails(input);
+  assert.equal(row.access_points.split(' ').length, 1);
 });
 
 test('a route made of routes counts each way once and survives a loop in its own parts', () => {

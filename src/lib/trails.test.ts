@@ -1,4 +1,4 @@
-import { decodeTrailPath, findSavedTrail, milesToPlace, nearbyTrailPhoto, parseTrailDatabase, photoSearchName, trailDifficultyLabel, trailLengthLabel, trailRowDetails, directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
+import { decodeTrailPath, driveLabel, drivingRoute, findSavedTrail, milesToPlace, nearestAccess, trailClimbLabel, trailDistanceLabel, nearbyTrailPhoto, parseTrailDatabase, photoSearchName, trailDifficultyLabel, trailLengthLabel, trailRowDetails, directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
 
 const ORIGIN = { latitude: 35.95, longitude: -85.03 };
 const NOW = new Date('2026-11-04T12:00:00Z');
@@ -13,6 +13,14 @@ describe('trail database results', () => {
     expect(trailLengthLabel(0)).toBeUndefined();
   });
 
+  it('rounds climb and says when a trail is right here', () => {
+    expect(trailClimbLabel(903)).toBe('About 900 ft');
+    expect(trailClimbLabel(2604)).toBe('About 2,600 ft');
+    expect(trailClimbLabel(undefined)).toBeUndefined();
+    expect(trailDistanceLabel(0)).toBe('Under 0.1 mi straight-line');
+    expect(trailDistanceLabel(0.1)).toBe('0.1 mi straight-line');
+  });
+
   it('marks estimated difficulty', () => {
     expect(trailDifficultyLabel({ difficulty: 'Easy', difficultySource: 'osm' })).toBe('Easy');
     expect(trailDifficultyLabel({ difficulty: 'Easy', difficultySource: 'estimated' })).toBe('Easy (estimated)');
@@ -20,9 +28,9 @@ describe('trail database results', () => {
   });
 
   it('builds a list row from only what is known', () => {
-    expect(trailRowDetails({ kind: 'path', lengthMiles: 8.6, difficulty: 'Moderate' }, 3.2)).toBe('3.2 mi away · about 8.6 mi long · Moderate');
-    expect(trailRowDetails({ kind: 'path' }, 3.2)).toBe('3.2 mi away');
-    expect(trailRowDetails({ kind: 'waterfall' }, 1)).toBe('Waterfall · 1 mi away');
+    expect(trailRowDetails({ kind: 'path', lengthMiles: 8.6, difficulty: 'Moderate' }, 3.2)).toBe('3.2 mi straight-line · about 8.6 mi long · Moderate');
+    expect(trailRowDetails({ kind: 'path' }, 3.2)).toBe('3.2 mi straight-line');
+    expect(trailRowDetails({ kind: 'waterfall' }, 1)).toBe('Waterfall · 1 mi straight-line');
     expect(trailRowDetails({ kind: 'trail', lengthMiles: 2 }, undefined)).toBe('about 2 mi long');
   });
 
@@ -49,6 +57,23 @@ describe('trail database results', () => {
     expect(parseTrailDatabase(null)).toBeNull();
   });
 
+  it('measures and navigates to the same closest way onto a trail', () => {
+    const origin = { latitude: 36, longitude: -85 };
+    const near = { latitude: 36.02, longitude: -85 };
+    const far = { latitude: 36.5, longitude: -85 };
+    const trail = { latitude: 36.2, longitude: -85, accessPoints: [far, near], parking: far, path: '_p~iF~ps|U_ulLnnqC' };
+    expect(nearestAccess(origin, trail)).toEqual({ ...near, parking: true });
+    expect(milesToPlace(origin, trail)).toBeCloseTo(1.4, 1);
+    expect(directionsUrl(trail, origin)).toContain('destination=36.020000,-85.000000');
+    expect(nearestAccess(origin, { latitude: 36.2, longitude: -85 })).toEqual({ latitude: 36.2, longitude: -85, parking: false });
+  });
+
+  it('never measures to a passing trail line when parking is known', () => {
+    const origin = { latitude: 38.5, longitude: -120.2 };
+    const parking = { latitude: 39.5, longitude: -120.2 };
+    expect(milesToPlace(origin, { latitude: 39, longitude: -120, parking, path: '_p~iF~ps|U_ulLnnqC' })).toBeCloseTo(69.1, 0);
+  });
+
   it('sends directions to parking when known', () => {
     expect(directionsUrl({ latitude: 1, longitude: 2, parking: { latitude: 3, longitude: 4 } })).toContain('destination=3.000000,4.000000');
   });
@@ -58,6 +83,35 @@ describe('trail database results', () => {
     expect(findSavedTrail([saved], place)).toBe(saved);
     expect(findSavedTrail([{ ...saved, latitude: 36.5 }], place)).toBeUndefined();
     expect(findSavedTrail([{ ...saved, id: 'way/1', name: 'Other', latitude: 40 }], place)?.id).toBe('way/1');
+  });
+});
+
+describe('driving routes', () => {
+  const from = { latitude: 35.94912, longitude: -85.02689 };
+  const to = { latitude: 35.88, longitude: -84.81 };
+  const answer = (body: unknown, ok = true) => jest.fn(async () => ({ ok, json: async () => body })) as unknown as typeof fetch;
+
+  it('reads miles and minutes, in a request with a rounded start', async () => {
+    const request = answer({ trip: { summary: { length: 15.372, time: 1113.9 } } });
+    expect(await drivingRoute(from, to, 'key', request)).toEqual({ miles: 15.4, minutes: 19 });
+    const [url, init] = (request as jest.Mock).mock.calls[0];
+    expect(url).toContain('/route/v1?api_key=key');
+    expect(JSON.parse(init.body).locations).toEqual([{ lat: 35.949, lon: -85.027 }, { lat: 35.88, lon: -84.81 }]);
+    expect(JSON.parse(init.body).units).toBe('miles');
+  });
+
+  it('gives no route on failure, or without a key', async () => {
+    expect(await drivingRoute(from, to, 'key', answer({}, false))).toBeNull();
+    expect(await drivingRoute(from, to, 'key', answer({ trip: {} }))).toBeNull();
+    const request = answer({});
+    expect(await drivingRoute(from, to, '', request)).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('writes short and long drives', () => {
+    expect(driveLabel({ miles: 6.2, minutes: 11 })).toBe('About 11 min drive (6.2 mi)');
+    expect(driveLabel({ miles: 90, minutes: 60 })).toBe('About 1 hr drive (90 mi)');
+    expect(driveLabel({ miles: 120, minutes: 135 })).toBe('About 2 hr 15 min drive (120 mi)');
   });
 });
 

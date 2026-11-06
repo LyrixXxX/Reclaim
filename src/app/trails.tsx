@@ -1,12 +1,13 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TrailDrive } from '@/components/trail-drive';
 import { TrailMedia } from '@/components/trail-media';
 import { getMapKey } from '@/lib/activity-maps';
 import { searchTrailDatabase } from '@/lib/trail-database';
-import { combineTrails, directionsUrl, findSavedTrail, milesToPlace, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailDifficultyLabel, trailKindLabel, trailLengthLabel, trailRowDetails } from '@/lib/trails';
+import { combineTrails, directionsUrl, findSavedTrail, milesToPlace, nearestAccess, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailClimbLabel, trailDifficultyLabel, trailDistanceLabel, trailKindLabel, trailLengthLabel, trailRowDetails } from '@/lib/trails';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout, spacing } from '@/theme';
 
@@ -108,7 +109,7 @@ export default function TrailsScreen() {
 
   const saved = sortSavedTrails(savedTrails);
   const distanceFrom = (place: Place) => 'distanceMiles' in place ? place.distanceMiles : origin ? milesToPlace(origin, place) : undefined;
-  const openDirections = (place: Place) => { void Linking.openURL(directionsUrl(place)).catch(() => Alert.alert('Directions', 'Google Maps couldn’t be opened.')); };
+  const openDirections = (place: Place) => { void Linking.openURL(directionsUrl(place, origin)).catch(() => Alert.alert('Directions', 'Google Maps couldn’t be opened.')); };
   const toggleSaved = (place: Place) => {
     const savedItem = findSavedTrail(savedTrails, place);
     if (savedItem) Alert.alert('Remove from saved?', `${place.name} will be removed from your saved trails.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => removeTrailPlace(savedItem.id) }]);
@@ -134,6 +135,14 @@ export default function TrailsScreen() {
 
   const detailItem = details ? findSavedTrail(savedTrails, details) : undefined;
   const detailMiles = details ? distanceFrom(details) : undefined;
+  const toParking = details ? (origin ? nearestAccess(origin, details).parking : !!details.parking) : false;
+  // Directions go here, so the drive shown has to be to the same spot.
+  const driveTo = useMemo(() => {
+    if (!details) return undefined;
+    const { latitude, longitude } = origin ? nearestAccess(origin, details) : details.parking ?? details;
+    return { latitude, longitude };
+  }, [details, origin]);
+  const driveFrom = useMemo(() => usingLocation && origin ? { latitude: origin.latitude, longitude: origin.longitude } : undefined, [usingLocation, origin]);
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={styles.title}>Find trails</Text>
@@ -161,7 +170,7 @@ export default function TrailsScreen() {
       <View style={styles.list}>{saved.map(row)}</View>
     </> : <View style={styles.state}><Text style={styles.muted}>Trails you save show up here. Star the ones you want to visit again.</Text></View>}
 
-    <Text style={styles.footnote}>Trail data © OpenStreetMap contributors. Distances are straight-line from where you searched, and lengths are measured from map data, so they’re approximate. Check conditions and access before you go.</Text>
+    <Text style={styles.footnote}>Trail data © OpenStreetMap contributors. Terrain data courtesy of the U.S. Geological Survey. Distances are straight-line from where you searched to parking, when known, so the drive will be longer. Lengths, climbs and estimated difficulty come from map data, so they’re approximate. Check conditions and access before you go.</Text>
 
     <Modal visible={!!details} transparent animationType="slide" onRequestClose={() => setDetails(undefined)}>
       <View style={styles.overlay}>
@@ -170,20 +179,21 @@ export default function TrailsScreen() {
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.sheetContent}>
             <Text style={styles.sheetTitle}>{details.name}</Text>
-            <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${detailMiles} mi away` : ''}</Text>
+            <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${trailDistanceLabel(detailMiles)}${toParking ? ' to parking' : ''}` : ''}</Text>
+            {driveTo && <TrailDrive key={`drive-${details.id}`} to={driveTo} from={driveFrom} />}
             {details.lengthMiles ? <View style={styles.lengthBlock}>
               <Text style={styles.lengthValue}>{capitalize(trailLengthLabel(details.lengthMiles))}</Text>
               <Text style={styles.muted}>Measured from map data, so it can differ from trail signs. It may be one way rather than a round trip.</Text>
             </View> : null}
             <TrailMedia key={details.id} trail={details} />
             <View style={styles.facts}>
-              {details.climbFt ? <Fact label="Climb" value={`${details.climbFt.toLocaleString('en-US')} ft`} /> : null}
+              {details.climbFt ? <Fact label="Climb" value={trailClimbLabel(details.climbFt) ?? ''} /> : null}
               {details.difficulty ? <Fact label="Difficulty" value={trailDifficultyLabel(details) ?? details.difficulty} /> : null}
               {details.surface ? <Fact label="Surface" value={details.surface} /> : null}
               {details.operator ? <Fact label="Managed by" value={details.operator} /> : null}
               {details.address ? <Fact label="Address" value={details.address} /> : null}
             </View>
-            <Pressable accessibilityRole="button" onPress={() => openDirections(details)} style={styles.bigButton}><Text style={styles.bigButtonText}>{details.parking ? 'Directions to parking' : 'Directions in Google Maps'}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => openDirections(details)} style={styles.bigButton}><Text style={styles.bigButtonText}>{toParking ? 'Directions to parking' : 'Directions in Google Maps'}</Text></Pressable>
             <View style={styles.sheetRow}>
               <Pressable accessibilityRole="button" onPress={() => toggleSaved(details)} style={[styles.sheetButton]}><Text style={styles.smallButtonText}>{detailItem ? 'Saved ✓' : 'Save'}</Text></Pressable>
               <Pressable accessibilityRole="button" onPress={() => toggleFavorite(details)} style={[styles.sheetButton, detailItem?.favorite && styles.favoriteOn]}><Text style={[styles.smallButtonText, detailItem?.favorite && styles.starOn]}>{detailItem?.favorite ? '★ Favorite' : '☆ Favorite'}</Text></Pressable>
