@@ -132,7 +132,7 @@ export function removeMedicationEvent(events: MedicationEvent[], id: string) {
 }
 
 export function scheduleLabel(schedule: MedicationSchedule) {
-  if (schedule.type === 'as_needed') return 'As needed';
+  if (schedule.type === 'as_needed') return 'No set time';
   if (schedule.type === 'interval') return `Every ${schedule.intervalHours} hours`;
   const times = normalizeScheduleTimes(schedule.times).map(formatMedicationTime).join(' and ');
   if (schedule.type === 'weekly') return `Selected days · ${times}`;

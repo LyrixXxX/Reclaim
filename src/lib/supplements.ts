@@ -28,8 +28,8 @@ export function validateSupplementDraft(draft: SupplementDraft) {
   if (draft.nutrientProfile?.some((value) => !Number.isFinite(value.amount) || value.amount <= 0 || !value.nutrientId || !value.unit)) return 'Check each nutrient profile amount and unit.';
   const times = draft.times ?? (draft.time ? [draft.time] : []);
   if (times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) return 'Enter each time as HH:MM.';
-  if (new Set(times).size !== times.length) return 'Each dose needs a different time.';
-  if ((draft.scheduleType === 'daily' || draft.scheduleType === 'weekly') && !times.length) return 'Add at least one dose time.';
+  if (new Set(times).size !== times.length) return 'Each time needs to be different.';
+  if ((draft.scheduleType === 'daily' || draft.scheduleType === 'weekly') && !times.length) return 'Add at least one time.';
   if (draft.scheduleType === 'weekly' && !draft.weekdays?.length) return 'Choose at least one day of the week.';
   if (draft.scheduleType === 'interval' && (!Number.isInteger(draft.intervalHours) || draft.intervalHours! < 1 || draft.intervalHours! > 720)) return 'Enter an interval from 1 to 720 hours.';
   if (!draft.id && (!Number.isFinite(draft.dosagePerUnit) || draft.dosagePerUnit! <= 0 || !draft.dosageUnit?.trim())) return 'Enter a positive amount per unit and its unit.';

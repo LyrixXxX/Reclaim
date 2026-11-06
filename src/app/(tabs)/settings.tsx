@@ -29,7 +29,7 @@ const sections: { id: NavigationSection; label: string; description: string }[] 
   { id: 'activity', label: 'Steps', description: 'Daily steps, goal, and trends.' },
   { id: 'routes', label: 'Routes', description: 'GPS-recorded walks, hikes, runs, and saved maps.' },
   { id: 'workouts', label: 'Workouts', description: 'Strength sessions, routines, and progress.' },
-  { id: 'supplements', label: 'Supplements', description: 'Vitamin and supplement schedules, doses, and history.' },
+  { id: 'supplements', label: 'Supplements', description: 'Vitamin and supplement schedules and history.' },
 ];
 
 export default function SettingsScreen() {
