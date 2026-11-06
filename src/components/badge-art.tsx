@@ -1,9 +1,11 @@
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { HABIT_MILESTONES, HabitMilestone } from '@/lib/habit-milestones';
+import type { Tracker } from '@/models/tracker';
 import { colors, font, layout } from '@/theme';
 
-export const BADGE_IMAGES = [
+/** Quit trackers, custom habits, and exercise habits saved before it left the add list. */
+const GROWTH_BADGES = [
   require('../../assets/images/milestone-day.png'),
   require('../../assets/images/milestone-week.png'),
   require('../../assets/images/milestone-month.png'),
@@ -11,6 +13,71 @@ export const BADGE_IMAGES = [
   require('../../assets/images/milestone-six-months.png'),
   require('../../assets/images/milestone-year.png'),
 ];
+// Each built-in good habit has its own set, in milestone order.
+const THEMED_BADGES: Partial<Record<NonNullable<Tracker['habitTemplate']>, readonly number[]>> = {
+  water: [
+    require('../../assets/images/badge-water-1.png'),
+    require('../../assets/images/badge-water-2.png'),
+    require('../../assets/images/badge-water-3.png'),
+    require('../../assets/images/badge-water-4.png'),
+    require('../../assets/images/badge-water-5.png'),
+    require('../../assets/images/badge-water-6.png'),
+  ],
+  walk: [
+    require('../../assets/images/badge-walk-1.png'),
+    require('../../assets/images/badge-walk-2.png'),
+    require('../../assets/images/badge-walk-3.png'),
+    require('../../assets/images/badge-walk-4.png'),
+    require('../../assets/images/badge-walk-5.png'),
+    require('../../assets/images/badge-walk-6.png'),
+  ],
+  reading: [
+    require('../../assets/images/badge-reading-1.png'),
+    require('../../assets/images/badge-reading-2.png'),
+    require('../../assets/images/badge-reading-3.png'),
+    require('../../assets/images/badge-reading-4.png'),
+    require('../../assets/images/badge-reading-5.png'),
+    require('../../assets/images/badge-reading-6.png'),
+  ],
+  sleep: [
+    require('../../assets/images/badge-sleep-1.png'),
+    require('../../assets/images/badge-sleep-2.png'),
+    require('../../assets/images/badge-sleep-3.png'),
+    require('../../assets/images/badge-sleep-4.png'),
+    require('../../assets/images/badge-sleep-5.png'),
+    require('../../assets/images/badge-sleep-6.png'),
+  ],
+  produce: [
+    require('../../assets/images/badge-produce-1.png'),
+    require('../../assets/images/badge-produce-2.png'),
+    require('../../assets/images/badge-produce-3.png'),
+    require('../../assets/images/badge-produce-4.png'),
+    require('../../assets/images/badge-produce-5.png'),
+    require('../../assets/images/badge-produce-6.png'),
+  ],
+  mindfulness: [
+    require('../../assets/images/badge-mindfulness-1.png'),
+    require('../../assets/images/badge-mindfulness-2.png'),
+    require('../../assets/images/badge-mindfulness-3.png'),
+    require('../../assets/images/badge-mindfulness-4.png'),
+    require('../../assets/images/badge-mindfulness-5.png'),
+    require('../../assets/images/badge-mindfulness-6.png'),
+  ],
+  dental: [
+    require('../../assets/images/badge-dental-1.png'),
+    require('../../assets/images/badge-dental-2.png'),
+    require('../../assets/images/badge-dental-3.png'),
+    require('../../assets/images/badge-dental-4.png'),
+    require('../../assets/images/badge-dental-5.png'),
+    require('../../assets/images/badge-dental-6.png'),
+  ],
+};
+
+/** The six badge images for a tracker, in milestone order. */
+export function badgeImages(tracker?: Pick<Tracker, 'habitTemplate'>): readonly number[] {
+  return (tracker?.habitTemplate && THEMED_BADGES[tracker.habitTemplate]) || GROWTH_BADGES;
+}
+
 export const BADGE_ACCENTS = ['#a9ed70', '#56e8ad', '#f5d565', '#5ccaff', '#ffb849', '#df8aff'];
 
 function formatDate(value: string) {
@@ -18,11 +85,11 @@ function formatDate(value: string) {
 }
 
 /** A badge up close: when it was earned, or what it takes. */
-export function BadgeDatesModal({ index, award, onClose }: { index: number | null; award?: HabitMilestone; onClose: () => void }) {
+export function BadgeDatesModal({ index, award, images, onClose }: { index: number | null; award?: HabitMilestone; images: readonly number[]; onClose: () => void }) {
   return <Modal visible={index !== null} transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.backdrop}><View style={styles.card}>
       {index !== null && <>
-        <Image source={BADGE_IMAGES[index]} resizeMode="contain" style={styles.image} />
+        <Image source={images[index]} resizeMode="contain" style={styles.image} />
         <Text style={styles.title}>{HABIT_MILESTONES[index].label} · {award?.dates.length ?? 0}×</Text>
         {award?.dates.length ? <ScrollView style={styles.dates}><Text style={styles.copy}>Earned on</Text>{award.dates.map((date, position) => <Text key={`${date}-${position}`} style={styles.date}>{formatDate(date)}</Text>)}</ScrollView> : <Text style={styles.copy}>Reach {HABIT_MILESTONES[index].days} {HABIT_MILESTONES[index].days === 1 ? 'day' : 'days'} in a row to earn this.</Text>}
       </>}

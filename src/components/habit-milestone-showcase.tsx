@@ -2,10 +2,10 @@ import { Href, Link } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
-import { BADGE_ACCENTS as ACCENTS, BADGE_IMAGES as BADGES, BadgeDatesModal } from '@/components/badge-art';
+import { BADGE_ACCENTS as ACCENTS, badgeImages, BadgeDatesModal } from '@/components/badge-art';
 import { useTrophyCase } from '@/hooks/use-trophy-case';
 import { HABIT_MILESTONES, HabitMilestone } from '@/lib/habit-milestones';
-import { nextBadge } from '@/lib/trophy-case';
+import { nextBadge, trophyCaseHref } from '@/lib/trophy-case';
 import { colors, layout, spacing, font } from '@/theme';
 import { Chevron } from '@/components/icon';
 
@@ -13,10 +13,10 @@ import { Chevron } from '@/components/icon';
 export function TrackerBadgeShowcase({ trackerId }: { trackerId: string }) {
   const { list } = useTrophyCase();
   const badges = list.find((item) => item.tracker.id === trackerId);
-  return badges ? <HabitMilestoneShowcase awards={badges.awards} nextLine={nextBadge(badges)?.line} /> : null;
+  return badges ? <HabitMilestoneShowcase awards={badges.awards} nextLine={nextBadge(badges)?.line} images={badgeImages(badges.tracker)} trophyHref={trophyCaseHref(badges.tracker)} /> : null;
 }
 
-export function HabitMilestoneShowcase({ awards, nextLine }: { awards: HabitMilestone[]; nextLine?: string }) {
+function HabitMilestoneShowcase({ awards, nextLine, images, trophyHref }: { awards: HabitMilestone[]; nextLine?: string; images: readonly number[]; trophyHref: string }) {
   const [selected, setSelected] = useState<number | null>(null);
   const carousel = useRef<ScrollViewInstance>(null);
   const scrollOffset = useRef(0);
@@ -34,13 +34,13 @@ export function HabitMilestoneShowcase({ awards, nextLine }: { awards: HabitMile
     <Text style={styles.explanation}>Achievements stay earned. Tap a badge to see its dates.</Text>
     <View style={styles.nextRow}>
       {nextLine ? <Text style={styles.nextLine}>{nextLine}</Text> : <View style={{ flex: 1 }} />}
-      <Link href={'/trophy-case' as Href} style={styles.trophyLink}>Trophy case</Link>
+      <Link href={trophyHref as Href} style={styles.trophyLink}>Trophy case</Link>
     </View>
     <ScrollView ref={carousel} horizontal style={styles.carousel} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list} onScroll={rememberOffset} scrollEventThrottle={32}>
       {HABIT_MILESTONES.map((milestone, index) => {
         const count = awards[index]?.dates.length ?? 0;
         return <Pressable key={milestone.days} accessibilityRole="button" accessibilityLabel={`${milestone.label}, earned ${count} ${count === 1 ? 'time' : 'times'}. View dates.`} onPress={() => setSelected(index)} style={[styles.card, count > 0 && { borderColor: ACCENTS[index] }]}>
-          <Image source={BADGES[index]} resizeMode="contain" style={[styles.image, !count && styles.locked]} />
+          <Image source={images[index]} resizeMode="contain" style={[styles.image, !count && styles.locked]} />
           <Text style={[styles.label, count > 0 && { color: ACCENTS[index] }]}>{milestone.label}</Text>
           <Text style={styles.subtitle}>{milestone.subtitle}</Text>
           <Text style={styles.days}>{milestone.days} {milestone.days === 1 ? 'day' : 'days'}</Text>
@@ -48,7 +48,7 @@ export function HabitMilestoneShowcase({ awards, nextLine }: { awards: HabitMile
         </Pressable>;
       })}
     </ScrollView>
-    <BadgeDatesModal index={selected} award={active} onClose={() => setSelected(null)} />
+    <BadgeDatesModal index={selected} award={active} images={images} onClose={() => setSelected(null)} />
   </View>;
 }
 

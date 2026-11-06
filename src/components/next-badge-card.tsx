@@ -1,18 +1,20 @@
 import { Href, router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BADGE_ACCENTS, BADGE_IMAGES } from '@/components/badge-art';
+import { BADGE_ACCENTS, badgeImages } from '@/components/badge-art';
 import { Chevron } from '@/components/icon';
-import type { EarnedBadge, NextBadge } from '@/lib/trophy-case';
+import { EarnedBadge, NextBadge, trophyCaseHref } from '@/lib/trophy-case';
 import { colors, font, layout } from '@/theme';
 
 /** The badge you're closest to, with your latest ones. Opens the trophy case. */
 export function NextBadgeCard({ next, earned = [], showLatest = false }: { next: NextBadge | null; earned?: readonly EarnedBadge[]; showLatest?: boolean }) {
   const latest = showLatest ? earned.slice(0, 3) : [];
+  const tracker = next?.tracker ?? earned[0]?.tracker;
+  const href = tracker ? trophyCaseHref(tracker) : '/trophy-case';
   const percent = next ? Math.round(next.progress * 100) : 0;
-  return <Pressable accessibilityRole="button" accessibilityLabel={next ? `Next badge: ${next.label}, ${next.name}. ${next.line}. Open trophy case` : 'Open trophy case'} onPress={() => router.push('/trophy-case' as Href)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={next ? `Next badge: ${next.label}, ${next.name}. ${next.line}. Open trophy case` : 'Open trophy case'} onPress={() => router.push(href as Href)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
     {next ? <View style={styles.next}>
-      <Image source={BADGE_IMAGES[next.index]} resizeMode="contain" style={styles.badge} accessible={false} />
+      <Image source={badgeImages(next.tracker)[next.index]} resizeMode="contain" style={styles.badge} accessible={false} />
       <View style={styles.copy}>
         <Text style={styles.eyebrow}>NEXT BADGE</Text>
         <Text style={styles.title} numberOfLines={1}>{next.label} · {next.name}</Text>
@@ -22,7 +24,7 @@ export function NextBadgeCard({ next, earned = [], showLatest = false }: { next:
       {!showLatest && <Chevron color={colors.textMuted} />}
     </View> : !showLatest && <Text style={styles.title}>Trophy case</Text>}
     {showLatest && <View style={[styles.footer, next && styles.footerRule]}>
-      {latest.map((badge) => <Image key={`${badge.tracker.id}-${badge.days}`} source={BADGE_IMAGES[badge.index]} resizeMode="contain" style={styles.thumb} accessible={false} />)}
+      {latest.map((badge) => <Image key={`${badge.tracker.id}-${badge.days}`} source={badgeImages(badge.tracker)[badge.index]} resizeMode="contain" style={styles.thumb} accessible={false} />)}
       <Text style={styles.link}>Trophy case{earned.length ? ` · ${earned.length} earned` : ''}</Text>
       <Chevron color={colors.textMuted} />
     </View>}

@@ -13,6 +13,7 @@ import { waterDisplayAmount } from '@/lib/water-habit';
 import { GoodHabitTemplateCard } from '@/components/good-habit-template-card';
 import { NextBadgeCard } from '@/components/next-badge-card';
 import { useTrophyCase } from '@/hooks/use-trophy-case';
+import { closestBadge, earnedBadges } from '@/lib/trophy-case';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, type, font } from '@/theme';
 import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
@@ -62,6 +63,11 @@ export default function HabitsScreen() {
     </View>;
   };
 
+  // The card belongs to the tab it sits under, so it only counts that tab's habits.
+  const tabBadges = trophies.list.filter((badges) => badges.quit === (view === 'quit'));
+  const tabNext = closestBadge(tabBadges);
+  const tabEarned = earnedBadges(tabBadges);
+
   if (!hydrated || view === null) {
     return (
       <View style={styles.loading}>
@@ -86,8 +92,6 @@ export default function HabitsScreen() {
 
         {deleted && <Text style={styles.deletedNotice}>{deleted} was permanently deleted.</Text>}
 
-        {(trophies.closest || trophies.earned.length > 0) && <View style={styles.badges}><NextBadgeCard next={trophies.closest} earned={trophies.earned} showLatest /></View>}
-
         <View style={styles.tabRow}>
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'good' }} onPress={() => selectView('good')} style={[styles.tab, view === 'good' && styles.tabActive]}><Text style={[styles.tabText, view === 'good' && styles.tabTextActive]}>Good Habits</Text></Pressable>
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'quit' }} onPress={() => selectView('quit')} style={[styles.tab, view === 'quit' && styles.tabActive]}><Text style={[styles.tabText, view === 'quit' && styles.tabTextActive]}>Quitting & Tapering</Text></Pressable>
@@ -97,6 +101,8 @@ export default function HabitsScreen() {
             <View style={{ flex: 1 }}><Text style={styles.cravingTitle}>Having a craving?</Text><Text style={styles.cravingSub}>Two minutes of help to ride it out.</Text></View>
             <Chevron color={colors.habitsNav} />
           </Pressable>}
+
+        {(tabNext || tabEarned.length > 0) && <View style={styles.badges}><NextBadgeCard next={tabNext} earned={tabEarned} showLatest /></View>}
 
         {view === 'quit' && <View style={styles.summaryCard}>
           <Pressable accessibilityRole="button" accessibilityLabel="Habits overview" accessibilityState={{ expanded: summaryExpanded }} onPress={() => setSummaryExpanded((current) => !current)} style={styles.summaryHeader}>

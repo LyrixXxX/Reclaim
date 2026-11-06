@@ -64,6 +64,10 @@ export function earnedBadges(list: readonly TrackerBadges[]): EarnedBadge[] {
     : [])).sort((a, b) => b.firstEarned.localeCompare(a.firstEarned) || b.days - a.days);
 }
 
+export type TrophyTab = 'good' | 'quit';
+/** Opens the trophy case on the tab this tracker's badges live under. */
+export const trophyCaseHref = (tracker: Pick<Tracker, 'mode'>) => `/trophy-case?tab=${tracker.mode === 'habit' ? 'good' : 'quit'}`;
+
 export const badgeKey = (trackerId: string, days: number) => `${trackerId}:${days}`;
 const RECENT_DAYS = 3;
 

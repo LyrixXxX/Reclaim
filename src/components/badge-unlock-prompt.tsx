@@ -4,10 +4,10 @@ import { ComponentRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 
-import { BADGE_ACCENTS, BADGE_IMAGES } from '@/components/badge-art';
+import { BADGE_ACCENTS, badgeImages } from '@/components/badge-art';
 import { useTrophyCase } from '@/hooks/use-trophy-case';
 import { DEFAULT_PREFERENCES } from '@/lib/preferences';
-import { badgeKey, badgeUnlocks, EarnedBadge } from '@/lib/trophy-case';
+import { badgeKey, badgeUnlocks, EarnedBadge, trophyCaseHref } from '@/lib/trophy-case';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout } from '@/theme';
 
@@ -53,7 +53,7 @@ function UnlockCard({ badge, onClose }: { badge: EarnedBadge; onClose: () => voi
       <View ref={card} collapsable={false} style={[styles.card, { borderColor: accent }]}>
         <View style={styles.brand}><Image source={require('../../assets/images/reclaim-icon.png')} style={styles.logo} resizeMode="contain" accessible={false} /><Text style={styles.brandText}>Reclaim</Text></View>
         <Text style={[styles.eyebrow, { color: accent }]}>BADGE UNLOCKED</Text>
-        <Animated.Image source={BADGE_IMAGES[badge.index]} resizeMode="contain" style={[styles.image, { transform: [{ scale }] }]} accessibilityLabel={`${badge.label} badge`} />
+        <Animated.Image source={badgeImages(badge.tracker)[badge.index]} resizeMode="contain" style={[styles.image, { transform: [{ scale }] }]} accessibilityLabel={`${badge.label} badge`} />
         <Text accessibilityRole="header" style={styles.title}>{badge.label}</Text>
         <Text style={styles.subtitle}>{badge.subtitle}</Text>
         <Text style={styles.name}>{badge.name}</Text>
@@ -61,7 +61,7 @@ function UnlockCard({ badge, onClose }: { badge: EarnedBadge; onClose: () => voi
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={onClose} style={[styles.primary, { backgroundColor: accent }]}><Text style={styles.primaryText}>Nice</Text></Pressable>
         <View style={styles.row}>
-          <Pressable accessibilityRole="button" onPress={() => { onClose(); router.push('/trophy-case' as Href); }} style={styles.secondary}><Text style={styles.secondaryText}>Trophy case</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { onClose(); router.push(trophyCaseHref(badge.tracker) as Href); }} style={styles.secondary}><Text style={styles.secondaryText}>Trophy case</Text></Pressable>
           <Pressable accessibilityRole="button" disabled={busy} onPress={() => void share()} style={[styles.secondary, busy && { opacity: 0.6 }]}><Text style={styles.secondaryText}>Share</Text></Pressable>
         </View>
       </View>

@@ -1,6 +1,6 @@
 import { Tracker } from '@/models/tracker';
 import { habitMilestones, templateMilestoneProgress } from './habit-milestones';
-import { badgeUnlocks, badgesEarnedToday, closestBadge, earnedBadges, nextBadge, trackerBadges } from './trophy-case';
+import { badgeUnlocks, badgesEarnedToday, closestBadge, earnedBadges, nextBadge, trackerBadges, trophyCaseHref } from './trophy-case';
 
 const water: Tracker = { id: 'water', name: 'Drink water', icon: 'water', color: '#fff', mode: 'habit', habitTemplate: 'water', startedAt: '2026-01-01T08:00:00', waterGoals: [{ effectiveDate: '2026-01-01', ounces: 64 }] };
 const waterLog = (date: string, ounces = 64) => ({ id: date, trackerId: 'water', eventDate: date, ounces, recordedAt: `${date}T12:00:00Z` });
@@ -131,4 +131,9 @@ describe('unlocks', () => {
     const custom: Tracker = { ...quit, mode: 'habit', frequencyCount: 1, frequencyPeriod: 'day' };
     expect(habitMilestones(custom, [], undefined, new Date(2026, 0, 3, 12)).every((award) => award.dates.length === 0)).toBe(true);
   });
+});
+
+test('the trophy case opens on the tab a tracker belongs to', () => {
+  expect(trophyCaseHref(water)).toBe('/trophy-case?tab=good');
+  expect(trophyCaseHref(quit)).toBe('/trophy-case?tab=quit');
 });
