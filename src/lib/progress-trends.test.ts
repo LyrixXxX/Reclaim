@@ -35,7 +35,7 @@ describe('progressTrends', () => {
     expect(progressTrends(s, { stepDays: [], today: TODAY, days: 3 }).map((item) => item.id)).not.toContain('steps');
   });
 
-  it('judges nutrition within 200 kcal of the budget, only on days with food logged', () => {
+  it('reports nutrition without judging it', () => {
     const s = state({
       nutritionGoals: [{ id: 'g', effectiveDate: '2026-11-03', recordedAt: '', calorieTarget: 2000 }] as never,
       nutritionEntries: [
@@ -44,7 +44,8 @@ describe('progressTrends', () => {
       ] as never,
     });
     const nutrition = progressTrends(s, { stepDays: [], today: TODAY, days: 3 }).find((item) => item.id === 'nutrition')!;
-    expect(nutrition.days.map((day) => day.reached)).toEqual([null, true, false]);
+    expect(nutrition.days.map((day) => [day.value, day.reached])).toEqual([[null, null], [1900, null], [2600, null]]);
+    expect(trendSummary([nutrition])).toEqual(nutrition.days.map((day) => ({ date: day.date, reached: 0, total: 0 })));
     expect(nutrition.days[0]).toEqual({ date: '2026-11-02', value: null, goal: null, reached: null });
   });
 
@@ -101,8 +102,8 @@ describe('summary and stats', () => {
     expect(trendDayDetail(walk as never, { date: TODAY, value: 35, goal: 30, reached: true }, TODAY).line).toBe('35 of 30 minutes · Goal hit · 5 over');
     expect(trendDayDetail(walk as never, { date: TODAY, value: null, goal: null, reached: null }, TODAY).line).toBe('Not tracked yet on this day');
     const food = { id: 'nutrition', title: 'Nutrition', kind: 'nutrition', unit: 'kcal', href: '', days: [] } as const;
-    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 1868, goal: 2200, reached: false }, TODAY).line).toBe('1,868 of 2,200 kcal · 332 kcal under');
-    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 2300, goal: 2200, reached: true }, TODAY).line).toBe('2,300 of 2,200 kcal · 100 kcal over · goal met');
+    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 1868, goal: 2200, reached: null }, TODAY)).toMatchObject({ line: '1,868 of 2,200 kcal · 332 kcal under', status: 'empty' });
+    expect(trendDayDetail(food as never, { date: '2026-11-03', value: 2300, goal: 2200, reached: null }, TODAY)).toMatchObject({ line: '2,300 of 2,200 kcal · 100 kcal over', status: 'empty' });
     expect(trendDayDetail(food as never, { date: '2026-11-02', value: null, goal: 2200, reached: null }, TODAY).line).toBe('Nothing logged · goal 2,200 kcal');
   });
 

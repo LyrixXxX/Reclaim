@@ -46,6 +46,8 @@ export default function ProgressTrendsScreen() {
   }, [state.activityRoutes]));
 
   const series = progressTrends(state, { stepDays, phoneMinutesByDate, today, days });
+  // Calories get a chart too, but they aren't a goal, so they stay out of the goals totals.
+  const goalTotal = series.filter((item) => item.kind !== 'nutrition').length;
   const summary = trendSummary(series);
   const judgedDays = summary.filter((day) => day.total > 0);
   const averageHit = judgedDays.length ? judgedDays.reduce((sum, day) => sum + day.reached, 0) / judgedDays.length : null;
@@ -55,16 +57,16 @@ export default function ProgressTrendsScreen() {
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content}>
     <Text style={styles.title}>Progress trends</Text>
-    <Text style={styles.intro}>Your daily goals from Today’s progress, day by day. Each day is measured against the goal you had that day.</Text>
+    <Text style={styles.intro}>Your daily goals from Today’s progress and your calories, day by day. Each day is measured against the goal you had that day.</Text>
     <View style={styles.ranges}>{RANGES.map((range) => <Pressable key={range.days} accessibilityRole="radio" accessibilityState={{ checked: days === range.days }} onPress={() => setDays(range.days)} style={[styles.range, days === range.days && styles.rangeOn]}><Text style={[styles.rangeText, days === range.days && styles.rangeTextOn]}>{range.label}</Text></Pressable>)}</View>
 
     {!series.length ? <View style={styles.card}><Text style={styles.cardTitle}>No daily goals yet</Text><Text style={styles.muted}>Set a step goal, a nutrition target or a daily habit goal, and its history shows up here.</Text></View> : <>
-      <View style={styles.card}>
+      {goalTotal > 0 && <View style={styles.card}>
         <Text style={styles.cardTitle}>Goals hit</Text>
-        <Text style={styles.muted}>{averageHit === null ? 'No goals measured in this range yet.' : `Average ${formatAverage(averageHit)} of ${series.length} ${series.length === 1 ? 'goal' : 'goals'} a day`}</Text>
-        <BarChart color={colors.accent} bars={summary.map((day) => ({ date: day.date, value: day.total ? day.reached : null, max: day.total, reached: day.total > 0 && day.reached === day.total }))} fixedMax={series.length} selected={selected.summary} onSelect={(date) => toggle('summary', date)} />
+        <Text style={styles.muted}>{averageHit === null ? 'No goals measured in this range yet.' : `Average ${formatAverage(averageHit)} of ${goalTotal} ${goalTotal === 1 ? 'goal' : 'goals'} a day`}</Text>
+        <BarChart color={colors.accent} bars={summary.map((day) => ({ date: day.date, value: day.total ? day.reached : null, max: day.total, reached: day.total > 0 && day.reached === day.total }))} fixedMax={goalTotal} selected={selected.summary} onSelect={(date) => toggle('summary', date)} />
         <View style={styles.stats}><Stat label="All goals hit" value={`${perfectDays} ${perfectDays === 1 ? 'day' : 'days'}`} /><Stat label="Current streak" value={`${streak} ${streak === 1 ? 'day' : 'days'}`} /></View>
-      </View>
+      </View>}
       {(() => {
         const index = summary.findIndex((day) => day.date === selected.summary);
         if (index < 0) return null;
@@ -80,8 +82,8 @@ export default function ProgressTrendsScreen() {
         return <View key={item.id} style={{ gap: spacing.md }}>
           <View style={styles.card}>
             <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => router.push(item.href as Href)} hitSlop={6} style={({ pressed }) => [styles.cardHeader, pressed && { opacity: 0.7 }]}><View style={[styles.dot, { backgroundColor: tint }]} /><Text style={[styles.cardTitle, { flex: 1 }]}>{item.title}</Text><Chevron size={18} color={colors.textMuted} /></Pressable>
-            <Text style={styles.muted}>{stats.countedDays ? `Hit ${stats.hitDays} of ${stats.countedDays} ${stats.countedDays === 1 ? 'day' : 'days'}` : 'No data in this range yet'}{stats.average !== null ? ` · Avg ${formatTrendValue(stats.average, item)}` : ''}</Text>
-            <BarChart color={tint} bars={item.days.map((day) => ({ date: day.date, value: day.value, max: day.goal, reached: day.reached === true }))} goalLine selected={selected[item.id]} onSelect={(date) => toggle(item.id, date)} />
+            <Text style={styles.muted}>{[stats.countedDays ? `Hit ${stats.hitDays} of ${stats.countedDays} ${stats.countedDays === 1 ? 'day' : 'days'}` : stats.average === null ? 'No data in this range yet' : '', stats.average !== null ? `Avg ${formatTrendValue(stats.average, item)}` : ''].filter(Boolean).join(' · ')}</Text>
+            <BarChart color={tint} bars={item.days.map((day) => ({ date: day.date, value: day.value, max: day.goal, reached: day.reached !== false }))} goalLine selected={selected[item.id]} onSelect={(date) => toggle(item.id, date)} />
           </View>
           {picked && <DayCard color={tint} detail={trendDayDetail(item, picked, today)} onClose={() => toggle(item.id, picked.date)} />}
         </View>;

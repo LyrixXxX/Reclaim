@@ -6,7 +6,6 @@ import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
 import { habitProgress, routeMinutesOn, templateConfig } from './good-habit-templates';
 import { waterDisplayAmount, waterGoalOn, waterTotalOn } from './water-habit';
-import { nutritionGoalReached } from './home-overview';
 
 /** One day of one goal. A null value means nothing to show for that day (not tracked yet, or no data). */
 export type TrendDay = { date: string; value: number | null; goal: number | null; reached: boolean | null; /** Extra detail for the day, such as where walking minutes came from. */ parts?: string[] };
@@ -50,17 +49,6 @@ export function progressTrends(state: TrackerState, { stepDays, phoneMinutesByDa
     }) });
   }
 
-  const nutritionGoals = state.nutritionGoals ?? [];
-  if (preferences.visibleSections.nutrition && nutritionGoals.some((goal) => goal.effectiveDate <= today)) {
-    series.push({ id: 'nutrition', title: 'Nutrition', kind: 'nutrition', unit: 'kcal', href: '/nutrition', days: dates.map((date) => {
-      if (!nutritionGoals.some((goal) => goal.effectiveDate <= date)) return { date, value: null, goal: null, reached: null };
-      const totals = nutritionTotals(state.nutritionEntries ?? [], date);
-      const goal = nutritionCalorieTarget(nutritionGoalForDate(nutritionGoals, date)) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], date, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total;
-      if (!totals.entryCount) return { date, value: null, goal, reached: null };
-      return { date, value: totals.calories, goal, reached: nutritionGoalReached(totals.calories, goal, totals.entryCount), parts: [`${totals.entryCount} ${totals.entryCount === 1 ? 'food' : 'foods'} logged`] };
-    }) });
-  }
-
   const hidden = new Set(preferences.hiddenHomeHabitIds ?? []);
   for (const tracker of state.trackers) {
     if (tracker.archived || !tracker.habitTemplate || tracker.habitTemplate === 'mindfulness' || hidden.has(tracker.id)) continue;
@@ -91,6 +79,18 @@ export function progressTrends(state: TrackerState, { stepDays, phoneMinutesByDa
         `Logged ${minutes((state.goodHabitLogs ?? []).filter((log) => log.trackerId === tracker.id && log.eventDate === date).reduce((sum, log) => sum + log.amount, 0))}`,
       ] : undefined;
       return { date, value: progress.amount, goal: progress.goal, reached: progress.amount >= progress.goal, parts };
+    }) });
+  }
+
+  // Calories are reported, not scored, so their days stay out of goals hit and streaks.
+  const nutritionGoals = state.nutritionGoals ?? [];
+  if (preferences.visibleSections.nutrition && nutritionGoals.some((goal) => goal.effectiveDate <= today)) {
+    series.push({ id: 'nutrition', title: 'Nutrition', kind: 'nutrition', unit: 'kcal', href: '/nutrition', days: dates.map((date) => {
+      if (!nutritionGoals.some((goal) => goal.effectiveDate <= date)) return { date, value: null, goal: null, reached: null };
+      const totals = nutritionTotals(state.nutritionEntries ?? [], date);
+      const goal = nutritionCalorieTarget(nutritionGoalForDate(nutritionGoals, date)) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], date, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total;
+      if (!totals.entryCount) return { date, value: null, goal, reached: null };
+      return { date, value: totals.calories, goal, reached: null, parts: [`${totals.entryCount} ${totals.entryCount === 1 ? 'food' : 'foods'} logged`] };
     }) });
   }
   return series;
@@ -151,7 +151,7 @@ export function trendDayDetail(item: TrendSeries, day: TrendDay, today: string):
   if (item.kind === 'nutrition') {
     const side = day.value > day.goal ? 'over' : 'under';
     const gap = difference < 0.5 ? 'On budget' : `${formatTrendValue(difference, item)} ${side}`;
-    return { heading, line: `${ofGoal} · ${gap}${day.reached ? ' · goal met' : ''}`, status: day.reached ? 'hit' : day.date === today ? 'so-far' : 'missed', parts };
+    return { heading, line: `${ofGoal} · ${gap}`, status: 'empty', parts };
   }
   if (day.reached) return { heading, line: `${ofGoal} · Goal hit${difference > 0 ? ` · ${formatTrendAmount(difference, item)} over` : ''}`, status: 'hit', parts };
   return { heading, line: `${ofGoal} · ${formatTrendAmount(difference, item)} ${day.date === today ? 'to go' : 'short'}`, status: day.date === today ? 'so-far' : 'missed', parts };

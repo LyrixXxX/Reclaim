@@ -15,23 +15,11 @@ export type HomeAttention = { id: string; title: string; detail: string; href: '
 export type HomeHabitGoal = { id: string; title: string; value: string; detail: string; /** One short line for compact tiles. */ short: string; progress: number; reached: boolean; href: string; weekly: boolean };
 export type HomeWalkingData = { date?: string; intervals: WalkingInterval[] | null; activeRoute?: { startedAt: string } | null };
 
-export function nutritionGoalReached(calories: number, budget: number, entryCount: number) {
-  return entryCount > 0 && Math.abs(calories - budget) <= 200;
-}
-
 /** One short line for the compact Home tile. */
 export function nutritionShortDetail(calories: number, budget: number, entryCount: number) {
   if (!entryCount) return 'No food logged yet';
   const difference = Math.round(Math.abs(calories - budget)).toLocaleString();
   return calories > budget ? `${difference} kcal over` : `${difference} kcal left`;
-}
-
-export function nutritionGoalDetail(calories: number, budget: number, entryCount: number) {
-  if (!entryCount) return 'No food logged yet';
-  const difference = Math.round(Math.abs(calories - budget)).toLocaleString();
-  if (calories > budget) return `${difference} kcal over budget · ${nutritionGoalReached(calories, budget, entryCount) ? 'goal met' : 'goal not met'}`;
-  if (calories < budget - 200) return `${difference} kcal under budget · goal not met`;
-  return calories < budget ? `${difference} kcal under budget · goal met` : 'On budget · goal met';
 }
 
 export function homeOverview(state: TrackerState, steps: StepResult, now: Date, walking?: HomeWalkingData) {
@@ -48,7 +36,6 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
     ...nutritionTotals(state.nutritionEntries ?? [], today),
     budget: nutritionCalorieTarget(nutritionGoal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, preferences.includeRouteCaloriesInNutrition ?? false, preferences.includeWorkoutCaloriesInNutrition ?? false).total,
   } : null;
-  const nutritionReached = Boolean(nutrition && nutritionGoalReached(nutrition.calories, nutrition.budget, nutrition.entryCount));
 
   const hidden = new Set(preferences.hiddenHomeHabitIds ?? []);
   const currentWalkingIntervals = walking?.date === today ? walking.intervals : null;
@@ -92,7 +79,7 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
       detail: `${formatMedicationTime(dose.time)} · Not logged yet`, href: '/supplements' });
   }
 
-  const goalCount = Number(Boolean(stepProgress)) + Number(Boolean(nutrition)) + dailyHabitGoals.length;
-  const reachedCount = Number(Boolean(stepProgress?.reached)) + Number(nutritionReached) + dailyHabitGoals.filter((goal) => goal.reached).length;
-  return { stepProgress, nutrition, nutritionReached, dailyHabitGoals, weeklyHabitCards, goalCount, reachedCount, attention };
+  const goalCount = Number(Boolean(stepProgress)) + dailyHabitGoals.length;
+  const reachedCount = Number(Boolean(stepProgress?.reached)) + dailyHabitGoals.filter((goal) => goal.reached).length;
+  return { stepProgress, nutrition, dailyHabitGoals, weeklyHabitCards, goalCount, reachedCount, attention };
 }

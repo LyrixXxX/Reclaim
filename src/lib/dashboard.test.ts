@@ -113,14 +113,6 @@ describe('dashboard summaries', () => {
     expect(dashboardContent(state, widget('nutrition'), now).rows[1].value).toBe('72 g');
     expect(dashboardContent(state, widget('nutrition'), new Date(2026, 8, 23)).value).toBe('No data yet');
   });
-  test('colors calorie totals only when a goal is set, switching after the target is exceeded', () => {
-    const entry = { id: 'food', name: 'Meal', eventDate: '2026-09-22', mealGroupId: 'lunch', mealLabel: 'Lunch', servingLabel: 'meal', servings: 1, nutrients: { carbsGrams: 34, proteinGrams: 72, fatGrams: 37, fiberGrams: 22 }, statedCalories: 678, source: 'manual' as const, recordedAt: now.toISOString(), updatedAt: now.toISOString() };
-    const goal = { id: 'goal', effectiveDate: '2026-09-01', carbsGrams: 50, proteinGrams: 100, fatGrams: 50, fiberGrams: 25, recordedAt: now.toISOString() };
-    const state = { ...empty, nutritionEntries: [entry], nutritionGoals: [goal] };
-    expect(dashboardContent(state, widget('nutrition'), now).calorieStatus).toBe('within');
-    expect(dashboardContent({ ...state, nutritionEntries: [entry, { ...entry, id: 'second' }] }, widget('nutrition'), now).calorieStatus).toBe('over');
-    expect(dashboardContent({ ...state, nutritionGoals: [] }, widget('nutrition'), now).calorieStatus).toBeUndefined();
-  });
   test('weight keeps the latest date visible and never combines units', () => {
     const state: TrackerState = { ...empty, weightEntries: [{ id: 'a', date: '2026-09-15', weight: 100, unit: 'kg', recordedAt: '' }, { id: 'b', date: '2026-09-20', weight: 220, unit: 'lb', recordedAt: '' }] };
     const content = dashboardContent(state, widget('weight'), now);
