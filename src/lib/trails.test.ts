@@ -1,4 +1,4 @@
-import { decodeTrailPath, driveLabel, drivingRoute, findSavedTrail, milesToPlace, nearestAccess, trailClimbLabel, trailDistanceLabel, nearbyTrailPhoto, parseTrailDatabase, photoSearchName, trailDifficultyLabel, trailLengthLabel, trailRowDetails, directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
+import { decodeTrailPath, findSavedTrail, milesToPlace, nearestAccess, trailClimbLabel, trailDistanceLabel, nearbyTrailPhoto, parseTrailDatabase, photoSearchName, trailDifficultyLabel, trailLengthLabel, trailRowDetails, directionsUrl, isSavedTrail, milesBetween, parseTrails, removeSavedTrail, saveTrail, searchPlace, sortSavedTrails, toggleFavoriteTrail, trailPhoto, trailQuery, searchTrails, parseStadiaTrails, combineTrails, searchStadiaTrails } from './trails';
 
 const ORIGIN = { latitude: 35.95, longitude: -85.03 };
 const NOW = new Date('2026-11-04T12:00:00Z');
@@ -83,35 +83,6 @@ describe('trail database results', () => {
     expect(findSavedTrail([saved], place)).toBe(saved);
     expect(findSavedTrail([{ ...saved, latitude: 36.5 }], place)).toBeUndefined();
     expect(findSavedTrail([{ ...saved, id: 'way/1', name: 'Other', latitude: 40 }], place)?.id).toBe('way/1');
-  });
-});
-
-describe('driving routes', () => {
-  const from = { latitude: 35.94912, longitude: -85.02689 };
-  const to = { latitude: 35.88, longitude: -84.81 };
-  const answer = (body: unknown, ok = true) => jest.fn(async () => ({ ok, json: async () => body })) as unknown as typeof fetch;
-
-  it('reads miles and minutes, in a request with a rounded start', async () => {
-    const request = answer({ trip: { summary: { length: 15.372, time: 1113.9 } } });
-    expect(await drivingRoute(from, to, 'key', request)).toEqual({ miles: 15.4, minutes: 19 });
-    const [url, init] = (request as jest.Mock).mock.calls[0];
-    expect(url).toContain('/route/v1?api_key=key');
-    expect(JSON.parse(init.body).locations).toEqual([{ lat: 35.949, lon: -85.027 }, { lat: 35.88, lon: -84.81 }]);
-    expect(JSON.parse(init.body).units).toBe('miles');
-  });
-
-  it('gives no route on failure, or without a key', async () => {
-    expect(await drivingRoute(from, to, 'key', answer({}, false))).toBeNull();
-    expect(await drivingRoute(from, to, 'key', answer({ trip: {} }))).toBeNull();
-    const request = answer({});
-    expect(await drivingRoute(from, to, '', request)).toBeNull();
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it('writes short and long drives', () => {
-    expect(driveLabel({ miles: 6.2, minutes: 11 })).toBe('About 11 min drive (6.2 mi)');
-    expect(driveLabel({ miles: 90, minutes: 60 })).toBe('About 1 hr drive (90 mi)');
-    expect(driveLabel({ miles: 120, minutes: 135 })).toBe('About 2 hr 15 min drive (120 mi)');
   });
 });
 

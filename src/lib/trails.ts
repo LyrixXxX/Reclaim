@@ -418,34 +418,6 @@ export function milesToPlace(origin: Point, place: AccessPlace) {
   return Math.round(milesBetween(origin, nearestAccess(origin, place)) * 10) / 10;
 }
 
-export type DriveRoute = { miles: number; minutes: number };
-
-/**
- * The real driving distance and time from Stadia Maps. Each request uses paid credits, so call it
- * only when someone opens a trail, never for a whole list. The start is rounded to about 100 yards,
- * which is enough for a route and doesn't send an exact position. Null when no route is found.
- */
-export async function drivingRoute(from: Point, to: Point, key: string, request: typeof fetch = fetch): Promise<DriveRoute | null> {
-  if (!key) return null;
-  const response = await request(`https://api.stadiamaps.com/route/v1?api_key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      locations: [{ lat: Number(from.latitude.toFixed(3)), lon: Number(from.longitude.toFixed(3)) }, { lat: to.latitude, lon: to.longitude }],
-      costing: 'auto', units: 'miles',
-    }),
-  });
-  if (!response.ok) return null;
-  const summary = (await response.json() as { trip?: { summary?: { length?: number; time?: number } } }).trip?.summary;
-  if (!Number.isFinite(summary?.length) || !Number.isFinite(summary?.time)) return null;
-  return { miles: Math.round(summary!.length! * 10) / 10, minutes: Math.max(1, Math.round(summary!.time! / 60)) };
-}
-
-export function driveLabel({ miles, minutes }: DriveRoute) {
-  const time = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
-  return `About ${time} drive (${miles} mi)`;
-}
-
 export type TrailDatabaseResponse = { trails: TrailResult[]; coverage: 'full' | 'partial' | 'none' };
 
 /** Checks a trail database response. Anything unexpected is treated as no answer. */

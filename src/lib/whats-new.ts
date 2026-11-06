@@ -6,6 +6,22 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.67',
+    date: 'November 6, 2026',
+    notes: [
+      'Trail details are simpler: length, map, climb and difficulty, without the drive time or straight-line distance. Google Maps gives you the drive when you press Directions.',
+    ],
+  },
+  {
+    version: '1.0.66',
+    date: 'November 6, 2026',
+    notes: [
+      'Find trails has far more detail in Tennessee: trail length, climb and estimated difficulty, with the trail drawn on a map. More states are coming.',
+      'Distance now goes to the closest parking lot or trailhead, and Directions takes you to the same spot.',
+      'Trail photos now load, and searching for a place finds the one near you instead of one in another state.',
+    ],
+  },
+  {
     version: '1.0.65',
     date: 'November 5, 2026',
     notes: [

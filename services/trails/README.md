@@ -2,7 +2,7 @@
 
 A Cloudflare Worker that answers Find trails searches from a D1 database of public trail data. It stores nothing about the person searching: requests carry only a search area, and the query string is redacted from logs. See `docs/plans/trail-database.md` for the full plan.
 
-**Nothing has been deployed or created yet.** The Worker's database starts empty. The import below builds a database on this PC only, and uploading it is a later step.
+Live at `https://reclaim-trails.reclaim-nutrition.workers.dev`, with Tennessee loaded.
 
 ## API
 
@@ -38,7 +38,7 @@ node services/trails/import/import-region.mjs services/trails/.data/tennessee-la
 - `osm-pbf-parser-node` is pinned because npm marks it as no longer supported. Its code was read before use: it only reads the file and decompresses it. Re-check it before changing versions.
 - `path` holds encoded polylines, with spaces between the pieces of a trail that doesn't connect.
 - Only tiles surrounded by other tiles with map data are marked filled. A border tile may be cut off, so it stays unfilled until the neighboring region is imported.
-- Not done yet: the Forest Service merge, parking from the nearest road, and uploading to D1.
+- Not done yet: the Forest Service merge and parking from the nearest road.
 
 ## Licensing
 
@@ -52,15 +52,22 @@ npm run test:trails
 
 Tests run the real migration in Node's built-in SQLite, so no Cloudflare account is needed.
 
-## Deployment (not done yet)
+## Deployment
 
-Each of these creates or changes something on the Cloudflare account:
+From `services/trails`. Each of these changes something on the Cloudflare account:
 
 ```powershell
-npx wrangler@latest d1 create reclaim-trails          # then put the id in wrangler.jsonc
-npx wrangler@latest d1 migrations apply reclaim-trails --remote
-npx wrangler@latest secret put GOOGLE_SERVICE_ACCOUNT_JSON
 npx wrangler@latest deploy
+npx wrangler@latest secret put GOOGLE_SERVICE_ACCOUNT_JSON
 ```
+
+To load or refresh a region, build it as above, then:
+
+```powershell
+node import/export-sql.mjs .data/tennessee.sqlite .data/tennessee.sql
+npx wrangler@latest d1 execute reclaim-trails --remote --file=.data/tennessee.sql
+```
+
+A change to the database's columns needs a new file in `migrations`, applied with `npx wrangler@latest d1 migrations apply reclaim-trails --remote`.
 
 `GOOGLE_SERVICE_ACCOUNT_JSON` can be the same service account the nutrition relay uses. Never put it, or any other key, in the app or repository.

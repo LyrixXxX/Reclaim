@@ -1,6 +1,6 @@
 # Trail database: Phase 1 plan
 
-Status, November 5, 2026: the Worker skeleton and the Tennessee import run on the PC, and the new Find trails screens use them in development builds through a test server. Nothing is deployed, so release builds keep today's trail sources until `EXPO_PUBLIC_RECLAIM_TRAILS_URL` is set. 
+Status, November 5, 2026: the Worker skeleton and the Tennessee import run on the PC, and the new Find trails screens use them in development builds through a test server. The relay is deployed with Tennessee loaded; release builds use it first and keep today's trail sources elsewhere. 
 
 Decided: map-measured lengths show as "about X mi". In 8 trails checked against published figures, 3 were close and 5 were off by 13% or more.
 
@@ -182,7 +182,7 @@ Terrain data is the free USGS tile set on AWS Open Data, chosen over Stadia Elev
 
 ## Driving distance
 
-The list shows straight-line miles to the closest way onto a trail. Opening a trail looks up the real drive from Stadia Routing at 20 credits a request, cached for the session. Doing this for every row would be about 600 credits a search, so it's limited to details unless ad income justifies more.
+The list shows straight-line miles to the closest way onto a trail. The app doesn't show drive times: an earlier version looked them up from Stadia Routing when a trail was opened, but they didn't always match Google Maps, which gives the time anyway once you press Directions.
 
 ## Later idea: lengths from walked routes (not started)
 

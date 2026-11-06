@@ -1,13 +1,12 @@
 import * as Location from 'expo-location';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TrailDrive } from '@/components/trail-drive';
 import { TrailMedia } from '@/components/trail-media';
 import { getMapKey } from '@/lib/activity-maps';
 import { searchTrailDatabase } from '@/lib/trail-database';
-import { combineTrails, directionsUrl, findSavedTrail, milesToPlace, nearestAccess, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailClimbLabel, trailDifficultyLabel, trailDistanceLabel, trailKindLabel, trailLengthLabel, trailRowDetails } from '@/lib/trails';
+import { combineTrails, directionsUrl, findSavedTrail, milesToPlace, nearestAccess, searchStadiaTrails, SavedTrail, searchPlace, searchTrails, sortSavedTrails, TRAIL_RADII, TrailRadius, TrailResult, trailClimbLabel, trailDifficultyLabel, trailKindLabel, trailLengthLabel, trailRowDetails } from '@/lib/trails';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout, spacing } from '@/theme';
 
@@ -134,15 +133,7 @@ export default function TrailsScreen() {
   };
 
   const detailItem = details ? findSavedTrail(savedTrails, details) : undefined;
-  const detailMiles = details ? distanceFrom(details) : undefined;
   const toParking = details ? (origin ? nearestAccess(origin, details).parking : !!details.parking) : false;
-  // Directions go here, so the drive shown has to be to the same spot.
-  const driveTo = useMemo(() => {
-    if (!details) return undefined;
-    const { latitude, longitude } = origin ? nearestAccess(origin, details) : details.parking ?? details;
-    return { latitude, longitude };
-  }, [details, origin]);
-  const driveFrom = useMemo(() => usingLocation && origin ? { latitude: origin.latitude, longitude: origin.longitude } : undefined, [usingLocation, origin]);
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={styles.title}>Find trails</Text>
@@ -179,8 +170,7 @@ export default function TrailsScreen() {
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.sheetContent}>
             <Text style={styles.sheetTitle}>{details.name}</Text>
-            <Text style={styles.muted}>{trailKindLabel(details.kind)}{detailMiles !== undefined ? ` · ${trailDistanceLabel(detailMiles)}${toParking ? ' to parking' : ''}` : ''}</Text>
-            {driveTo && <TrailDrive key={`drive-${details.id}`} to={driveTo} from={driveFrom} />}
+            <Text style={styles.muted}>{trailKindLabel(details.kind)}</Text>
             {details.lengthMiles ? <View style={styles.lengthBlock}>
               <Text style={styles.lengthValue}>{capitalize(trailLengthLabel(details.lengthMiles))}</Text>
               <Text style={styles.muted}>Measured from map data, so it can differ from trail signs. It may be one way rather than a round trip.</Text>
