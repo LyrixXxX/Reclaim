@@ -69,7 +69,7 @@ function Row({ note, onPress, onDismiss }: { note: HomeNotification; onPress: ()
 const styles = StyleSheet.create({
   bell: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: 2, right: 2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
-  badgeText: { color: colors.background, fontSize: 10, fontFamily: font.extrabold },
+  badgeText: { color: colors.background, fontSize: 10, lineHeight: 13, fontFamily: font.extrabold, textAlign: 'center', includeFontPadding: false },
   overlay: { flex: 1, backgroundColor: '#0007' },
   sheet: { position: 'absolute', backgroundColor: colors.surfaceRaised, borderRadius: 20, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10, shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 18, elevation: 12 },
   caret: { position: 'absolute', top: -7, width: 14, height: 14, backgroundColor: colors.surfaceRaised, borderLeftWidth: 1, borderTopWidth: 1, borderColor: colors.borderStrong, transform: [{ rotate: '45deg' }] },
