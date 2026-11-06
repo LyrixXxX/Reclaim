@@ -6,7 +6,7 @@
   "expo": {
     "name": "Reclaim",
     "slug": "reclaim",
-    "version": "1.0.70",
+    "version": "1.0.71",
     "orientation": "default",
     "icon": "./assets/images/reclaim-icon.png",
     "scheme": "reclaim",
@@ -15,7 +15,7 @@
       "icon": "./assets/images/reclaim-icon-ios.png"
     },
     "android": {
-      "versionCode": 71,
+      "versionCode": 72,
       "permissions": ["android.permission.ACTIVITY_RECOGNITION", "android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"],
       "adaptiveIcon": {
         "backgroundColor": "#000000",

@@ -6,6 +6,15 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.71',
+    date: 'November 6, 2026',
+    notes: [
+      'Today’s progress now shows 4 cards, with More to see the rest.',
+      'New, brighter goal colors. Each goal gets its own automatically, and you can change it in Edit dashboard.',
+      'The number on the notification bell is now centered, and the day 1 badge lines up with the others.',
+    ],
+  },
+  {
     version: '1.0.70',
     date: 'November 6, 2026',
     notes: [
