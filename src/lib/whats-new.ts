@@ -6,6 +6,15 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.68',
+    date: 'November 6, 2026',
+    notes: [
+      'Adding a supplement is simpler: pick it, say how much you take and when, and save. Label details are optional.',
+      'Tap Take once to log your usual amount, with Undo if you need it.',
+      'Calories now have their own card on Home and no longer count toward your daily goals or streak.',
+    ],
+  },
+  {
     version: '1.0.67',
     date: 'November 6, 2026',
     notes: [
