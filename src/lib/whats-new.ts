@@ -6,6 +6,16 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.69',
+    date: 'November 6, 2026',
+    notes: [
+      'Every habit now earns badges, including water, walking, sleep, reading and more.',
+      'See how close your next badge is on Habits and Home, and every badge you’ve earned in the new Trophy case.',
+      'Earning a badge for the first time now gets its own moment, with an option to share it.',
+      'Reclaim has a new icon.',
+    ],
+  },
+  {
     version: '1.0.68',
     date: 'November 6, 2026',
     notes: [
