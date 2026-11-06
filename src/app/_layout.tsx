@@ -10,6 +10,7 @@ import { AppLockScreen } from '@/components/app-lock-screen';
 import { LocalSaveStatus } from '@/components/local-save-status';
 import { PlayUpdatePrompt } from '@/components/play-update-prompt';
 import { WhatsNewPrompt } from '@/components/whats-new';
+import { BadgeUnlockPrompt } from '@/components/badge-unlock-prompt';
 import { AppLockProvider, useAppLock } from '@/state/app-lock-context';
 import { TrackerProvider } from '@/state/tracker-context';
 import { MonetizationProvider } from '@/state/monetization-context';
@@ -95,6 +96,7 @@ function AppShell() {
           <Stack.Screen name="progress-trends" options={{ title: 'Progress trends' }} />
           <Stack.Screen name="trails" options={{ title: 'Find trails' }} />
           <Stack.Screen name="share-milestone" options={{ title: 'Share progress' }} />
+          <Stack.Screen name="trophy-case" options={{ title: 'Trophy case' }} />
           <Stack.Screen name="workout-session" options={{ title: 'Workout' }} />
           <Stack.Screen name="workout-exercises" options={{ title: 'Exercises' }} />
           <Stack.Screen name="workout-routines" options={{ title: 'Routines' }} />
@@ -121,6 +123,7 @@ function AppShell() {
         <LocalSaveStatus errorsOnly />
         <PlayUpdatePrompt active={!privateContent} />
         <WhatsNewPrompt active={!privateContent} />
+        <BadgeUnlockPrompt active={!privateContent} />
       </View>
       {(!ready || locked) && <AppLockScreen loading={!ready} />}
     </>

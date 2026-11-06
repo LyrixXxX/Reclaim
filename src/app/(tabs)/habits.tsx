@@ -11,6 +11,8 @@ import { HabitCard } from '@/components/habit-card';
 import { WaterHabitCard } from '@/components/water-habit-card';
 import { waterDisplayAmount } from '@/lib/water-habit';
 import { GoodHabitTemplateCard } from '@/components/good-habit-template-card';
+import { NextBadgeCard } from '@/components/next-badge-card';
+import { useTrophyCase } from '@/hooks/use-trophy-case';
 import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, type, font } from '@/theme';
 import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
@@ -30,6 +32,7 @@ export default function HabitsScreen() {
   const quitting = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'quitting');
   const reduction = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'reducing');
   const habits = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'building');
+  const trophies = useTrophyCase();
   const [view, setView] = useState<'good' | 'quit' | null>(null);
   useEffect(() => {
     let mounted = true;
@@ -82,6 +85,8 @@ export default function HabitsScreen() {
         />
 
         {deleted && <Text style={styles.deletedNotice}>{deleted} was permanently deleted.</Text>}
+
+        {(trophies.closest || trophies.earned.length > 0) && <View style={styles.badges}><NextBadgeCard next={trophies.closest} earned={trophies.earned} showLatest /></View>}
 
         <View style={styles.tabRow}>
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'good' }} onPress={() => selectView('good')} style={[styles.tab, view === 'good' && styles.tabActive]}><Text style={[styles.tabText, view === 'good' && styles.tabTextActive]}>Good Habits</Text></Pressable>
@@ -176,6 +181,7 @@ export default function HabitsScreen() {
 }
 
 const styles = StyleSheet.create({
+  badges: { marginBottom: 14 },
   insights: { marginBottom: 14, borderRadius: layout.radius, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18, gap: 14 },
   insightsTitle: { ...type.eyebrow, color: colors.habitsNav },
   insight: { gap: 4 },

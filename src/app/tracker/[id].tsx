@@ -14,7 +14,7 @@ import { GoodHabitTemplateDetail } from '@/components/good-habit-template-detail
 import { MindfulnessDetail } from '@/components/mindfulness-detail';
 import { ExerciseHabitDetail } from '@/components/exercise-habit-detail';
 import { ProduceHabitDetail } from '@/components/produce-habit-detail';
-import { HabitMilestoneShowcase } from '@/components/habit-milestone-showcase';
+import { TrackerBadgeShowcase } from '@/components/habit-milestone-showcase';
 import { HabitSavingsPanel } from '@/components/habit-savings-panel';
 import { TaperDetail } from '@/components/taper-detail';
 import { useNow } from '@/hooks/use-now';
@@ -28,7 +28,6 @@ import {
 } from '@/lib/recovery';
 import { isBackfilled } from '@/lib/history';
 import { RollingRange, rollingBounds } from '@/lib/rolling-range';
-import { habitMilestones } from '@/lib/habit-milestones';
 import { HistoricalEntry } from '@/models/tracker';
 import { findTracker, useTrackers } from '@/state/tracker-context';
 import { colors, layout, spacing, font } from '@/theme';
@@ -155,6 +154,8 @@ export default function TrackerDetailScreen() {
           </View>
         </View>
 
+        <TrackerBadgeShowcase trackerId={tracker.id} />
+
         <View style={styles.statsRow}>
           <Stat value={stats.successfulDays} label="SUCCESSFUL" />
           <View style={styles.statDivider} />
@@ -163,7 +164,6 @@ export default function TrackerDetailScreen() {
           <Stat value={`${stats.successPercentage}%`} label="SUCCESS" />
         </View>
 
-        <HabitMilestoneShowcase awards={habitMilestones(tracker, trackerEntries, recoveryStartedAt, new Date(now))} />
         <HabitSavingsPanel tracker={tracker} quitAt={recoveryStartedAt} now={now} />
 
         <View style={styles.chartPanel}>

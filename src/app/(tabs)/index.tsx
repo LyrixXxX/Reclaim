@@ -23,6 +23,8 @@ import { DEFAULT_PREFERENCES, trainingOverviewVisibleOnHome } from '@/lib/prefer
 import { homeGoalColor } from '@/lib/home-goal-colors';
 import { habitProgress } from '@/lib/good-habit-templates';
 import { useLiveSteps } from '@/hooks/use-live-steps';
+import { useTrophyCase } from '@/hooks/use-trophy-case';
+import { NextBadgeCard } from '@/components/next-badge-card';
 import { localDateKey } from '@/lib/progress';
 import { readStepHistory } from '@/lib/activity-step-history';
 import { activityRange } from '@/lib/activity-overview';
@@ -57,7 +59,8 @@ export default function DashboardScreen() {
   }, [preferences.visibleSections.activity]));
   const overviewNow = new Date(Math.max(now.getTime(), live.readAt));
   const overview = homeOverview(state, steps, overviewNow, walking);
-  const notes = homeNotifications(state, overview.attention, overviewNow);
+  const trophies = useTrophyCase();
+  const notes = homeNotifications(state, overview.attention, overviewNow, trophies.list);
   const journeys = preferences.showQuittingTaperingOnHome === false || !preferences.visibleSections.goals ? { quitting: [], tapering: [] } : homeQuittingTapering(state.trackers, state.taperSteps ?? [], now);
   const showQuits = preferences.showQuittingTaperingOnHome !== false && preferences.visibleSections.goals;
   const quitStarts = showQuits ? quittingStarts(state.trackers, state.taperSteps ?? []) : [];
@@ -112,6 +115,8 @@ export default function DashboardScreen() {
     </View>}
 
     {overview.nutrition && <NutritionCard {...overview.nutrition} color={goalColor('nutrition', colors.nutritionNav)} />}
+
+    {preferences.visibleSections.goals && preferences.showBadgesOnHome !== false && trophies.closest && <NextBadgeCard next={trophies.closest} />}
 
     {trainingOverviewVisibleOnHome(preferences) && hasTraining && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />}
 

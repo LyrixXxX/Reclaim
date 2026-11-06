@@ -12,12 +12,13 @@ import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, font } from '@/theme';
 
 export default function DashboardEditor() {
-  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setQuittingTaperingOnHome, setTrainingOverviewOnHome } = useTrackers();
+  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setBadgesOnHome, setQuittingTaperingOnHome, setTrainingOverviewOnHome } = useTrackers();
   const [draft, setDraft] = useState(() => normalizeDashboard(preferences.dashboard));
   const [hiddenHabits, setHiddenHabits] = useState<string[]>(preferences.hiddenHomeHabitIds ?? []);
   const [goalColors, setGoalColors] = useState<Record<string, string>>(preferences.homeGoalColors ?? {});
   const [showQuittingTapering, setShowQuittingTapering] = useState(preferences.showQuittingTaperingOnHome !== false);
   const [showTrainingOverview, setShowTrainingOverview] = useState(preferences.showTrainingOverviewOnHome !== false);
+  const [showBadges, setShowBadges] = useState(preferences.showBadgesOnHome !== false);
   const [dragging, setDragging] = useState(false);
   const { fontScale } = useWindowDimensions();
   const rowHeight = Math.max(112, Math.ceil(112 * fontScale));
@@ -42,6 +43,8 @@ export default function DashboardEditor() {
     <Text style={styles.help}>Each color changes a goal’s progress bar and, when applicable, its ring segment. Hidden habits keep their color if shown again.</Text>
     {colorGoals.map((goal) => <View key={goal.id} style={styles.colorCard}><View style={styles.colorHeading}><View style={[styles.colorMarker, { backgroundColor: homeGoalColor(goal.id, goalColors, goal.fallback) }]} /><Text style={styles.flexText}>{goal.title}</Text></View><View style={styles.colorChoices}>{HOME_GOAL_COLORS.map((color, index) => <Pressable key={color} accessibilityRole="radio" accessibilityLabel={`${goal.title}: color ${index + 1}`} accessibilityState={{ checked: homeGoalColor(goal.id, goalColors, goal.fallback) === color }} onPress={() => setGoalColors((current) => ({ ...current, [goal.id]: color }))} style={[styles.colorChoice, { backgroundColor: color }, homeGoalColor(goal.id, goalColors, goal.fallback) === color && styles.colorSelected]}><Text style={styles.colorCheck}>{homeGoalColor(goal.id, goalColors, goal.fallback) === color ? '✓' : ''}</Text></Pressable>)}</View></View>)}
     {!colorGoals.length && <Text style={styles.help}>Set a Steps or Nutrition goal, or add a good habit, to choose its Home color.</Text>}
+    {preferences.visibleSections.goals && <><Text style={styles.section}>Badges</Text>
+    <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>Show next badge on Home</Text><Text style={styles.status}>Show the badge you’re closest to. It isn’t a goal, and the rest stay in your trophy case.</Text></View><Switch accessibilityLabel="Show next badge on Home" value={showBadges} onValueChange={setShowBadges} /></View></>}
     <Text style={styles.section}>Quitting &amp; Tapering</Text>
     <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>Show on Home</Text><Text style={styles.status}>Show active items and their current timeframes. Tracking stays unchanged if hidden.</Text></View><Switch accessibilityLabel="Show Quitting and Tapering on Home" value={showQuittingTapering} onValueChange={setShowQuittingTapering} /></View>
     {preferences.visibleSections.workouts && <><Text style={styles.section}>Training overview</Text>
@@ -67,7 +70,7 @@ export default function DashboardEditor() {
         </>}
       </View>;
     })}
-    <Pressable accessibilityRole="button" onPress={() => { for (const item of trackers) if ((preferences.hiddenHomeHabitIds ?? []).includes(item.id) !== hiddenHabits.includes(item.id)) setHomeHabitVisible(item.id, !hiddenHabits.includes(item.id)); if ((preferences.showQuittingTaperingOnHome !== false) !== showQuittingTapering) setQuittingTaperingOnHome(showQuittingTapering); if ((preferences.showTrainingOverviewOnHome !== false) !== showTrainingOverview) setTrainingOverviewOnHome(showTrainingOverview); setHomeGoalColors(goalColors); saveDashboard(draft); exit(); }} style={styles.save}><Text style={styles.saveText}>Save dashboard</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => { for (const item of trackers) if ((preferences.hiddenHomeHabitIds ?? []).includes(item.id) !== hiddenHabits.includes(item.id)) setHomeHabitVisible(item.id, !hiddenHabits.includes(item.id)); if ((preferences.showQuittingTaperingOnHome !== false) !== showQuittingTapering) setQuittingTaperingOnHome(showQuittingTapering); if ((preferences.showTrainingOverviewOnHome !== false) !== showTrainingOverview) setTrainingOverviewOnHome(showTrainingOverview); if ((preferences.showBadgesOnHome !== false) !== showBadges) setBadgesOnHome(showBadges); setHomeGoalColors(goalColors); saveDashboard(draft); exit(); }} style={styles.save}><Text style={styles.saveText}>Save dashboard</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={exit} style={styles.secondary}><Text style={styles.buttonText}>Cancel</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={() => Alert.alert('Restore Weight card default?', 'This resets only the Weight card draft. No other saved widgets or health records will change. Tap Save dashboard to apply it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Restore card', onPress: () => setDraft((current) => current.map((item) => item.id === 'weight' ? defaultDashboard().find((candidate) => candidate.id === 'weight')! : item)) }])} style={styles.secondary}><Text style={styles.buttonText}>Restore Weight card default</Text></Pressable>
   </ScrollView>;

@@ -5,6 +5,7 @@ import { DEFAULT_QUIT_CHECKPOINT_DAYS } from './taper-quit';
 import { formatSavings } from './habit-savings';
 import { trackerDisplayName } from './tracker-management';
 import type { HomeAttention } from './home-overview';
+import { badgesEarnedToday, TrackerBadges } from './trophy-case';
 
 export type HomeNotification = {
   /** Stable for the day it applies to, so a dismissal holds until something new happens. */
@@ -21,7 +22,7 @@ export type HomeNotification = {
  * Everything the bell shows: things that need doing (from Home's attention list) and milestones worth
  * celebrating. Dismissed ids are remembered, so a hidden note stays hidden.
  */
-export function homeNotifications(state: TrackerState, attention: readonly HomeAttention[], now = new Date()): HomeNotification[] {
+export function homeNotifications(state: TrackerState, attention: readonly HomeAttention[], now = new Date(), badges: readonly TrackerBadges[] = []): HomeNotification[] {
   const preferences = state.preferences ?? DEFAULT_PREFERENCES;
   const notes: HomeNotification[] = attention.map((item) => ({ id: item.id, kind: 'action', title: item.title, detail: item.detail, href: item.href, dismissible: false }));
 
@@ -35,6 +36,7 @@ export function homeNotifications(state: TrackerState, attention: readonly HomeA
     }
     const goal = activeSavingsGoal(state.savingsGoals, totalQuitSavings(starts, now.getTime()));
     if (goal && goal.remainingCents === 0) notes.push({ id: `savings-goal-${goal.goal.id}`, kind: 'celebration', title: `You’ve saved enough for ${goal.goal.name}`, detail: `${formatSavings(goal.goal.targetCents)} kept from quitting.`, href: '/savings-goal', dismissible: true });
+    for (const badge of badgesEarnedToday(badges, now)) notes.push({ id: `badge-${badge.tracker.id}-${badge.days}`, kind: 'celebration', title: `${badge.label} badge: ${badge.name}`, detail: 'Earned today. Tap to see your trophy case.', href: '/trophy-case', dismissible: true });
   }
 
   const dismissed = new Set(preferences.dismissedNotices ?? []);

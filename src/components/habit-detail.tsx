@@ -5,12 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RecoveryChart } from '@/components/recovery-chart';
 import { RollingRangeControls } from '@/components/rolling-range-controls';
-import { HabitMilestoneShowcase } from '@/components/habit-milestone-showcase';
+import { TrackerBadgeShowcase } from '@/components/habit-milestone-showcase';
 import { useNow } from '@/hooks/use-now';
 import { formatLocalStartDateTime } from '@/lib/date-format';
 import { habitCompletionSeries, habitConsistencyStreak, habitPeriodProgress } from '@/lib/habit';
 import { habitCanLogToday, todayHabitCount } from '@/lib/habit-log';
-import { habitMilestones } from '@/lib/habit-milestones';
 import { localDateKey } from '@/lib/progress';
 import { RollingRange, rollingBounds } from '@/lib/rolling-range';
 import { trackerDisplayName } from '@/lib/tracker-management';
@@ -65,11 +64,11 @@ export function HabitDetail({
           <Pressable accessibilityRole="button" disabled={!canLog} onPress={logCompletion} style={[styles.logButton, !canLog && { opacity: 0.55 }]}><Text style={styles.logButtonText}>+ Log completion</Text></Pressable>
         </View>
 
+        <TrackerBadgeShowcase trackerId={tracker.id} />
+
         <View style={styles.stats}>
           <View style={styles.stat}><Text style={styles.statValue}>{streak}</Text><Text style={styles.statLabel}>CONSISTENCY STREAK</Text></View>
         </View>
-
-        <HabitMilestoneShowcase awards={habitMilestones(tracker, entries, tracker.startedAt, new Date(now))} />
 
         <View style={styles.chartPanel}>
           <Text style={styles.label}>RECENT COMPLETIONS</Text>

@@ -2,6 +2,7 @@ import { Href, Link } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TrackerBadgeShowcase } from '@/components/habit-milestone-showcase';
 import { useNow } from '@/hooks/use-now';
 import { localDateKey } from '@/lib/progress';
 import { addWaterShortcut, MAX_WATER_SHORTCUTS, WaterUnit, waterDisplayAmount, waterShortcuts, waterGoalOn, waterProgress, waterStreak, waterToOunces, waterTotalOn } from '@/lib/water-habit';
@@ -50,6 +51,7 @@ export function WaterHabitDetail({ tracker, logs }: { tracker: Tracker; logs: Wa
       <View style={{ marginTop: 4 }}><WaterQuickAdd tracker={tracker} onPick={addDrink} /></View>
       <Pressable accessibilityRole="button" onPress={() => { setEntryUnit(unit); setCustomOpen(true); }} style={styles.secondary}><Text style={styles.secondaryText}>Add different amount</Text></Pressable>
     </View>
+    <TrackerBadgeShowcase trackerId={tracker.id} />
     <View style={styles.card}><Text style={styles.sectionTitle}>Consistency</Text><Text style={styles.sub}>{waterStreak(tracker, logs, today)} completed {waterStreak(tracker, logs, today) === 1 ? 'day' : 'days'} in a row. Today does not break the streak while it is unfinished.</Text></View>
     <View style={styles.card}><Text style={styles.sectionTitle}>Recent days</Text>{recentDays.map((date) => { const total = waterTotalOn(logs, tracker.id, date); const goal = waterGoalOn(tracker, date); const percent = goal ? Math.min(100, total / goal * 100) : 0; return <View key={date} style={styles.day}><View style={styles.dayHeader}><Text style={styles.dayText}>{new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</Text><Text style={styles.dayValue}>{total ? `${waterDisplayAmount(total, unit)} / ${goal === null ? '—' : waterDisplayAmount(goal, unit)} ${unit}` : 'No drinks logged'}</Text></View><View accessibilityLabel={`${date}: ${waterDisplayAmount(total, unit)} of ${goal === null ? 'no goal' : waterDisplayAmount(goal, unit)} ${unit}`} style={styles.dayTrack}>{total > 0 && <View style={[styles.dayFill, { width: `${percent}%` }]} />}</View></View>; })}<Link href={`/water-history?id=${encodeURIComponent(tracker.id)}` as Href} asChild><Pressable accessibilityRole="link" style={styles.linkRow}><Text style={styles.link}>View and correct drink history</Text><Chevron size={18} color={colors.habitsNav} /></Pressable></Link></View>
     <Link href={`/water-form?id=${encodeURIComponent(tracker.id)}` as Href} style={styles.edit}>Edit water goal and serving</Link>

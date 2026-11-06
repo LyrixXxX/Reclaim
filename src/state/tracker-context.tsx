@@ -33,7 +33,7 @@ import {
 } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { DEFAULT_PREFERENCES, migratePreferences, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
+import { DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -54,6 +54,8 @@ type TrackerContextValue = TrackerState & {
   setHomeGoalColors: (colors: Record<string, string>) => void;
   setQuittingTaperingOnHome: (visible: boolean) => void;
   setTrainingOverviewOnHome: (visible: boolean) => void;
+  setBadgesOnHome: (visible: boolean) => void;
+  markBadgesSeen: (keys: string[]) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
   saveStatus: SaveStatus;
   retrySave: () => void;
@@ -255,6 +257,13 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setHomeGoalColors: (selected) => setState((previous) => setHomeGoalColors(previous, selected)),
     setQuittingTaperingOnHome: (visible) => setState((previous) => setQuittingTaperingOnHome(previous, visible)),
     setTrainingOverviewOnHome: (visible) => setState((previous) => setTrainingOverviewOnHome(previous, visible)),
+    setBadgesOnHome: (visible) => setState((previous) => setBadgesOnHome(previous, visible)),
+    markBadgesSeen: (keys) => setState((previous) => {
+      const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
+      const current = preferences.seenBadges;
+      const added = keys.filter((key) => !current?.includes(key));
+      return current && !added.length ? previous : { ...previous, preferences: { ...preferences, seenBadges: [...(current ?? []), ...added] } };
+    }),
     swapHabitOrder: (firstId, secondId) => setState((previous) => swapHabitOrder(previous, firstId, secondId)),
     saveStatus,
     retrySave: () => { void writer.retry().catch(() => undefined); },

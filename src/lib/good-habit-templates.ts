@@ -46,7 +46,7 @@ export function produceLinkStale(log: GoodHabitLog, foods: NutritionEntry[]) {
   const entry = foods.find((item) => item.id === log.nutritionEntryId);
   return !entry || (log.nutritionEntryUpdatedAt !== undefined && entry.updatedAt !== log.nutritionEntryUpdatedAt);
 }
-function creditedAmount(tracker: Tracker, logs: GoodHabitLog[], date: string, end: string) {
+export function creditedAmount(tracker: Tracker, logs: GoodHabitLog[], date: string, end: string) {
   const matching = logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= date && log.eventDate <= end);
   if (tracker.habitTemplate === 'exercise') return matching.reduce((sum, log) => sum + (exerciseModeOn(tracker, end) === 'minutes' ? log.durationMinutes ?? 0 : 1), 0);
   return matching.reduce((sum, log) => sum + log.amount, 0);

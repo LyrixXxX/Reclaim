@@ -8,6 +8,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   homeGoalColors: {},
   showQuittingTaperingOnHome: true,
   showTrainingOverviewOnHome: true,
+  showBadgesOnHome: true,
   navigationOrder: ['activity', 'routes', 'goals', 'weight', 'nutrition', 'workouts', 'supplements'],
   visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false, routes: false, workouts: false, supplements: true },
   visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
@@ -55,6 +56,7 @@ export function migratePreferences(state: TrackerState): TrackerState {
       homeGoalColors: normalizeHomeGoalColors(state.preferences?.homeGoalColors),
       showQuittingTaperingOnHome: state.preferences?.showQuittingTaperingOnHome !== false,
       showTrainingOverviewOnHome: state.preferences?.showTrainingOverviewOnHome !== false,
+      showBadgesOnHome: state.preferences?.showBadgesOnHome !== false,
       navigationOrder: normalizeNavigationOrder(state.preferences?.navigationOrder),
       // Old Activity included routes; copy its visibility only when no separate Routes choice exists.
       visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(savedSections ?? {}), routes: savedSections?.routes ?? savedSections?.activity ?? false, health: false, cpap: false },
@@ -66,6 +68,7 @@ export function migratePreferences(state: TrackerState): TrackerState {
       swipeHintSeen: state.preferences?.swipeHintSeen === true || undefined,
       startHere: normalizeStartHere(state.preferences?.startHere),
       dismissedNotices: Array.isArray(state.preferences?.dismissedNotices) ? state.preferences.dismissedNotices.filter((id): id is string => typeof id === 'string').slice(-100) : undefined,
+      seenBadges: Array.isArray(state.preferences?.seenBadges) ? state.preferences.seenBadges.filter((id): id is string => typeof id === 'string') : undefined,
     },
   };
 }
@@ -89,6 +92,11 @@ export function setQuittingTaperingOnHome(state: TrackerState, visible: boolean)
 
 export function trainingOverviewVisibleOnHome(preferences: AppPreferences): boolean {
   return preferences.visibleSections.workouts === true && preferences.showTrainingOverviewOnHome !== false;
+}
+
+export function setBadgesOnHome(state: TrackerState, visible: boolean): TrackerState {
+  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
+  return { ...state, preferences: { ...preferences, showBadgesOnHome: visible } };
 }
 
 export function setTrainingOverviewOnHome(state: TrackerState, visible: boolean): TrackerState {

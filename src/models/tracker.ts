@@ -212,6 +212,9 @@ export type AppPreferences = {
   startHere?: { done?: string[]; collapsed?: boolean; dismissed?: boolean };
   /** Notification ids the user cleared from the bell. */
   dismissedNotices?: string[];
+  /** Badges already celebrated, as trackerId:days. Unset until the first check, which celebrates nothing. */
+  seenBadges?: string[];
+  showBadgesOnHome?: boolean;
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
