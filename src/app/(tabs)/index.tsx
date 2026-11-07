@@ -1,5 +1,5 @@
 import { Href, Link, router, useFocusEffect } from 'expo-router';
-import { ReactNode, useCallback, useState } from 'react';
+import { Fragment, ReactNode, useCallback, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Polyline } from 'react-native-svg';
@@ -8,6 +8,7 @@ import { Header } from '@/components/header';
 import { GoodHabitIcon } from '@/components/good-habit-icon';
 import { RemoveAdsButton } from '@/components/remove-ads-button';
 import { DASHBOARD_WIDGETS, homeSecondaryWidgets } from '@/lib/dashboard';
+import { HomeCardId, normalizeHiddenHomeCards, normalizeHomeCardOrder } from '@/lib/home-cards';
 import { DashboardContent, dashboardContent, dashboardDate } from '@/lib/dashboard-content';
 import { homeOverview, nutritionShortDetail } from '@/lib/home-overview';
 import { stepCalories, stepsOutsideRoutes } from '@/lib/step-calories';
@@ -91,17 +92,12 @@ export default function DashboardScreen() {
   const ringCenter = ringSize / 2;
   const ringRadius = 55;
 
-  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-    <Header />
-    <View style={styles.heading}><View style={styles.headingText}><Text style={styles.greeting}>{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text><Text accessibilityRole="header" style={styles.date}>{greeting(now)}</Text></View><View style={styles.headerActions}><NotificationBell notes={notes} onDismiss={state.dismissNotice} /><Link href={'/dashboard-edit' as Href} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit dashboard" style={styles.edit}><Icon name="sliders" size={19} color={colors.text} /></Pressable></Link></View></View>
-
-    {quitStarts.length > 0 && <QuitHero starts={quitStarts} featuredId={preferences.featuredTrackerId} cravings={state.cravings ?? []} goals={state.savingsGoals ?? []} now={now.getTime()} onFeature={state.setFeaturedTracker} />}
-
-    {preferences.visibleSections.routes && <HomeForecast />}
-
-    <StartHereCard steps={startHereSteps(state, preferences.visibleSections)} prefs={preferences.startHere} onUpdate={state.updateStartHere} />
-
-    {hasProgress && <View style={styles.progressPanel}>
+  const homeCardOrder = normalizeHomeCardOrder(preferences.homeCardOrder);
+  const hiddenHomeCards = normalizeHiddenHomeCards(preferences.hiddenHomeCards);
+  const homeCards: Record<HomeCardId, ReactNode> = {
+    quit: quitStarts.length > 0 && <QuitHero starts={quitStarts} featuredId={preferences.featuredTrackerId} cravings={state.cravings ?? []} goals={state.savingsGoals ?? []} now={now.getTime()} onFeature={state.setFeaturedTracker} />,
+    weather: preferences.visibleSections.routes && <HomeForecast />,
+    progress: hasProgress && <View style={styles.progressPanel}>
       {/* The only way into Progress trends: the heading and the ring. Tiles still open their sections. */}
       <Pressable accessibilityRole="button" accessibilityLabel={`Today’s progress, ${overview.reachedCount} of ${overview.goalCount} goals. Open progress trends`} onPress={() => router.push('/progress-trends' as Href)} style={styles.panelHeading}><View style={styles.panelTitleRow}><Text style={styles.progressTitle}>Today’s progress</Text><Chevron size={18} color={colors.textMuted} /></View><Text style={styles.panelCount}>{overview.goalCount ? `${overview.reachedCount} of ${overview.goalCount} goals` : 'Today at a glance'}</Text></Pressable>
       <View style={styles.progressBody}><View style={styles.progressHero}>
@@ -123,23 +119,27 @@ export default function DashboardScreen() {
         </View>
         {hiddenTiles > 0 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllTiles }} onPress={() => setShowAllTiles((shown) => !shown)} style={styles.moreTiles}><Text style={styles.moreTilesText}>{showAllTiles ? 'Show less' : `More (${hiddenTiles})`}</Text></Pressable>}
       </View>
-    </View>}
-
-    {overview.nutrition && <NutritionCard {...overview.nutrition} color={goalColor('nutrition', colors.nutritionNav)} day={dailyCalories(state, localDateKey(overviewNow), steps.status === 'available' ? steps.count : undefined, walking.activeRoute, overviewNow.getTime())} onSetUp={() => setDetailsOpen(true)} />}
-    {detailsOpen && <PersonalDetailsModal title="Your details" note="BMR uses your height, birth year, formula choice and weight. These stay on this phone, and you can leave any of them blank." profile={state.weightTdeeProfile} askWeight={!latestRouteWeightKg([...(state.weightEntries ?? [])], todayKey)} onClose={() => setDetailsOpen(false)} onSave={(profile, weight) => { state.saveWeightTdeeProfile(profile); if (weight) state.saveWeightEntry({ date: todayKey, weight: weight.value, unit: weight.unit }); setDetailsOpen(false); }} />}
-
-    {preferences.visibleSections.goals && preferences.showBadgesOnHome !== false && trophies.closest && <NextBadgeCard next={trophies.closest} />}
-
-    {trainingOverviewVisibleOnHome(preferences) && hasTraining && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />}
-
-    {mindfulness && mindfulnessProgress && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${mindfulness.displayName || mindfulness.name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(mindfulness.id)}` as Href)} style={styles.mindfulnessCard}>
+    </View>,
+    nutrition: overview.nutrition && <NutritionCard {...overview.nutrition} color={goalColor('nutrition', colors.nutritionNav)} day={dailyCalories(state, localDateKey(overviewNow), steps.status === 'available' ? steps.count : undefined, walking.activeRoute, overviewNow.getTime())} onSetUp={() => setDetailsOpen(true)} />,
+    badge: preferences.visibleSections.goals && preferences.showBadgesOnHome !== false && trophies.closest && <NextBadgeCard next={trophies.closest} />,
+    training: trainingOverviewVisibleOnHome(preferences) && hasTraining && <TrainingOverviewHomeCard sessions={state.workoutSessions ?? []} routes={state.activityRoutes ?? []} unit={state.workoutSettings?.weightUnit ?? 'lb'} now={now} />,
+    mindfulness: mindfulness && mindfulnessProgress && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${mindfulness.displayName || mindfulness.name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(mindfulness.id)}` as Href)} style={styles.mindfulnessCard}>
       <View style={styles.mindfulnessTop}><GoodHabitIcon type="mindfulness" size={54} /><View style={styles.mindfulnessCopy}><Text style={styles.cardTitle}>{mindfulness.displayName || mindfulness.name}</Text><Text style={styles.caption}>{mindfulness.mindfulnessVisualMode === 'quiet' ? 'Quiet Zen' : 'Breathing guide'} · Tap to start a session</Text></View><Chevron color={colors.textMuted} /></View>
       <Text style={styles.mindfulnessValue}>{Number(mindfulnessProgress.amount.toFixed(1))} / {mindfulnessProgress.goal} min today</Text><View style={styles.track}><View style={[styles.fill, { width: `${mindfulnessProgress.percent}%`, backgroundColor: goalColor(mindfulness.id, colors.habitsNav) }]} /></View>
-    </Pressable>}
+    </Pressable>,
+    weekly: overview.weeklyHabitCards.map((goal) => { const color = goalColor(goal.id, colors.habitsNav); return <Pressable key={goal.id} accessibilityRole="button" onPress={() => router.push(goal.href as Href)} style={styles.dashboardCard}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle}>{goal.title}</Text></View><Text style={styles.cardValue}>{goal.value}</Text><Text style={styles.caption}>{goal.detail}</Text><View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, goal.progress * 100))}%`, backgroundColor: color }]} /></View></Pressable>; }),
+    journey: (journeys.quitting.length > 0 || journeys.tapering.length > 0) && <View style={styles.journeyPanel}><Text accessibilityRole="header" style={styles.journeyTitle}>Quitting &amp; Tapering</Text><ScrollView nestedScrollEnabled scrollEnabled={journeys.quitting.length + journeys.tapering.length > 3} style={journeys.quitting.length + journeys.tapering.length > 3 ? styles.journeyScroll : undefined} contentContainerStyle={styles.journeyScrollContent}>{journeys.quitting.length > 0 && <JourneyList title="Quitting" items={journeys.quitting} />}{journeys.tapering.length > 0 && <JourneyList title="Tapering" items={journeys.tapering} />}</ScrollView>{journeys.quitting.length + journeys.tapering.length > 3 && <Text style={styles.journeyHint}>Scroll to see more</Text>}</View>,
+    weight: widgets.length > 0 && <View style={styles.grid}>{widgets.map((widget) => <DashboardCard key={widget.id} widget={widget} content={dashboardContent(state, widget, now, steps)} overview={overview} week={week} width={cardWidth} />)}</View>,
+  };
 
-    {overview.weeklyHabitCards.map((goal) => { const color = goalColor(goal.id, colors.habitsNav); return <Pressable key={goal.id} accessibilityRole="button" onPress={() => router.push(goal.href as Href)} style={styles.dashboardCard}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle}>{goal.title}</Text></View><Text style={styles.cardValue}>{goal.value}</Text><Text style={styles.caption}>{goal.detail}</Text><View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, goal.progress * 100))}%`, backgroundColor: color }]} /></View></Pressable>; })}
-    {(journeys.quitting.length > 0 || journeys.tapering.length > 0) && <View style={styles.journeyPanel}><Text accessibilityRole="header" style={styles.journeyTitle}>Quitting &amp; Tapering</Text><ScrollView nestedScrollEnabled scrollEnabled={journeys.quitting.length + journeys.tapering.length > 3} style={journeys.quitting.length + journeys.tapering.length > 3 ? styles.journeyScroll : undefined} contentContainerStyle={styles.journeyScrollContent}>{journeys.quitting.length > 0 && <JourneyList title="Quitting" items={journeys.quitting} />}{journeys.tapering.length > 0 && <JourneyList title="Tapering" items={journeys.tapering} />}</ScrollView>{journeys.quitting.length + journeys.tapering.length > 3 && <Text style={styles.journeyHint}>Scroll to see more</Text>}</View>}
-    {widgets.length > 0 && <View style={styles.grid}>{widgets.map((widget) => <DashboardCard key={widget.id} widget={widget} content={dashboardContent(state, widget, now, steps)} overview={overview} week={week} width={cardWidth} />)}</View>}
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <Header />
+    <View style={styles.heading}><View style={styles.headingText}><Text style={styles.greeting}>{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text><Text accessibilityRole="header" style={styles.date}>{greeting(now)}</Text></View><View style={styles.headerActions}><NotificationBell notes={notes} onDismiss={state.dismissNotice} /><Link href={'/dashboard-edit' as Href} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit dashboard" style={styles.edit}><Icon name="sliders" size={19} color={colors.text} /></Pressable></Link></View></View>
+
+    <StartHereCard steps={startHereSteps(state, preferences.visibleSections)} prefs={preferences.startHere} onUpdate={state.updateStartHere} />
+
+    {homeCardOrder.filter((id) => !hiddenHomeCards.includes(id)).map((id) => <Fragment key={id}>{homeCards[id]}</Fragment>)}
+    {detailsOpen && <PersonalDetailsModal title="Your details" note="BMR uses your height, birth year, formula choice and weight. These stay on this phone, and you can leave any of them blank." profile={state.weightTdeeProfile} askWeight={!latestRouteWeightKg([...(state.weightEntries ?? [])], todayKey)} onClose={() => setDetailsOpen(false)} onSave={(profile, weight) => { state.saveWeightTdeeProfile(profile); if (weight) state.saveWeightEntry({ date: todayKey, weight: weight.value, unit: weight.unit }); setDetailsOpen(false); }} />}
     <RemoveAdsButton />
   </ScrollView></SafeAreaView>;
 }

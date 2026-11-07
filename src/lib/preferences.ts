@@ -2,6 +2,7 @@ import { AppPreferences, AppSection, HealthModule, NavigationSection, TrackerSta
 import { defaultDashboard, normalizeDashboard } from './dashboard';
 import { templateConfig } from './good-habit-templates';
 import { assignGoalColors, ColoredGoal, normalizeHomeGoalColors } from './home-goal-colors';
+import { HomeCardId, normalizeHiddenHomeCards, normalizeHomeCardOrder } from './home-cards';
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
   dashboard: defaultDashboard(),
@@ -10,6 +11,8 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   showQuittingTaperingOnHome: true,
   showTrainingOverviewOnHome: true,
   showBadgesOnHome: true,
+  homeCardOrder: normalizeHomeCardOrder(undefined),
+  hiddenHomeCards: [],
   navigationOrder: ['activity', 'routes', 'goals', 'weight', 'nutrition', 'workouts', 'supplements'],
   visibleSections: { goals: true, health: false, cpap: false, weight: true, nutrition: true, activity: false, routes: false, workouts: false, supplements: true },
   visibleHealthModules: { bloodPressure: false, medications: false, labs: false },
@@ -58,6 +61,8 @@ export function migratePreferences(state: TrackerState): TrackerState {
       showQuittingTaperingOnHome: state.preferences?.showQuittingTaperingOnHome !== false,
       showTrainingOverviewOnHome: state.preferences?.showTrainingOverviewOnHome !== false,
       showBadgesOnHome: state.preferences?.showBadgesOnHome !== false,
+      homeCardOrder: normalizeHomeCardOrder(state.preferences?.homeCardOrder),
+      hiddenHomeCards: normalizeHiddenHomeCards(state.preferences?.hiddenHomeCards),
       navigationOrder: normalizeNavigationOrder(state.preferences?.navigationOrder),
       // Old Activity included routes; copy its visibility only when no separate Routes choice exists.
       visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, ...(savedSections ?? {}), routes: savedSections?.routes ?? savedSections?.activity ?? false, health: false, cpap: false },
@@ -111,6 +116,11 @@ export function setQuittingTaperingOnHome(state: TrackerState, visible: boolean)
 
 export function trainingOverviewVisibleOnHome(preferences: AppPreferences): boolean {
   return preferences.visibleSections.workouts === true && preferences.showTrainingOverviewOnHome !== false;
+}
+
+export function setHomeCards(state: TrackerState, order: readonly HomeCardId[], hidden: readonly HomeCardId[]): TrackerState {
+  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
+  return { ...state, preferences: { ...preferences, homeCardOrder: normalizeHomeCardOrder(order), hiddenHomeCards: normalizeHiddenHomeCards(hidden) } };
 }
 
 export function setBadgesOnHome(state: TrackerState, visible: boolean): TrackerState {

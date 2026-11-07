@@ -17,6 +17,7 @@ import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/li
 import { createFreshState, needsOnboarding, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
 import { migrateRouteCalories } from '@/lib/daily-calories';
+import type { HomeCardId } from '@/lib/home-cards';
 import { migrateTdeeProfile } from '@/lib/weight-tdee';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
@@ -36,7 +37,7 @@ import {
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
 import { deleteRoutePhotos } from '@/lib/route-photos';
-import { assignHomeGoalColors, DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
+import { assignHomeGoalColors, DEFAULT_PREFERENCES, migratePreferences, setBadgesOnHome, setHomeCards, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
@@ -58,6 +59,7 @@ type TrackerContextValue = TrackerState & {
   setQuittingTaperingOnHome: (visible: boolean) => void;
   setTrainingOverviewOnHome: (visible: boolean) => void;
   setBadgesOnHome: (visible: boolean) => void;
+  setHomeCards: (order: readonly HomeCardId[], hidden: readonly HomeCardId[]) => void;
   markBadgesSeen: (keys: string[]) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
   saveStatus: SaveStatus;
@@ -263,6 +265,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setQuittingTaperingOnHome: (visible) => setState((previous) => setQuittingTaperingOnHome(previous, visible)),
     setTrainingOverviewOnHome: (visible) => setState((previous) => setTrainingOverviewOnHome(previous, visible)),
     setBadgesOnHome: (visible) => setState((previous) => setBadgesOnHome(previous, visible)),
+    setHomeCards: (order, hidden) => setState((previous) => setHomeCards(previous, order, hidden)),
     markBadgesSeen: (keys) => setState((previous) => {
       const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
       const current = preferences.seenBadges;

@@ -1,3 +1,4 @@
+import type { HomeCardId } from '@/lib/home-cards';
 import type { SavedTrail } from '@/lib/trails';
 
 export type { SavedTrail };
@@ -215,6 +216,9 @@ export type AppPreferences = {
   /** Badges already celebrated, as trackerId:days. Unset until the first check, which celebrates nothing. */
   seenBadges?: string[];
   showBadgesOnHome?: boolean;
+  /** The order of the cards on Home. */
+  homeCardOrder?: HomeCardId[];
+  hiddenHomeCards?: HomeCardId[];
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
