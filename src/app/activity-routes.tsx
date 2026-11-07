@@ -46,7 +46,7 @@ export default function SavedRoutesScreen() {
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
           <View style={styles.openRow}><Text style={styles.open}>View on map</Text><Chevron size={16} color={colors.activityNav} /></View>
         </Pressable>
-        <RoutePhotos routeId={route.id} photos={route.photos} />
+        <RoutePhotos routeId={route.id} photos={route.photos} onChange={(photos) => void saveActivityRoute({ ...route, photos })} />
         <View style={styles.actions}>
           <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={`Share ${routeDisplayName(route)}`} onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(route.id)}` as Href)} style={styles.action}><Text style={styles.actionText}>Share</Text></Pressable>

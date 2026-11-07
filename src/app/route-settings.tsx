@@ -5,34 +5,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { readRouteAutoPauseEnabled, setRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
 import { readRouteMileAlertsEnabled, setRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
+import { readRouteStartView, RouteStartView, setRouteStartView } from '@/lib/route-start-view';
 import { colors, layout, spacing, font } from '@/theme';
 
 export default function RouteSettingsScreen() {
   const [mileAlerts, setMileAlerts] = useState(false);
   const [autoPause, setAutoPause] = useState(false);
+  const [startView, setStartView] = useState<RouteStartView>({ fullScreen: false, navigation: false });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoading(true);
-    void Promise.all([readRouteMileAlertsEnabled(), readRouteAutoPauseEnabled()])
-      .then(([alerts, pause]) => { if (active) { setMileAlerts(alerts); setAutoPause(pause); } })
+    void Promise.all([readRouteMileAlertsEnabled(), readRouteAutoPauseEnabled(), readRouteStartView()])
+      .then(([alerts, pause, view]) => { if (active) { setMileAlerts(alerts); setAutoPause(pause); setStartView(view); } })
       .catch(() => { if (active) Alert.alert('Route settings', 'Could not load your route preferences. Please try again.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []));
 
-  const change = async (setting: 'alerts' | 'pause', enabled: boolean) => {
+  const change = async (setting: 'alerts' | 'pause' | keyof RouteStartView, enabled: boolean) => {
     if (busy || loading) return;
     setBusy(true);
     try {
       if (setting === 'alerts') {
         await setRouteMileAlertsEnabled(enabled);
         setMileAlerts(enabled);
-      } else {
+      } else if (setting === 'pause') {
         await setRouteAutoPauseEnabled(enabled);
         setAutoPause(enabled);
+      } else {
+        await setRouteStartView(setting, enabled);
+        setStartView((current) => ({ ...current, [setting]: enabled }));
       }
     } catch (error) {
       Alert.alert('Setting not changed', error instanceof Error ? error.message : 'Please try again.');
@@ -48,6 +53,11 @@ export default function RouteSettingsScreen() {
       <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Mile alerts</Text><Text style={styles.description}>Vibrate and show a notification at each completed mile. No voice or sound.</Text></View><Switch accessibilityLabel="Mile alerts" accessibilityRole="switch" value={mileAlerts} disabled={loading || busy} onValueChange={(value) => void change('alerts', value)} trackColor={{ false: colors.border, true: colors.activityNav }} thumbColor={colors.text} /></View>
       <View style={styles.divider} />
       <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Auto Pause</Text><Text style={styles.description}>Pause route distance during a confirmed stop, then resume when movement is detected. GPS stays active; a manual pause never auto-resumes.</Text></View><Switch accessibilityLabel="Auto Pause" accessibilityRole="switch" value={autoPause} disabled={loading || busy} onValueChange={(value) => void change('pause', value)} trackColor={{ false: colors.border, true: colors.activityNav }} thumbColor={colors.text} /></View>
+    </View>
+    <View style={styles.card}>
+      <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Start in full screen</Text><Text style={styles.description}>Open the map full screen as soon as a route starts. Go back any time to see your stats and buttons.</Text></View><Switch accessibilityLabel="Start routes in full screen" value={startView.fullScreen} disabled={loading || busy} onValueChange={(enabled) => void change('fullScreen', enabled)} /></View>
+      <View style={styles.divider} />
+      <View style={styles.row}><View style={styles.copy}><Text style={styles.settingTitle}>Start in navigation mode</Text><Text style={styles.description}>The map turns to match the direction you’re facing. Tap the arrow button on the map to switch back.</Text></View><Switch accessibilityLabel="Start routes in navigation mode" value={startView.navigation} disabled={loading || busy} onValueChange={(enabled) => void change('navigation', enabled)} /></View>
     </View>
     <Text style={styles.note}>Changes apply when you start your next route. A route already recording keeps the options it started with.</Text>
   </ScrollView></SafeAreaView>;

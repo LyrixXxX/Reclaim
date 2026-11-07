@@ -18,6 +18,7 @@ import { activityToday } from '@/lib/activity-overview';
 import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs, movedEnoughToUpdate } from '@/lib/activity';
 import { motionTotals } from '@/lib/activity-motion';
 import { readRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
+import { readRouteStartView, RouteStartView } from '@/lib/route-start-view';
 import { formatMiles } from '@/lib/activity-units';
 import { getMapKey, loadMapStyle } from '@/lib/activity-maps';
 import { localDateKey } from '@/lib/progress';
@@ -103,6 +104,7 @@ export default function ActivityMapScreen() {
   const [routeWeightKg, setRouteWeightKg] = useState<number | undefined>();
   const [mileAlerts, setMileAlerts] = useState(false);
   const [autoPause, setAutoPause] = useState(false);
+  const [startView, setStartView] = useState<RouteStartView>({ fullScreen: false, navigation: false });
   const [showTimingDetails, setShowTimingDetails] = useState(false);
   const [weightDraft, setWeightDraft] = useState('');
   const [weightUnit, setWeightUnit] = useState<'lb' | 'kg'>('lb');
@@ -117,6 +119,7 @@ export default function ActivityMapScreen() {
   useFocusEffect(useCallback(() => {
     void readRouteMileAlertsEnabled().then(setMileAlerts).catch(() => undefined);
     void readRouteAutoPauseEnabled().then(setAutoPause).catch(() => undefined);
+    void readRouteStartView().then(setStartView).catch(() => undefined);
     if (mapPermissionRefresh > 0) setLocationMessage('Finding your location…');
     void getMapKey().then((value) => { if (!cancelled) { setKey(value); if (!value) setMapLoading(false); } }).catch(() => { if (!cancelled) { setMapError('Map configuration could not be read.'); setMapLoading(false); } });
     void refresh();
@@ -228,7 +231,7 @@ export default function ActivityMapScreen() {
     finally { setBusy(false); }
   };
   const startConfiguredRoute = (weightKg: number) => {
-    void withBusy(async () => { setSelected(null); await startRoute(kind, weightKg, mileAlerts, autoPause); setSectionVisibility('routes', true); setMapPermissionRefresh((value) => value + 1); });
+    void withBusy(async () => { setSelected(null); await startRoute(kind, weightKg, mileAlerts, autoPause); setSectionVisibility('routes', true); setMapPermissionRefresh((value) => value + 1); if (startView.navigation && mapModeRef.current === 'map') toggleMapMode(); if (startView.fullScreen) openExpandedMap(); });
   };
   const checkPermissionsAndBegin = async (weightKg: number) => {
     setRouteWeightKg(weightKg);
@@ -257,7 +260,7 @@ export default function ActivityMapScreen() {
   };
   const finish = () => Alert.alert('Finish route?', 'This stops GPS recording and opens the route summary.', [
     { text: 'Keep recording', style: 'cancel' },
-    { text: 'Finish', onPress: () => void withBusy(async () => { const route = await finishRoute(); setPending(route); setRouteName(''); setRouteNotes(''); mapModeRef.current = 'map'; headingRef.current = null; setMapMode('map'); setCompass(null); if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: 0, duration: 400 }); }) },
+    { text: 'Finish', onPress: () => void withBusy(async () => { const route = await finishRoute(); setPending(route); setRouteName(''); setRouteNotes(''); mapModeRef.current = 'map'; headingRef.current = null; setMapMode('map'); setCompass(null); setCameraStart((start) => start && { ...start, bearing: 0 }); if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: 0, duration: 400 }); }) },
   ]);
   const savePending = () => void withBusy(async () => {
     if (!pending) return;
@@ -367,7 +370,6 @@ export default function ActivityMapScreen() {
   const activeOverallPace = averagePaceMinPerMile(activeDistance, activeDuration);
   const activeCalories = active ? estimatedRouteCalories(activeDistance, active?.motion ? activeTimes.movingMs ?? 0 : activeDuration, active.estimateWeightKg, active.kind, routeElevation(active.points)?.gainMeters) : null;
   const routeStatus = active?.pausedAt ? 'Manually paused' : active?.autoPausedAt ? 'Auto-paused' : recording ? 'Recording…' : 'Interrupted';
-  const gpsStatus = !position ? 'Finding signal' : active?.pausedAt ? 'Paused' : recording ? 'Tracking' : 'Needs attention';
   // Fixes only arrive after moving ~10 m, so a still phone keeps its last reading for a couple of minutes.
   const currentAccuracy = now && now - gpsFixTime > GPS_FIX_STALE_MS ? null : gpsAccuracy;
   const accuracyBars = gpsAccuracyBars(currentAccuracy);
@@ -443,7 +445,6 @@ export default function ActivityMapScreen() {
       <Pressable accessibilityRole="button" accessibilityLabel={`Find trails${savedTrails.length ? `, ${savedTrails.length} saved` : ''}`} onPress={() => router.push('/trails' as Href)} style={({ pressed }) => [styles.trailsRow, pressed && { opacity: 0.8 }]}><Text style={styles.trailsPin}>⌖</Text><View style={{ flex: 1 }}><Text style={styles.trailsTitle}>Find trails{savedTrails.length ? ` · ${savedTrails.length} saved` : ''}</Text><Text style={styles.trailsDetail}>Hiking trails near you, with directions</Text></View><Chevron size={18} color={colors.textMuted} /></Pressable>
     </View> : null}
     </View>}
-    {active && <View style={styles.card}><Text style={styles.cardTitle}>Current activity</Text><StatusRow label="Activity type" value={active.kind.charAt(0).toUpperCase() + active.kind.slice(1)} /><StatusRow label="GPS" value={gpsStatus} /><StatusRow label="Distance" value={formatMiles(activeDistance)} /><StatusRow label="Elapsed time" value={formatClock(activeDuration)} /><StatusRow label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><StatusRow label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /></View>}
     <SavedAdConfirmation visible={savedConfirmation} title="Route saved" subject="Your route" onContinue={() => { setSavedConfirmation(false); void showCompletionAd('route'); }} />
     {mapExpanded && !pending && <Modal visible animationType="slide" onRequestClose={closeExpandedMap}><SafeAreaView style={styles.expandedSafe} edges={['top', 'bottom']}>
       <View style={styles.expandedHeader}><Pressable accessibilityRole="button" accessibilityLabel="Back to route screen" onPress={closeExpandedMap} style={styles.closeMapButton}><Chevron direction="left" size={18} color={colors.text} /><Text style={styles.buttonText}>Back to route</Text></Pressable><Text style={styles.expandedTitle} numberOfLines={1}>{active ? `${active.kind.toUpperCase()} · ${formatMiles(activeDistance)}` : selectedRoute ? routeDisplayName(selectedRoute) : 'Routes map'}</Text></View>
@@ -464,7 +465,7 @@ export default function ActivityMapScreen() {
         <Metric label="Route Steps" value={selectedRoute.routeSteps === undefined ? '—' : selectedRoute.routeSteps.toLocaleString()} />
       </View>
       <RouteElevationCard points={selectedRoute.points} />
-      <RoutePhotos routeId={selectedRoute.id} photos={selectedRoute.photos} />
+      <RoutePhotos routeId={selectedRoute.id} photos={selectedRoute.photos} onChange={(photos) => void saveActivityRoute({ ...selectedRoute, photos })} />
       <Button label="Share route" onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(selectedRoute.id)}` as Href)} secondary />
       <StatusRow label="Started" value={new Date(selectedRoute.startedAt).toLocaleString(undefined, { hour12: true })} />
       <StatusRow label="Finished" value={new Date(selectedRoute.endedAt).toLocaleString(undefined, { hour12: true })} />
@@ -475,7 +476,7 @@ export default function ActivityMapScreen() {
       {selectedRoute.notes && <View><Text style={styles.metricLabel}>Notes</Text><Text style={styles.body}>{selectedRoute.notes}</Text></View>}
       <Button label="Back to live map" onPress={() => { setSelected(null); followingRef.current = true; if (position) cameraRef.current?.easeTo({ center: position, zoom: 15, duration: 400 }); }} secondary />
     </View>}
-    <View style={styles.card}>
+    {!pending && !active && <><View style={styles.card}>
       <Text style={styles.cardTitle}>Today’s routes</Text>
       <View style={styles.metrics}>
         <Metric label="Distance" value={formatMiles(today.distanceMeters)} />
@@ -485,7 +486,7 @@ export default function ActivityMapScreen() {
       </View>
       <Text style={styles.note}>Route steps are included in your daily step count—not added to it again. Older routes may not have a step count.</Text>
     </View>
-    <Button label="View saved routes" onPress={() => router.push('/activity-routes' as Href)} secondary />
+    <Button label="View saved routes" onPress={() => router.push('/activity-routes' as Href)} secondary /></>}
   </ScrollView></SafeAreaView>;
 }
 
