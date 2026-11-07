@@ -6,6 +6,16 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.72',
+    date: 'November 6, 2026',
+    notes: [
+      'The Home card is now Nutrition & Calories, showing what you’ve eaten and burned so far.',
+      'More accurate calories: hikes and walks use distance and climb, and route steps are no longer counted twice.',
+      'Log and add another lets you add several foods in a row.',
+      'Height, birth year and weight are optional, and only asked for when your choices use them.',
+    ],
+  },
+  {
     version: '1.0.71',
     date: 'November 6, 2026',
     notes: [
