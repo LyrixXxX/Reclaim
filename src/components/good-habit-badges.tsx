@@ -1,7 +1,8 @@
+import { Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Chevron } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
 import { NextBadgeRow } from '@/components/next-badge-row';
 import { goodHabitNextBadges, TrackerBadges } from '@/lib/trophy-case';
 import { colors, font, radius, type } from '@/theme';
@@ -13,18 +14,21 @@ export function GoodHabitBadges({ list, hiddenIds }: { list: readonly TrackerBad
   if (!badges.length) return null;
   const badge = badges.find((item) => item.tracker.id === chosenId) ?? badges[0];
   const next = badges[(badges.indexOf(badge) + 1) % badges.length];
-  return <View style={styles.card}>
+  // The whole card opens Habits; the name, switch and badge inside keep their own jobs.
+  const openHabits = () => router.navigate(`/habits?view=good&at=${Date.now()}` as Href);
+  return <Pressable accessible={false} onPress={openHabits} style={styles.card}>
     <View style={styles.top}>
-      <View style={styles.heading}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${badge.name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(badge.tracker.id)}` as Href)} style={styles.heading}>
         <Text style={styles.eyebrow}>GOOD HABITS</Text>
         <Text style={styles.name}>{badge.name}</Text>
-      </View>
+      </Pressable>
       {badges.length > 1 && <Pressable accessibilityRole="button" accessibilityLabel={`Show ${next.name} instead`} hitSlop={8} onPress={() => setChosenId(next.tracker.id)} style={styles.swap}>
-        <Text style={styles.swapText} numberOfLines={2}>{next.name}</Text><Chevron size={14} color={colors.textMuted} />
+        <Icon name="swap" size={13} color={colors.textMuted} /><Text style={styles.swapText} numberOfLines={2}>{next.name}</Text>
       </Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Open Habits, Good Habits" hitSlop={10} onPress={openHabits}><Chevron color={colors.textMuted} /></Pressable>
     </View>
     <NextBadgeRow badge={badge} />
-  </View>;
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -33,6 +37,6 @@ const styles = StyleSheet.create({
   heading: { flex: 1, gap: 3 },
   eyebrow: { ...type.eyebrow, color: colors.habitsNav },
   name: { color: colors.text, fontSize: 18, fontFamily: font.bold },
-  swap: { maxWidth: '45%', flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, paddingLeft: 10, paddingRight: 6, paddingVertical: 5 },
+  swap: { maxWidth: '45%', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: 10, paddingVertical: 5 },
   swapText: { flexShrink: 1, color: colors.textMuted, fontSize: 12, fontFamily: font.semibold },
 });

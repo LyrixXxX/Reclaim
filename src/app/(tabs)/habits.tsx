@@ -26,7 +26,7 @@ import { localDateKey } from '@/lib/progress';
 import { Chevron } from '@/components/icon';
 
 export default function HabitsScreen() {
-  const { deleted } = useLocalSearchParams<{ deleted?: string }>();
+  const { deleted, view: linkedView, at: linkedAt } = useLocalSearchParams<{ deleted?: string; view?: string; at?: string }>();
   const router = useRouter();
   const { trackers, historicalEntries = [], waterLogs = [], goodHabitLogs = [], activityRoutes = [], taperSteps = [], cravings = [], savingsGoals = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
   const active = trackers.filter((tracker) => !tracker.archived);
@@ -38,10 +38,12 @@ export default function HabitsScreen() {
   useEffect(() => {
     let mounted = true;
     void AsyncStorage.getItem('reclaim-habits-view').then((saved) => {
-      if (mounted) setView(saved === 'good' || saved === 'quit' ? saved : habits.length && !quitting.length && !reduction.length ? 'good' : 'quit');
+      const chosen = linkedView === 'good' || linkedView === 'quit' ? linkedView : saved;
+      if (linkedView === 'good' || linkedView === 'quit') void AsyncStorage.setItem('reclaim-habits-view', linkedView).catch(() => undefined);
+      if (mounted) setView(chosen === 'good' || chosen === 'quit' ? chosen : habits.length && !quitting.length && !reduction.length ? 'good' : 'quit');
     }).catch(() => { if (mounted) setView(habits.length && !quitting.length && !reduction.length ? 'good' : 'quit'); });
     return () => { mounted = false; };
-  }, [habits.length, quitting.length, reduction.length]);
+  }, [habits.length, quitting.length, reduction.length, linkedView, linkedAt]);
   const selectView = (next: 'good' | 'quit') => { setView(next); void AsyncStorage.setItem('reclaim-habits-view', next).catch(() => undefined); };
   const [expandedTimers, setExpandedTimers] = useState<Record<string, boolean>>({});
   const [editingOrder, setEditingOrder] = useState(false);

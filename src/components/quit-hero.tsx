@@ -7,7 +7,7 @@ import { NextBadgeRow } from '@/components/next-badge-row';
 import { activeSavingsGoal, cravingsBeaten, QuitStart, quitSummary, TaperStart, totalQuitSavings } from '@/lib/quit-progress';
 import { nextBadge, TrackerBadges } from '@/lib/trophy-case';
 import { trackerDisplayName } from '@/lib/tracker-management';
-import { Chevron } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
 import { colors, font, radius, type } from '@/theme';
 
 /** Home's lead card: whichever quit or taper is showing, how far it has come, its next badge and a way through a craving. */
@@ -29,15 +29,18 @@ export function QuitHero({ starts, tapers = [], badges = [], featuredId, craving
   const beaten = cravingsBeaten(cravings, tracker.id);
   const goal = activeSavingsGoal(goals, totalQuitSavings(starts, now));
 
-  return <View style={[styles.card, { borderColor: `${tracker.color}40` }]}>
+  // The whole card opens Habits; the name, switch, badge and craving buttons inside keep their own jobs.
+  const openHabits = () => router.navigate(`/habits?view=quit&at=${Date.now()}` as Href);
+  return <Pressable accessible={false} onPress={openHabits} style={[styles.card, { borderColor: `${tracker.color}40` }]}>
     <View style={styles.top}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${name}`} onPress={() => router.push(`/tracker/${encodeURIComponent(tracker.id)}` as Href)} style={styles.identity}>
         <View style={[styles.icon, { backgroundColor: `${tracker.color}22` }]}><Text style={[styles.iconText, { color: tracker.color }]}>{tracker.icon}</Text></View>
         <Text style={[styles.eyebrow, { color: tracker.color }]} >{name.toUpperCase()}{quit ? '-FREE' : ' · TAPERING'}</Text>
       </Pressable>
       {items.length > 1 && <Pressable accessibilityRole="button" accessibilityLabel={`Show ${trackerDisplayName(next)} instead`} hitSlop={8} onPress={() => onFeature(next.id)} style={styles.swap}>
-        <Text style={styles.swapText} numberOfLines={2}>{trackerDisplayName(next)}</Text><Chevron size={14} color={colors.textMuted} />
+        <Icon name="swap" size={13} color={colors.textMuted} /><Text style={styles.swapText} numberOfLines={2}>{trackerDisplayName(next)}</Text>
       </Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Open Habits, Quitting and Tapering" hitSlop={10} onPress={openHabits}><Chevron color={colors.textMuted} /></Pressable>
     </View>
 
     {days !== null && <View style={styles.daysRow}>
@@ -57,7 +60,7 @@ export function QuitHero({ starts, tapers = [], badges = [], featuredId, craving
     <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/craving', params: { tracker: tracker.id } } as unknown as Href)} style={({ pressed }) => [styles.craving, pressed && { opacity: 0.85 }]}>
       <Text style={styles.cravingText}>Having a craving?</Text>
     </Pressable>
-  </View>;
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -67,7 +70,7 @@ const styles = StyleSheet.create({
   icon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   iconText: { fontSize: 15, fontFamily: font.bold },
   eyebrow: { ...type.eyebrow, flexShrink: 1 },
-  swap: { maxWidth: '45%', flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, paddingLeft: 10, paddingRight: 6, paddingVertical: 5 },
+  swap: { maxWidth: '45%', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: 10, paddingVertical: 5 },
   swapText: { flexShrink: 1, color: colors.textMuted, fontSize: 12, fontFamily: font.semibold },
   daysRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 14 },
   days: { color: colors.text, fontSize: 64, lineHeight: 70, letterSpacing: -2.5, fontFamily: font.extrabold, fontVariant: ['tabular-nums'] },
