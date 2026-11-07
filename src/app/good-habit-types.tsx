@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, font } from '@/theme';
 import { GoodHabitIcon } from '@/components/good-habit-icon';
-import { GOOD_HABIT_TEMPLATES } from '@/lib/good-habit-templates';
+import { GOOD_HABIT_TEMPLATES, isRetiredHabit } from '@/lib/good-habit-templates';
 import { useTrackers } from '@/state/tracker-context';
 import { Chevron } from '@/components/icon';
 
@@ -16,7 +16,7 @@ export default function GoodHabitTypesScreen() {
     <Pressable accessibilityRole="button" disabled={waterActive} onPress={() => router.push('/water-form' as Href)} style={[styles.card, waterActive && styles.disabled]}>
       <GoodHabitIcon type="water" size={64} /><View style={styles.copy}><Text style={styles.name}>Drink water</Text><Text style={styles.body}>{waterActive ? 'Already active · edit it from Good Habits' : 'Set a daily fluid goal and log each drink.'}</Text></View><Chevron color={colors.textMuted} />
     </Pressable>
-    {GOOD_HABIT_TEMPLATES.filter((item) => item.id !== 'exercise').map((item) => { const active = trackers.some((tracker) => tracker.habitTemplate === item.id && !tracker.archived); return <Pressable key={item.id} accessibilityRole="button" disabled={active} onPress={() => router.push(`/good-habit-form?type=${item.id}` as Href)} style={[styles.card, active && styles.disabled]}><GoodHabitIcon type={item.id} size={64} /><View style={styles.copy}><Text style={styles.name}>{item.title}</Text><Text style={styles.body}>{active ? 'Already active · edit it from Good Habits' : `${item.period === 'week' ? 'Weekly' : 'Daily'} ${item.checklist ? 'checklist' : item.unit} goal`}</Text></View><Chevron color={colors.textMuted} /></Pressable>; })}
+    {GOOD_HABIT_TEMPLATES.filter((item) => !isRetiredHabit(item.id)).map((item) => { const active = trackers.some((tracker) => tracker.habitTemplate === item.id && !tracker.archived); return <Pressable key={item.id} accessibilityRole="button" disabled={active} onPress={() => router.push(`/good-habit-form?type=${item.id}` as Href)} style={[styles.card, active && styles.disabled]}><GoodHabitIcon type={item.id} size={64} /><View style={styles.copy}><Text style={styles.name}>{item.title}</Text><Text style={styles.body}>{active ? 'Already active · edit it from Good Habits' : `${item.period === 'week' ? 'Weekly' : 'Daily'} ${item.checklist ? 'checklist' : item.unit} goal`}</Text></View><Chevron color={colors.textMuted} /></Pressable>; })}
   </ScrollView></SafeAreaView>;
 }
 

@@ -13,7 +13,6 @@ import { WaterHabitDetail } from '@/components/water-habit-detail';
 import { GoodHabitTemplateDetail } from '@/components/good-habit-template-detail';
 import { MindfulnessDetail } from '@/components/mindfulness-detail';
 import { ExerciseHabitDetail } from '@/components/exercise-habit-detail';
-import { ProduceHabitDetail } from '@/components/produce-habit-detail';
 import { TrackerBadgeShowcase } from '@/components/habit-milestone-showcase';
 import { HabitSavingsPanel } from '@/components/habit-savings-panel';
 import { TaperDetail } from '@/components/taper-detail';
@@ -44,7 +43,6 @@ export default function TrackerDetailScreen() {
     waterLogs = [],
     goodHabitLogs = [],
     activityRoutes = [],
-    nutritionEntries = [],
     taperSteps = [],
     addLapse,
     updateLapse,
@@ -93,9 +91,8 @@ export default function TrackerDetailScreen() {
   if (tracker.mode === 'habit') {
     if (tracker.habitTemplate === 'water') return <WaterHabitDetail tracker={tracker} logs={waterLogs.filter((log) => log.trackerId === tracker.id)} />;
     if (tracker.habitTemplate === 'exercise') return <ExerciseHabitDetail tracker={tracker} logs={goodHabitLogs} />;
-    if (tracker.habitTemplate === 'produce') return <ProduceHabitDetail tracker={tracker} logs={goodHabitLogs} foods={nutritionEntries} />;
     if (tracker.habitTemplate === 'mindfulness') return <MindfulnessDetail tracker={tracker} logs={goodHabitLogs} />;
-    if (tracker.habitTemplate) return <GoodHabitTemplateDetail tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} foods={nutritionEntries} />;
+    if (tracker.habitTemplate) return <GoodHabitTemplateDetail tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} />;
     return <HabitDetail tracker={tracker} entries={trackerEntries} saveEntry={saveHistoricalEntry} />;
   }
 

@@ -139,22 +139,6 @@ test('health check exposes model but no secrets', async () => {
   assert.deepEqual(await response.json(), { ok: true, model: 'gpt-6-astra' });
 });
 
-test('produce suggestions require selected entries and return structured estimates', async (context) => {
-  const originalFetch = globalThis.fetch;
-  context.after(() => { globalThis.fetch = originalFetch; });
-  const empty = await handleRequest(new Request('https://relay.test/v1/suggest-produce', { method: 'POST', headers: auth, body: JSON.stringify({ entries: [] }) }), env);
-  assert.equal(empty.status, 400);
-  globalThis.fetch = async (_url, init) => {
-    const payload = JSON.parse(init.body);
-    assert.equal(payload.store, false);
-    assert.equal(payload.text.format.name, 'produce_suggestions');
-    assert.match(payload.input[0].content[0].text, /Apple/);
-    return new Response(JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: [{ nutritionEntryId: 'apple', servings: 1, category: 'fruit', explanation: 'One whole apple.' }] }) }] }] }), { status: 200 });
-  };
-  const response = await handleRequest(new Request('https://relay.test/v1/suggest-produce', { method: 'POST', headers: auth, body: JSON.stringify({ entries: [{ id: 'apple', name: 'Apple', servingLabel: '1 medium apple', servings: 1 }] }) }), env);
-  assert.deepEqual((await response.json()).suggestions[0], { nutritionEntryId: 'apple', servings: 1, category: 'fruit', explanation: 'One whole apple.' });
-});
-
 test('workout planning validates choices and returns exercise IDs for selected weekdays', async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => { globalThis.fetch = originalFetch; });
@@ -302,4 +286,9 @@ test('Play mode rejects shared bearer and requires verified request-bound token'
   };
   const verified = await handleRequest(new Request(url, { method: 'POST', headers: { 'X-Play-Integrity': 'a-valid-looking-test-integrity-token' }, body }), playEnv, fetcher);
   assert.equal(verified.status, 200);
+});
+
+test('the removed fruit and vegetable route is gone', async () => {
+  const response = await handleRequest(new Request('https://relay.test/v1/suggest-produce', { method: 'POST', body: '{}' }), {});
+  assert.notEqual(response.status, 200);
 });

@@ -47,14 +47,6 @@ const THEMED_BADGES: Partial<Record<NonNullable<Tracker['habitTemplate']>, reado
     require('../../assets/images/badge-sleep-5.png'),
     require('../../assets/images/badge-sleep-6.png'),
   ],
-  produce: [
-    require('../../assets/images/badge-produce-1.png'),
-    require('../../assets/images/badge-produce-2.png'),
-    require('../../assets/images/badge-produce-3.png'),
-    require('../../assets/images/badge-produce-4.png'),
-    require('../../assets/images/badge-produce-5.png'),
-    require('../../assets/images/badge-produce-6.png'),
-  ],
   mindfulness: [
     require('../../assets/images/badge-mindfulness-1.png'),
     require('../../assets/images/badge-mindfulness-2.png'),

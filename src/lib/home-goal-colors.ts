@@ -25,7 +25,7 @@ const currentColor = (color: unknown): string | undefined => {
 // A goal's natural color when it's free, so water tends to be blue and so on.
 const SUGGESTED_COLORS: Record<string, string> = {
   steps: '#38BDF8', nutrition: '#FFD93D', water: '#5B8CFF', walk: '#3DDC6E', reading: '#FF9F43',
-  sleep: '#A970FF', produce: '#FF5C5C', mindfulness: '#19DDD0', dental: '#E8EDF2', exercise: '#FF6FB1',
+  sleep: '#A970FF', mindfulness: '#19DDD0', dental: '#E8EDF2', exercise: '#FF6FB1',
 };
 
 export type ColoredGoal = { id: string; kind: string };

@@ -32,8 +32,7 @@ import {
   editTracker,
   permanentlyDeleteTracker,
   setTrackerArchived,
-  TrackerDraft,
-} from '@/lib/tracker-management';
+  TrackerDraft, isRemovedFruitAndVegGoal, removeFruitAndVegGoals } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
 import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
 import { deleteRoutePhotos } from '@/lib/route-photos';
@@ -44,7 +43,7 @@ import { cancelMedicationNotifications } from '@/lib/medication-notifications';
 import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
 import { logHabitCompletion } from '@/lib/habit-log';
 import { removeWaterLog, renameDefaultWaterHabit, saveWaterLog } from '@/lib/water-habit';
-import { validHabitLog } from '@/lib/good-habit-templates';
+import { isRetiredHabit, retireHabits, validHabitLog } from '@/lib/good-habit-templates';
 import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, replaceLoggedMeal, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeMealGroup, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
 import { renameFood } from '@/lib/food-search';
 
@@ -175,7 +174,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       .then(async (parsed) => {
         if (!active) return;
         if (parsed !== null) {
-          for (const tracker of parsed.trackers) if (tracker.habitTemplate === 'exercise') await cancelHabitReminder(tracker.habitNotificationId);
+          for (const tracker of parsed.trackers) if (isRetiredHabit(tracker.habitTemplate) || isRemovedFruitAndVegGoal(tracker)) await cancelHabitReminder(tracker.habitNotificationId);
           const migrated = (parsed.lapseEvents ?? []).map((event): HistoricalEntry => ({
             id: `legacy-${event.id}`,
             trackerId: event.trackerId,
@@ -347,10 +346,9 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
     saveGoodHabitLog: (log) => setState((previous) => {
       const tracker = previous.trackers.find((item) => item.id === log.trackerId && item.habitTemplate && item.habitTemplate !== 'water' && !item.archived);
-      if (!tracker || tracker.habitTemplate === 'exercise' || !validHabitLog(log) || (log.nutritionEntryId && tracker.habitTemplate !== 'produce')) return previous;
+      if (!tracker || tracker.habitTemplate === 'exercise' || !validHabitLog(log)) return previous;
       return { ...previous, goodHabitLogs: [...(previous.goodHabitLogs ?? []).filter((item) => item.id !== log.id
-        && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)
-        && !(log.nutritionEntryId && item.trackerId === log.trackerId && item.nutritionEntryId === log.nutritionEntryId)), log] };
+        && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)), log] };
     }),
     deleteGoodHabitLog: (id) => setState((previous) => ({ ...previous, goodHabitLogs: (previous.goodHabitLogs ?? []).filter((log) => log.id !== id) })),
     setArchived: (id, archived) => {
@@ -545,8 +543,8 @@ const storageStyles = StyleSheet.create({
 
 function migrateStoredState(parsed: TrackerState): TrackerState {
   // Keep older medical records untouched for future full-edition restores.
-  const migrated = migratePreferences(renameDefaultWaterHabit(migrateNutritionState(migrateTaperState(parsed))));
-  return { ...migrated, weightTdeeProfile: migrateTdeeProfile(migrated.weightTdeeProfile), activityRoutes: migrated.activityRoutes && migrateRouteCalories(migrated.activityRoutes, migrated.weightEntries), trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
+  const migrated = migratePreferences(renameDefaultWaterHabit(migrateNutritionState(migrateTaperState(removeFruitAndVegGoals(parsed)))));
+  return { ...migrated, weightTdeeProfile: migrateTdeeProfile(migrated.weightTdeeProfile), activityRoutes: migrated.activityRoutes && migrateRouteCalories(migrated.activityRoutes, migrated.weightEntries), trackers: retireHabits(migrated.trackers) };
 }
 
 export function useTrackers() {

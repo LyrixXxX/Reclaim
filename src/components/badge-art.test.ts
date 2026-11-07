@@ -4,7 +4,7 @@ describe('badge art', () => {
   const growth = badgeImages();
 
   test('each good habit uses its own six images', () => {
-    const sets = (['water', 'walk', 'reading', 'sleep', 'produce', 'mindfulness', 'dental'] as const).map((habitTemplate) => badgeImages({ habitTemplate }));
+    const sets = (['water', 'walk', 'reading', 'sleep', 'mindfulness', 'dental'] as const).map((habitTemplate) => badgeImages({ habitTemplate }));
     for (const images of sets) {
       expect(images).toHaveLength(6);
       expect(images).not.toBe(growth);

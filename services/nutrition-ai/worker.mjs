@@ -87,15 +87,6 @@ const labHistorySchema = {
   },
 };
 
-const produceSchema = {
-  type: 'object', additionalProperties: false, required: ['suggestions'], properties: {
-    suggestions: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false,
-      required: ['nutritionEntryId', 'servings', 'category', 'explanation'], properties: {
-        nutritionEntryId: { type: 'string' }, servings: { type: 'number', exclusiveMinimum: 0, maximum: 20 }, category: { type: 'string', enum: ['fruit', 'vegetable'] }, explanation: { type: 'string' },
-      } } },
-  },
-};
-
 const workoutPlanSchema = {
   type: 'object', additionalProperties: false, required: ['days'], properties: {
     days: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'object', additionalProperties: false,
@@ -172,8 +163,6 @@ const legacyWorkoutPlanSchema = {
 const workoutPlanInstructions = `Draft a practical weekly strength-training schedule, not medical advice. Use only the supplied built-in exercise IDs. Return exactly one day for every selected weekday and no other days. Choose a manageable number of distinct exercises for each session length, cover major muscle groups across the week, and give emphasis to the selected focus groups. Vary muscle emphasis across adjacent training days where possible. Do not choose sets, reps, weights, or other performance targets; users will enter these themselves when training. Never invent injury accommodations, diagnoses, treatment claims, or exercise IDs. The user will review and edit every suggestion before saving.`;
 const legacyWorkoutPlanInstructions = `Draft a practical weekly strength-training schedule, not medical advice. Use only supplied built-in exercise IDs. Return one day for each selected weekday. Choose manageable exercises and conservative set and rep targets for the user's experience. Never invent weights, diagnoses, treatment claims, or exercise IDs. The user reviews and edits the draft before saving.`;
 
-const produceInstructions = `Estimate cup-equivalent fruit and vegetable servings only for clearly identifiable produce in user-selected food entries. Classify each as fruit or vegetable in ordinary food-use terms. Return suggestions, not advice. Do not invent ingredients in mixed or ambiguous dishes. USDA MyPlate examples include 1 cup fruit, 1 cup raw or cooked vegetables, or 2 cups raw leafy greens as one cup-equivalent; whole fruit equivalents vary by fruit and size. Use the supplied quantity; omit entries whose amount cannot be reasonably estimated. Never diagnose or recommend a dietary target.`;
-
 const instructions = `You extract nutrition facts for a personal food log. Return only the requested structured output.
 - When the user supplies one complete total nutrition summary with calories, protein, carbohydrates, fat, and fiber, return exactly one item for the whole named meal.
 - For a complete supplied summary, use the user's meal label as the item name and transcribe every supplied number exactly. A ~ or approximately marker means the value is estimated, but it does not authorize changing the number.
@@ -212,7 +201,7 @@ export async function handleRequest(request, env, fetcher = fetch) {
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404, headers);
     const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: 'The request is too large. Crop the label more closely.' }, 413, headers);
-    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-supplement-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/suggest-produce' && url.pathname !== '/v1/plan-workouts' && url.pathname !== '/v1/plan-macros') return json({ error: 'Not found.' }, 404, headers);
+    if (url.pathname !== '/v1/parse-food-text' && url.pathname !== '/v1/parse-nutrition-label' && url.pathname !== '/v1/parse-supplement-label' && url.pathname !== '/v1/parse-lab-history' && url.pathname !== '/v1/plan-workouts' && url.pathname !== '/v1/plan-macros') return json({ error: 'Not found.' }, 404, headers);
 
     const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
     const safetyIdentifier = `reclaim-${(await sha256(clientIp)).slice(0, 32)}`;
@@ -262,12 +251,7 @@ export async function handleRequest(request, env, fetcher = fetch) {
       responseSchema = supplementLabelSchema;
       responseName = 'supplement_label';
       content = [{ type: 'input_text', text: 'Transcribe this Supplement Facts label. Leave unreadable or ambiguous values out.' }, { type: 'input_image', image_url: imageDataUrl, detail: 'high' }];
-    } else if (url.pathname === '/v1/suggest-produce') {
-      if (!Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 20 || body.entries.some((entry) => typeof entry?.id !== 'string' || typeof entry?.name !== 'string' || typeof entry?.servingLabel !== 'string' || typeof entry?.servings !== 'number')) return json({ error: 'Select up to 20 valid food entries.' }, 400, headers);
-      responseInstructions = produceInstructions;
-      responseSchema = produceSchema;
-      responseName = 'produce_suggestions';
-      content = [{ type: 'input_text', text: `Estimate produce servings for these selected entries. Return only confident suggestions with the matching entry ID:\n${JSON.stringify(body.entries)}` }];
+
     } else if (url.pathname === '/v1/plan-macros') {
       const calculation = macroPlanContext(body);
       if (!calculation) return json({ error: 'This pace or calorie target is outside the supported general-wellness range. Try a slower pace or enter targets manually with professional guidance.' }, 400, headers);
@@ -345,7 +329,7 @@ export async function handleRequest(request, env, fetcher = fetch) {
       if (values.some((key) => !Number.isFinite(parsed[key]) || parsed[key] < 0 || parsed[key] > (key === 'fiberGrams' ? 100 : 1000)) || typeof parsed.rationale !== 'string' || !parsed.rationale.trim() || parsed.rationale.length > 800 || !Number.isFinite(calories) || calories < 1200 || calories > 5000 || Math.abs(calories - calculation.targetCalories) > 50 || Math.abs(parsed.proteinGrams - calculation.proteinTargetGrams) > 5 || fatShare < 0.25 || fatShare > 0.35 || parsed.carbsGrams < 100) return json({ error: 'The suggested macro plan did not meet the calorie and protein guardrails. Try again or enter targets manually.' }, 502, headers);
       return json({ ...parsed, estimatedCalories: calculation.targetCalories, calculation }, 200, headers);
     }
-    return json(responseName === 'lab_history_parse' || responseName === 'produce_suggestions' ? parsed : normalizeResult(parsed), 200, headers);
+    return json(responseName === 'lab_history_parse' ? parsed : normalizeResult(parsed), 200, headers);
   } catch (error) {
     return json({ error: error instanceof SyntaxError ? 'The private parser returned invalid structured data.' : 'The private parser encountered an unexpected error.' }, 500, headers);
   }

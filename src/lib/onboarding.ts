@@ -83,10 +83,9 @@ export const BUILD_SUGGESTIONS: { id: NonNullable<Tracker['habitTemplate']>; lab
   { id: 'exercise', label: 'Exercise', goal: 'Starts at 3 workouts a week' },
   { id: 'reading', label: 'Read', goal: 'Starts at 15 minutes a day' },
   { id: 'mindfulness', label: 'Mindfulness', goal: 'Starts at 10 minutes a day' },
-  { id: 'produce', label: 'Fruits & vegetables', goal: 'Starts at 5 servings a day' },
   { id: 'dental', label: 'Dental care', goal: 'Brush morning and night, floss' },
 ];
-const BUILD_GOALS: Partial<Record<NonNullable<Tracker['habitTemplate']>, string>> = { walk: '30', exercise: '3', reading: '15', mindfulness: '10', produce: '5' };
+const BUILD_GOALS: Partial<Record<NonNullable<Tracker['habitTemplate']>, string>> = { walk: '30', exercise: '3', reading: '15', mindfulness: '10' };
 
 const AREA_SECTION: Partial<Record<OnboardingArea, NavigationSection>> = { habits: 'goals', activity: 'activity', routes: 'routes', weight: 'weight', nutrition: 'nutrition', workouts: 'workouts', supplements: 'supplements' };
 const DEFAULT_NAVIGATION: NavigationSection[] = ['activity', 'routes', 'goals', 'weight', 'nutrition', 'workouts', 'supplements'];
@@ -112,7 +111,7 @@ export function trackersFromSetup(draft: OnboardingSetupDraft | undefined, now =
     if (template === 'water') return trackerFromDraft({ name: WATER_HABIT_NAME, mode: 'habit', habitTemplate: 'water', startDate: today, icon: '💧', color: colors.habitsNav, waterGoalOz: '64', waterQuickAddOz: '8' }, generateTrackerId());
     const config = GOOD_HABIT_TEMPLATES.find((item) => item.id === template)!;
     return trackerFromDraft({ name: config.title, mode: 'habit', habitTemplate: config.id, startDate: today, icon: config.icon, color: colors.habitsNav, habitGoalValue: BUILD_GOALS[template],
-      habitChecklistItems: (config.suggestions ?? []).map((label, index) => ({ id: `step-${index}`, label })), exerciseGoalMode: 'times', exerciseRegimenRows: [], producePresets: [0.5, 1] }, generateTrackerId());
+      habitChecklistItems: (config.suggestions ?? []).map((label, index) => ({ id: `step-${index}`, label })), exerciseGoalMode: 'times', exerciseRegimenRows: [] }, generateTrackerId());
   });
   return [...quits, ...builds];
 }

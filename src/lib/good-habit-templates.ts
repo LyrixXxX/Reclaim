@@ -1,4 +1,4 @@
-import { ActivityRoute, GoodHabitLog, NutritionEntry, Tracker } from '@/models/tracker';
+import { ActivityRoute, GoodHabitLog, Tracker } from '@/models/tracker';
 import { localDateKey } from './progress';
 
 export type NewHabitTemplate = Exclude<NonNullable<Tracker['habitTemplate']>, 'water'>;
@@ -6,7 +6,6 @@ export const GOOD_HABIT_TEMPLATES: { id: NewHabitTemplate; title: string; icon: 
   { id: 'walk', title: 'Walk more', icon: '🚶', unit: 'minutes', period: 'day' },
   { id: 'sleep', title: 'Build a sleep routine', icon: '🌙', unit: 'steps', period: 'day', checklist: true, suggestions: ['Wind down', 'Get ready for bed', 'Lights out'] },
   { id: 'exercise', title: 'Exercise regularly', icon: '💪', unit: 'workouts', period: 'week' },
-  { id: 'produce', title: 'Fruits & vegetables', icon: '🥦', unit: 'servings', period: 'day' },
   { id: 'reading', title: 'Read every day', icon: '📖', unit: 'minutes', period: 'day' },
   { id: 'mindfulness', title: 'Practice mindfulness', icon: '🧘', unit: 'minutes', period: 'day' },
   { id: 'dental', title: 'Dental-care routine', icon: '🪥', unit: 'steps', period: 'day', checklist: true, suggestions: ['Morning brush', 'Evening brush', 'Floss'] },
@@ -36,15 +35,6 @@ export function exerciseModeOn(tracker: Tracker, date: string): 'times' | 'minut
 }
 export function exerciseRegimenOn(tracker: Tracker, date: string) {
   return [...(tracker.exerciseRegimenHistory ?? [])].filter((item) => item.effectiveDate <= date).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.rows ?? [];
-}
-export function produceBreakdown(logs: GoodHabitLog[], trackerId: string, date: string) {
-  const day = logs.filter((item) => item.trackerId === trackerId && item.eventDate === date);
-  return { fruit: day.filter((item) => item.produceCategory === 'fruit').reduce((sum, item) => sum + item.amount, 0), vegetable: day.filter((item) => item.produceCategory === 'vegetable').reduce((sum, item) => sum + item.amount, 0), unclassified: day.filter((item) => !item.produceCategory).reduce((sum, item) => sum + item.amount, 0) };
-}
-export function produceLinkStale(log: GoodHabitLog, foods: NutritionEntry[]) {
-  if (!log.nutritionEntryId) return false;
-  const entry = foods.find((item) => item.id === log.nutritionEntryId);
-  return !entry || (log.nutritionEntryUpdatedAt !== undefined && entry.updatedAt !== log.nutritionEntryUpdatedAt);
 }
 export function creditedAmount(tracker: Tracker, logs: GoodHabitLog[], date: string, end: string) {
   const matching = logs.filter((log) => log.trackerId === tracker.id && log.eventDate >= date && log.eventDate <= end);
@@ -103,21 +93,29 @@ export function validHabitLog(log: GoodHabitLog) {
     && typeof log.amount === 'number' && Number.isFinite(log.amount) && log.amount > 0 && log.amount <= 10000
     && typeof log.recordedAt === 'string' && Number.isFinite(Date.parse(log.recordedAt))
     && (log.durationMinutes === undefined || (typeof log.durationMinutes === 'number' && Number.isFinite(log.durationMinutes) && log.durationMinutes > 0 && log.durationMinutes <= 1440))
-    && (log.produceCategory === undefined || log.produceCategory === 'fruit' || log.produceCategory === 'vegetable')
     && (log.workoutRowId === undefined || typeof log.workoutRowId === 'string')
     && (log.workoutLabel === undefined || typeof log.workoutLabel === 'string')
-    && (log.nutritionEntryUpdatedAt === undefined || typeof log.nutritionEntryUpdatedAt === 'string')
     && (log.note === undefined || typeof log.note === 'string')
     && (log.checklistItemId === undefined || typeof log.checklistItemId === 'string')
-    && (log.nutritionEntryId === undefined || typeof log.nutritionEntryId === 'string')
-    && (log.source === undefined || log.source === 'manual' || log.source === 'nutrition'));
+    && (log.source === undefined || log.source === 'manual' || (log.source as string) === 'nutrition'));
 }
 
 const SHORT_GOAL_NAMES: Record<string, string> = {
-  'Walk more': 'Walk', 'Build a sleep routine': 'Sleep', 'Fruits & vegetables': 'Produce', 'Read every day': 'Reading', 'Dental-care routine': 'Dental', 'Practice mindfulness': 'Mindfulness',
+  'Walk more': 'Walk', 'Build a sleep routine': 'Sleep', 'Read every day': 'Reading', 'Dental-care routine': 'Dental', 'Practice mindfulness': 'Mindfulness',
 };
 
 /** A short name for tight spaces. A habit someone renamed keeps their name. */
 export function shortGoalName(title: string): string {
   return SHORT_GOAL_NAMES[title] ?? title;
+}
+
+/** Habits that can no longer be added. Existing ones are archived, which keeps their history and badges. */
+const RETIRED_HABITS: readonly NonNullable<Tracker['habitTemplate']>[] = ['exercise'];
+
+export function isRetiredHabit(template: Tracker['habitTemplate']): boolean {
+  return !!template && RETIRED_HABITS.includes(template);
+}
+
+export function retireHabits(trackers: Tracker[]): Tracker[] {
+  return trackers.map((item) => isRetiredHabit(item.habitTemplate) ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item);
 }

@@ -1,3 +1,4 @@
+import { isRetiredHabit } from '@/lib/good-habit-templates';
 import { StyleSheet, Text, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,9 +30,9 @@ export default function ArchivedTrackersScreen() {
               <Text style={styles.name}>{trackerDisplayName(tracker)}</Text>
               <Text style={styles.meta}>History preserved</Text>
             </View>
-            <Pressable accessibilityRole="button" onPress={() => setArchived(tracker.id, false)} style={styles.restore}>
+            {!isRetiredHabit(tracker.habitTemplate) && <Pressable accessibilityRole="button" onPress={() => setArchived(tracker.id, false)} style={styles.restore}>
               <Text style={styles.restoreText}>Restore</Text>
-            </Pressable>
+            </Pressable>}
           </View>
         ))}
       </View>
