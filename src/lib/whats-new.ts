@@ -6,6 +6,16 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.74',
+    date: 'November 7, 2026',
+    notes: [
+      'Supplements can now be a daily goal. Skipping one on purpose never counts against you.',
+      'Route screens are cleaner while recording, and you can add photos to saved routes.',
+      'New Route settings can start a route full screen or in navigation mode.',
+      'One Import button in Settings now handles backups and weight history files.',
+    ],
+  },
+  {
     version: '1.0.73',
     date: 'November 6, 2026',
     notes: [
