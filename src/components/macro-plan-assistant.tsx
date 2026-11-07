@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardSafeScrollView } from './keyboard-safe-scroll-view';
 import { createLocalMacroPlan, LOSS_PACE, macroPlannerSafetyConfirmed, MacroPlan, MacroPlanAnswers, previewMacroCalculation, validateMacroAnswers, validateMacroPlan, withEstimationBasis } from '@/lib/macro-plan';
 import { macroCalories } from '@/lib/nutrition';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 type Props = { visible: boolean; onClose: () => void; onUse: (plan: MacroPlan) => void; savedWeight?: { value: number; unit: 'lb' | 'kg' } };
 const initial: MacroPlanAnswers = { age: '', height: '', heightUnit: 'ft-in', heightFeet: '', heightInches: '', weight: '', weightUnit: 'lb', activity: '', goal: '', estimationBasis: '', trainingFocus: 'general', calorieSource: 'estimated', ownCalories: '', lossPace: 'moderate', lossPriority: 'balanced', pregnantOrBreastfeeding: false, medicalDietaryNeeds: false, eligibleConfirmed: false };
@@ -103,7 +104,7 @@ export function MacroPlanAssistant({ visible, onClose, onUse, savedWeight }: Pro
       <View style={styles.card}><Text style={styles.cardTitle}>{calories.toLocaleString()} kcal from entered macros</Text><Text style={styles.help}>Calculated as carbs × 4 + protein × 4 + fat × 9.</Text></View>
       {(['carbs', 'protein', 'fat'] as const).map((key) => <Field key={key} label={`${key} (g)`} value={fields[key]} onChange={(value) => setFields((previous) => ({ ...previous, [key]: value }))} />)}
       <Text style={styles.help}>Fiber is separate from macro targets. You can set an optional fiber goal below Macros after using this draft.</Text>
-      {plan?.calculation && <View style={styles.noticeCard}><Pressable accessibilityRole="button" accessibilityLabel="How this starting point was made" accessibilityState={{ expanded: calculationOpen }} onPress={() => setCalculationOpen((open) => !open)} style={styles.calculationHeader}><Text style={[styles.noticeTitle, styles.calculationTitle]}>How this starting point was made</Text><Text style={styles.calculationChevron}>{calculationOpen ? '⌃' : '⌄'}</Text></Pressable>{calculationOpen && <><Text style={styles.noticeText}>Mifflin–St Jeor resting estimate: {plan.calculation.restingCalories.toLocaleString()} kcal. With your {answers.activity} activity choice (× {plan.calculation.activityFactor}), estimated maintenance is {plan.calculation.maintenanceCalories.toLocaleString()} kcal.</Text><Text style={styles.noticeText}>{plan.calculation.calorieSource === 'user' ? `Your entered calorie target: ${plan.calculation.targetCalories.toLocaleString()} kcal. Reclaim has not verified whether this is a deficit. A target set at an earlier weight may no longer produce the same rate of change.` : `Estimated ${answers.goal} starting target: ${plan.calculation.targetCalories.toLocaleString()} kcal (${plan.calculation.goalAdjustment >= 0 ? '+' : ''}${plan.calculation.goalAdjustment} from estimated maintenance).`}</Text><Text style={styles.noticeText}>Protein starting point: {plan.calculation.proteinTargetGrams} g ({plan.calculation.proteinReferenceKg} kg reference weight × {plan.calculation.proteinFactor} g/kg) for your {plan.calculation.trainingFocus} training focus. The reference weight is capped at higher body weights so protein does not scale indefinitely with body fat. This is a planning heuristic, not a measured muscle requirement.</Text><Text style={styles.noticeText}>{plan.rationale}</Text></>}</View>}
+      {plan?.calculation && <View style={styles.noticeCard}><Pressable accessibilityRole="button" accessibilityLabel="How this starting point was made" accessibilityState={{ expanded: calculationOpen }} onPress={() => setCalculationOpen((open) => !open)} style={styles.calculationHeader}><Text style={[styles.noticeTitle, styles.calculationTitle]}>How this starting point was made</Text><View style={styles.calculationChevron}><Chevron direction={calculationOpen ? 'up' : 'down'} color={colors.nutritionNav} /></View></Pressable>{calculationOpen && <><Text style={styles.noticeText}>Mifflin–St Jeor resting estimate: {plan.calculation.restingCalories.toLocaleString()} kcal. With your {answers.activity} activity choice (× {plan.calculation.activityFactor}), estimated maintenance is {plan.calculation.maintenanceCalories.toLocaleString()} kcal.</Text><Text style={styles.noticeText}>{plan.calculation.calorieSource === 'user' ? `Your entered calorie target: ${plan.calculation.targetCalories.toLocaleString()} kcal. Reclaim has not verified whether this is a deficit. A target set at an earlier weight may no longer produce the same rate of change.` : `Estimated ${answers.goal} starting target: ${plan.calculation.targetCalories.toLocaleString()} kcal (${plan.calculation.goalAdjustment >= 0 ? '+' : ''}${plan.calculation.goalAdjustment} from estimated maintenance).`}</Text><Text style={styles.noticeText}>Protein starting point: {plan.calculation.proteinTargetGrams} g ({plan.calculation.proteinReferenceKg} kg reference weight × {plan.calculation.proteinFactor} g/kg) for your {plan.calculation.trainingFocus} training focus. The reference weight is capped at higher body weights so protein does not scale indefinitely with body fat. This is a planning heuristic, not a measured muscle requirement.</Text><Text style={styles.noticeText}>{plan.rationale}</Text></>}</View>}
       <Pressable accessibilityRole="button" onPress={usePlan} style={styles.primary}><Text style={styles.primaryText}>Use these as an editable draft</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => setStage('questions')} style={styles.secondary}><Text style={styles.secondaryText}>Change answers</Text></Pressable>
     </>}
@@ -119,42 +120,42 @@ function Toggle({ label, checked, onPress }: { label: string; checked: boolean; 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
-  eyebrow: { color: colors.nutritionNav, fontWeight: '700', fontSize: 11, letterSpacing: 1.3 },
-  title: { color: colors.text, fontSize: 30, lineHeight: 38, fontWeight: '700', marginTop: 10 },
-  intro: { color: colors.textMuted, fontSize: 16, lineHeight: 24, marginTop: 18 },
+  eyebrow: { color: colors.nutritionNav, fontFamily: font.bold, fontSize: 11, letterSpacing: 1.3 },
+  title: { color: colors.text, fontSize: 30, lineHeight: 38, fontFamily: font.bold, marginTop: 10 },
+  intro: { color: colors.textMuted, fontSize: 16, fontFamily: font.regular, lineHeight: 24, marginTop: 18 },
   noticeCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 18, marginTop: 24 },
-  noticeTitle: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  noticeTitle: { color: colors.text, fontSize: 16, fontFamily: font.semibold },
   calculationHeader: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 10 },
   calculationTitle: { flex: 1 },
-  calculationChevron: { color: colors.nutritionNav, fontSize: 24, marginLeft: 'auto' },
-  noticeText: { color: colors.textMuted, fontSize: 14, lineHeight: 22, marginTop: 8 },
-  help: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 12 },
-  label: { color: colors.textMuted, fontWeight: '600', fontSize: 12, marginTop: 18, marginBottom: 7, textTransform: 'capitalize' },
-  input: { minHeight: 52, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 14, fontSize: 17 },
+  calculationChevron: { marginLeft: 'auto' },
+  noticeText: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 22, marginTop: 8 },
+  help: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 12 },
+  label: { color: colors.textMuted, fontFamily: font.semibold, fontSize: 12, marginTop: 18, marginBottom: 7, textTransform: 'capitalize' },
+  input: { minHeight: 52, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 14, fontSize: 17 , fontFamily: font.regular},
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   heightField: { flexGrow: 1, minWidth: 120 },
   choice: { minHeight: 46, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   selected: { borderColor: colors.nutritionNav },
   advancedToggle: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: 14, marginTop: 18 },
-  advancedText: { color: colors.nutritionNav, fontSize: 14, fontWeight: '600' },
-  choiceText: { color: colors.text, fontWeight: '700', textTransform: 'capitalize' },
+  advancedText: { color: colors.nutritionNav, fontSize: 14, fontFamily: font.semibold },
+  choiceText: { color: colors.text, fontFamily: font.bold, textTransform: 'capitalize' },
   pace: { padding: 14, marginTop: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.surface },
-  paceTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  paceDetail: { color: colors.nutritionNav, fontSize: 13, fontWeight: '700', marginTop: 4 },
+  paceTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  paceDetail: { color: colors.nutritionNav, fontSize: 13, fontFamily: font.bold, marginTop: 4 },
   toggle: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, minHeight: 72, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 15, padding: 16, marginTop: 20 },
   toggleChecked: { borderColor: colors.nutritionNav },
   checkbox: { width: 25, height: 25, borderRadius: 7, borderWidth: 2, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxChecked: { backgroundColor: colors.nutritionNav, borderColor: colors.nutritionNav },
-  checkmark: { color: colors.background, fontSize: 18, lineHeight: 21, fontWeight: '700' },
-  toggleText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  checkmark: { color: colors.background, fontSize: 18, lineHeight: 21, fontFamily: font.bold },
+  toggleText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 21, fontFamily: font.semibold },
   primary: { backgroundColor: colors.nutritionNav, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, marginTop: 22, paddingHorizontal: 16 },
-  primaryText: { color: colors.background, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  primaryText: { color: colors.background, fontSize: 15, fontFamily: font.bold, textAlign: 'center' },
   primaryDisabled: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1 },
   primaryTextDisabled: { color: colors.textMuted },
   secondary: { minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  secondaryText: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  secondaryText: { color: colors.textMuted, fontSize: 14, fontFamily: font.bold },
   card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginTop: 20 },
-  cardTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  cardTitle: { color: colors.text, fontSize: 18, fontFamily: font.bold },
   error: { color: colors.danger, marginTop: 16, lineHeight: 20 },
   disabled: { opacity: .6 },
 });

@@ -9,6 +9,21 @@ export function usableCompassHeading(heading: { trueHeading: number; magHeading:
   return Number.isFinite(degrees) ? ((degrees % 360) + 360) % 360 : null;
 }
 
+/** Signed shortest turn between two headings, in degrees within [-180, 180). */
+export function headingDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+/**
+ * Low-pass filter for compass readings. Raw phone headings jitter by several degrees many times
+ * a second; easing a fraction of the way toward each reading steadies the map and arrow. Wraps
+ * through north, so 350° easing toward 10° turns forward instead of spinning back around.
+ */
+export function smoothHeading(previous: number | null, next: number, factor: number): number {
+  if (previous === null) return next;
+  return (((previous + headingDelta(previous, next) * factor) % 360) + 360) % 360;
+}
+
 export function directionArrowCoordinates(position: readonly [number, number], heading: number, zoom = 15): [number, number][] {
   const [longitude, latitude] = position;
   const radians = heading * Math.PI / 180;

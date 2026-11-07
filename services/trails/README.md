@@ -1,0 +1,73 @@
+# Reclaim trails relay
+
+A Cloudflare Worker that answers Find trails searches from a D1 database of public trail data. It stores nothing about the person searching: requests carry only a search area, and the query string is redacted from logs. See `docs/plans/trail-database.md` for the full plan.
+
+Live at `https://reclaim-trails.reclaim-nutrition.workers.dev`, with Tennessee loaded.
+
+## API
+
+`GET /v1/trails?lat=&lon=&radius=` with a Play Integrity token in `X-Play-Integrity`. `radius` is in miles, up to 50.
+
+The token's request hash must be the SHA-256 of `` `${path}?${query}\n` ``, using the exact path and query string sent, which binds it to that search. There is no shared-token route.
+
+```json
+{ "trails": [], "coverage": "none", "attribution": "© OpenStreetMap contributors" }
+```
+
+- `trails` is the 60 closest, in the app's `TrailResult` shape plus `climbFt`, `difficultySource`, `parking` and `path`. Unknown values are left out, as is a `path` over 8,000 characters. `distanceMiles` is straight-line to the closest of `accessPoints`, which is also `parking`, or to the nearest point of the trail when none is known.
+- The lowest `sac_scale` value, `hiking`, isn't shown as a difficulty: it gets put on most trails, hard ones too.
+- `coverage` is `full`, `partial` or `none`: how many of the searched tiles have been imported. The app should use its current sources unless it's `full`, since an empty list can mean "not imported yet".
+
+Limits are the same as the nutrition relay: 6 requests per address per minute and 30 per Cloudflare location per minute. Both are approximate and location-local.
+
+## Importing a region
+
+`import/` builds a local SQLite database from a Geofabrik extract. It has its own `package.json`, so the app's dependencies don't change.
+
+```powershell
+npm install --prefix services/trails/import --ignore-scripts
+node services/trails/import/import-region.mjs services/trails/.data/tennessee-latest.osm.pbf services/trails/.data/tennessee.sqlite
+```
+
+- Then add climb, which downloads free USGS terrain tiles once and keeps them in `services/trails/.data/terrain`: `node services/trails/import/add-climb.mjs services/trails/.data/tennessee.sqlite services/trails/.data/terrain`. Tennessee needs about 2,000 tiles, about 220 MB.
+- Terrain tiles come from AWS Open Data (`elevation-tiles-prod`). Credit required by the [tile attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md): "United States 3DEP (formerly NED) and global GMTED2010 and SRTM terrain data courtesy of the U.S. Geological Survey." Areas outside the US have other sources to credit.
+- Routes over 50 miles, or too incomplete to measure, are left out: their named sections are listed on their own, but a route with none, such as the Appalachian Trail here, currently isn't listed at all.
+- Climb counts the harder direction of each piece of a trail, so a hike into a gorge includes the climb back out. It isn't measured past 60 miles. Difficulty is a map rating when one exists, or else estimated from climb and length.
+- To try a database in the dev app, run `dev-server.mjs` (the `trails-test-data` entry in `.claude/launch.json`) and `adb reverse tcp:8788 tcp:8788`. It has no Play Integrity check, listens on this PC only, and only development builds call it. Stop it before re-importing, since Windows won't replace an open database.
+- `services/trails/.data/` is gitignored and holds extracts and built databases. Tennessee takes about a minute and makes a 1 MB database.
+- `osm-pbf-parser-node` is pinned because npm marks it as no longer supported. Its code was read before use: it only reads the file and decompresses it. Re-check it before changing versions.
+- `path` holds encoded polylines, with spaces between the pieces of a trail that doesn't connect.
+- Only tiles surrounded by other tiles with map data are marked filled. A border tile may be cut off, so it stays unfilled until the neighboring region is imported.
+- Not done yet: the Forest Service merge and parking from the nearest road.
+
+## Licensing
+
+OpenStreetMap data is ODbL, so derived rows stay in `osm_trails`. Forest Service data stays in `usfs_trails` and never copies OpenStreetMap geometry or computed values. `trail_links` only holds ids.
+
+## Testing
+
+```powershell
+npm run test:trails
+```
+
+Tests run the real migration in Node's built-in SQLite, so no Cloudflare account is needed.
+
+## Deployment
+
+From `services/trails`. Each of these changes something on the Cloudflare account:
+
+```powershell
+npx wrangler@latest deploy
+npx wrangler@latest secret put GOOGLE_SERVICE_ACCOUNT_JSON
+```
+
+To load or refresh a region, build it as above, then:
+
+```powershell
+node import/export-sql.mjs .data/tennessee.sqlite .data/tennessee.sql
+npx wrangler@latest d1 execute reclaim-trails --remote --file=.data/tennessee.sql
+```
+
+A change to the database's columns needs a new file in `migrations`, applied with `npx wrangler@latest d1 migrations apply reclaim-trails --remote`.
+
+`GOOGLE_SERVICE_ACCOUNT_JSON` can be the same service account the nutrition relay uses. Never put it, or any other key, in the app or repository.

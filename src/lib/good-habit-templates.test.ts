@@ -1,5 +1,5 @@
 import { ActivityRoute, GoodHabitLog, Tracker } from '@/models/tracker';
-import { activeWalkMinutes, checklistOn, exerciseModeOn, exerciseRegimenOn, goalOn, habitDate, habitProgress, habitStreak, periodStart, produceBreakdown, produceLinkStale, routeMinutesOn } from './good-habit-templates';
+import { activeWalkMinutes, checklistOn, exerciseModeOn, exerciseRegimenOn, goalOn, habitDate, habitProgress, habitStreak, periodStart, routeMinutesOn, shortGoalName, isRetiredHabit, retireHabits } from './good-habit-templates';
 
 const tracker: Tracker = { id: 'walk', name: 'Walk more', icon: '🚶', color: '#00ff00', mode: 'habit', habitTemplate: 'walk', startedAt: '2026-10-10T08:00:00', habitGoalHistory: [{ effectiveDate: '2026-10-10', value: 30 }] };
 const route: ActivityRoute = { id: 'route', kind: 'walk', startedAt: '2026-10-12T08:00:00', endedAt: '2026-10-12T08:35:00', pausedMs: 300000, distanceMeters: 2000, points: [] };
@@ -58,9 +58,17 @@ test('exercise minutes ignore old sessions without duration and preserve dated m
   expect(habitProgress(exercise, sessions, [], new Date(2026, 9, 12, 12)).amount).toBe(35);
 });
 
-test('produce breakdown preserves unclassified history and flags edited Nutrition links', () => {
-  const entries: GoodHabitLog[] = [{ ...log, trackerId: 'produce', amount: 1, produceCategory: 'fruit' }, { ...log, id: 'veg', trackerId: 'produce', amount: 0.5, produceCategory: 'vegetable' }, { ...log, id: 'legacy', trackerId: 'produce', amount: 1 }, { ...log, id: 'linked', trackerId: 'produce', amount: 1, nutritionEntryId: 'food', nutritionEntryUpdatedAt: '2026-10-12T10:00:00Z' }];
-  expect(produceBreakdown(entries, 'produce', '2026-10-12')).toEqual({ fruit: 1, vegetable: 0.5, unclassified: 2 });
-  expect(produceLinkStale(entries[3], [{ id: 'food', updatedAt: '2026-10-12T11:00:00Z' } as never])).toBe(true);
-  expect(produceLinkStale(entries[3], [])).toBe(true);
+test('retired habits are archived with their reminders off', () => {
+  const exercise = { id: 'e', name: 'Exercise', mode: 'habit', habitTemplate: 'exercise', habitReminderTime: '09:00', habitNotificationId: 'n' } as never;
+  const water = { id: 'w', name: 'Water', mode: 'habit', habitTemplate: 'water' } as never;
+  const [retired, kept] = retireHabits([exercise, water]);
+  expect(retired).toMatchObject({ id: 'e', archived: true, habitReminderTime: undefined, habitNotificationId: undefined });
+  expect(kept).toBe(water);
+  expect(isRetiredHabit('exercise')).toBe(true);
+  expect(isRetiredHabit('water')).toBe(false);
+});
+
+test('built-in habits get a short name, and renamed ones keep theirs', () => {
+  expect(shortGoalName('Build a sleep routine')).toBe('Sleep');
+  expect(shortGoalName('Bedtime by 10')).toBe('Bedtime by 10');
 });

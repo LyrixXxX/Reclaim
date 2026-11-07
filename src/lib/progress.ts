@@ -29,7 +29,7 @@ export function nextCheckpoint(
 ) {
   const elapsedDays = Math.max(0, (now - Date.parse(startedAt)) / DAY_MS);
   const targetDays = checkpoints.find((days) => days > elapsedDays) ??
-    Math.ceil(elapsedDays / 365 + 1) * 365;
+    (Math.floor(elapsedDays / 365) + 1) * 365;
   const remainingMs = Math.max(0, targetDays * DAY_MS - (now - Date.parse(startedAt)));
 
   return {

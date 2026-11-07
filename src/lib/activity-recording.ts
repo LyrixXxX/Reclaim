@@ -8,12 +8,13 @@ import { nextMileAlert, notifyRouteMile } from './route-mile-alerts';
 import { addMotionFix, closeMotion, freshMotionState, motionTotals, MotionState, TimeInterval } from './activity-motion';
 import { canBridgeAutoPause, lostFixCoverage, nearbyRouteFix, plausibleRouteFix } from './route-continuity';
 import { readTodaySteps } from './activity-steps';
+import { routeElevation } from './route-elevation';
 import { localDateKey } from './progress';
 import { updateRouteSteps, type RouteStepState } from './route-steps';
 
 const TASK = 'reclaim-active-route';
 const KEY = 'reclaim:active-route:v1';
-export type ActiveRoute = RouteStepState & { id: string; kind: ActivityRoute['kind']; startedAt: string; endedAt?: string; pausedAt?: string; pausedMs: number; segment: number; points: ActivityPoint[]; estimateWeightKg?: number; mileAlerts?: boolean; lastMileAlert?: number; lastMileAlertAttemptAt?: number; mileAlertError?: string; autoPause?: boolean; autoPausedAt?: string; autoPauseIntervals?: TimeInterval[]; motion?: MotionState; manualPauseIntervals?: TimeInterval[]; lastReliableFix?: ActivityPoint; autoPauseCoverageBroken?: boolean; autoPauseResumePoints?: ActivityPoint[] };
+export type ActiveRoute = RouteStepState & { id: string; photos?: string[]; kind: ActivityRoute['kind']; startedAt: string; endedAt?: string; pausedAt?: string; pausedMs: number; segment: number; points: ActivityPoint[]; estimateWeightKg?: number; mileAlerts?: boolean; lastMileAlert?: number; lastMileAlertAttemptAt?: number; mileAlertError?: string; autoPause?: boolean; autoPausedAt?: string; autoPauseIntervals?: TimeInterval[]; motion?: MotionState; manualPauseIntervals?: TimeInterval[]; lastReliableFix?: ActivityPoint; autoPauseCoverageBroken?: boolean; autoPauseResumePoints?: ActivityPoint[] };
 
 export async function readActiveRoute(): Promise<ActiveRoute | null> {
   const raw = await AsyncStorage.getItem(KEY);
@@ -221,9 +222,15 @@ function completedRoute(route: ActiveRoute): ActivityRoute {
   const pausedMs = route.pausedMs + (route.pausedAt ? Date.parse(endedAt) - Date.parse(route.pausedAt) : 0);
   const activeMs = activeRouteDurationMs(route, Date.parse(endedAt));
   const times = motionTotals(route.motion, activeMs);
-  const estimatedCalories = estimatedRouteCalories(distanceMeters, route.motion ? times.movingMs ?? 0 : activeMs, route.estimateWeightKg, route.kind);
-  const result: ActivityRoute = { id: route.id, kind: route.kind, startedAt: route.startedAt, endedAt, pausedMs, distanceMeters, points: route.points, movingMs: times.movingMs ?? undefined, stoppedMs: times.stoppedMs ?? undefined, unclassifiedMs: times.unclassifiedMs, manualPauseIntervals: [...(route.manualPauseIntervals ?? []), ...(route.pausedAt ? [{ startedAt: route.pausedAt, endedAt }] : [])], stationaryIntervals: route.motion?.stationaryIntervals ?? [], autoPauseIntervals: route.autoPauseIntervals ?? [], estimateWeightKg: route.estimateWeightKg, estimatedCalories: estimatedCalories ?? undefined, routeSteps: route.routeSteps, routeStepStatus: route.routeStepStatus };
+  const estimatedCalories = estimatedRouteCalories(distanceMeters, route.motion ? times.movingMs ?? 0 : activeMs, route.estimateWeightKg, route.kind, routeElevation(route.points)?.gainMeters);
+  const result: ActivityRoute = { id: route.id, calorieModel: 2, photos: route.photos, kind: route.kind, startedAt: route.startedAt, endedAt, pausedMs, distanceMeters, points: route.points, movingMs: times.movingMs ?? undefined, stoppedMs: times.stoppedMs ?? undefined, unclassifiedMs: times.unclassifiedMs, manualPauseIntervals: [...(route.manualPauseIntervals ?? []), ...(route.pausedAt ? [{ startedAt: route.pausedAt, endedAt }] : [])], stationaryIntervals: route.motion?.stationaryIntervals ?? [], autoPauseIntervals: route.autoPauseIntervals ?? [], estimateWeightKg: route.estimateWeightKg, estimatedCalories: estimatedCalories ?? undefined, routeSteps: route.routeSteps, routeStepStatus: route.routeStepStatus };
   return result;
 }
 
 export async function clearFinishedRoute() { await saveActiveRoute(null); }
+
+/** Keeps photos added on the summary page with the finished route, so they survive the app closing before it's saved. */
+export async function setPendingRoutePhotos(photos: string[]) {
+  const route = await readActiveRoute();
+  if (route?.endedAt) await saveActiveRoute({ ...route, photos });
+}

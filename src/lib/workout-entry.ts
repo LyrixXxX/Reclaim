@@ -87,3 +87,13 @@ export function loggedWeightLabel(set: StrengthSet, equipment: ExerciseEquipment
   if (set.weightKg === undefined) return equipment === 'bodyweight' ? 'bodyweight' : 'weight not entered';
   return `${equipment === 'bodyweight' ? '+' : '× '}${displayWeight(set.weightKg, unit)} ${unit}${equipment === 'bodyweight' ? ' added' : ''}`;
 }
+
+/** One notepad line for a logged set, like "135 lb × 10", "BW + 20 lb × 8", or "60 s hold". */
+export function notepadSetLabel(set: StrengthSet, equipment: ExerciseEquipment, unit: 'lb' | 'kg', measurementType?: ExerciseMeasurement) {
+  if (measurementType === 'timed_hold') return `${set.holdSeconds ?? set.reps} s hold${set.weightKg ? ` · ${displayWeight(set.weightKg, unit)} ${unit}` : ''}`;
+  if (measurementType === 'distance_carry') return `${set.distanceMeters ?? set.reps} m carry${set.weightKg ? ` · ${displayWeight(set.weightKg, unit)} ${unit}` : ''}`;
+  if (measurementType === 'assisted_reps') return `${set.assistanceKg === undefined ? 'BW' : `−${displayWeight(set.assistanceKg, unit)} ${unit} assist`} × ${set.reps}`;
+  if (set.weightKg === undefined) return `${equipment === 'bodyweight' || measurementType === 'bodyweight_reps' ? 'BW' : '—'} × ${set.reps}`;
+  if (equipment === 'bodyweight' || measurementType === 'bodyweight_reps') return `BW + ${displayWeight(set.weightKg, unit)} ${unit} × ${set.reps}`;
+  return `${displayWeight(set.weightKg, unit)} ${unit} × ${set.reps}`;
+}

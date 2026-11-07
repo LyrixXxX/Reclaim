@@ -22,7 +22,7 @@ try {
   $env:EXPO_PUBLIC_RECLAIM_TEST_ADS_ENABLED = '1'
   $env:EXPO_PUBLIC_RECLAIM_MONETIZATION_ENABLED = '0'
   if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL)) {
-    $env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL = 'https://reclaim-privacy-policy.pages.dev/'
+    $env:EXPO_PUBLIC_RECLAIM_PRIVACY_URL = 'https://lyrixstudios.com/reclaim/privacy/'
   }
   if ([string]::IsNullOrWhiteSpace($env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL)) {
     $env:EXPO_PUBLIC_RECLAIM_SUPPORT_EMAIL = 'Reclaim.LyrixStudios@gmail.com'

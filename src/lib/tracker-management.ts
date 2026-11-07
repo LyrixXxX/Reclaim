@@ -25,7 +25,6 @@ export type TrackerDraft = {
   mindfulnessVisualMode?: 'breathing' | 'quiet';
   exerciseGoalMode?: 'times' | 'minutes';
   exerciseRegimenRows?: { id: string; label: string; days: number[] }[];
-  producePresets?: number[];
   habitChecklistItems?: { id: string; label: string }[];
   waterGoalOz?: string;
   waterQuickAddOz?: string;
@@ -41,7 +40,7 @@ export type TrackerValidation = Partial<Record<keyof TrackerDraft, string>>;
 export function validateTrackerDraft(draft: TrackerDraft): TrackerValidation {
   const errors: TrackerValidation = {};
   if (!draft.name.trim()) errors.name = 'Tracker name is required.';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate)) errors.startDate = 'Use YYYY-MM-DD.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate)) errors.startDate = 'Use MM/DD/YYYY.';
   const timePattern = draft.startPeriod ? /^(0?[1-9]|1[0-2]):[0-5]\d$/ : /^([01]\d|2[0-3]):[0-5]\d$/;
   if (draft.startTime && !timePattern.test(draft.startTime)) {
     errors.startTime = draft.startPeriod ? 'Use a time like 8:30.' : 'Use HH:MM.';
@@ -71,7 +70,6 @@ export function validateTrackerDraft(draft: TrackerDraft): TrackerValidation {
         if ((draft.exerciseGoalMode ?? 'times') === 'times' && !Number.isInteger(Number(draft.habitGoalValue))) errors.habitGoalValue = 'Enter a whole number of workouts.';
         if (draft.exerciseRegimenRows && (draft.exerciseRegimenRows.length > 20 || new Set(draft.exerciseRegimenRows.map((row) => row.id)).size !== draft.exerciseRegimenRows.length || draft.exerciseRegimenRows.some((row) => !row.id || !row.label.trim() || row.days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)))) errors.exerciseRegimenRows = 'Use up to 20 uniquely named regimen rows with valid days.';
       }
-      if (draft.habitTemplate === 'produce' && draft.producePresets && (draft.producePresets.length > 8 || draft.producePresets.some((value) => !Number.isFinite(value) || value <= 0 || value > 20))) errors.producePresets = 'Use up to eight valid serving shortcuts.';
       if (draft.habitTemplate === 'mindfulness' && draft.mindfulnessVisualMode && !['breathing', 'quiet'].includes(draft.mindfulnessVisualMode)) errors.mindfulnessVisualMode = 'Choose a visual style.';
     } else {
       const count = Number(draft.frequencyCount);
@@ -115,7 +113,6 @@ export function trackerFromDraft(draft: TrackerDraft, id: TrackerId, existing?: 
     mindfulnessVisualMode: draft.habitTemplate === 'mindfulness' ? draft.mindfulnessVisualMode ?? existing?.mindfulnessVisualMode ?? 'breathing' : existing?.mindfulnessVisualMode,
     exerciseGoalModes: draft.habitTemplate === 'exercise' ? reconcileExerciseModes(existing?.exerciseGoalModes ?? [], draft.exerciseGoalMode ?? 'times', localDateKey()) : existing?.exerciseGoalModes,
     exerciseRegimenHistory: draft.habitTemplate === 'exercise' ? reconcileRegimen(existing?.exerciseRegimenHistory ?? [], draft.exerciseRegimenRows ?? [], localDateKey()) : existing?.exerciseRegimenHistory,
-    producePresets: draft.habitTemplate === 'produce' ? draft.producePresets ?? existing?.producePresets ?? [0.5, 1] : existing?.producePresets,
     habitChecklistHistory: draft.mode === 'habit' && draft.habitTemplate && templateConfig(draft.habitTemplate)?.checklist
       ? reconcileChecklist(existing?.habitChecklistHistory ?? [], draft.habitChecklistItems ?? [], localDateKey()) : existing?.habitChecklistHistory,
     waterQuickAddOz: draft.mode === 'habit' && draft.habitTemplate === 'water' ? Number(draft.waterQuickAddOz) : undefined,
@@ -223,6 +220,15 @@ export function trackerHasHistory(state: TrackerState, id: TrackerId) {
     || (state.historicalEntries ?? []).some((entry) => entry.trackerId === id)
     || (state.lapseEvents ?? []).some((entry) => entry.trackerId === id)
     || (state.taperSteps ?? []).some((step) => step.trackerId === id);
+}
+
+/** The Fruits & vegetables goal was removed from Reclaim. Old copies are deleted along with their logs. */
+export function isRemovedFruitAndVegGoal(tracker: { habitTemplate?: unknown }) {
+  return tracker.habitTemplate === 'produce';
+}
+
+export function removeFruitAndVegGoals(state: TrackerState): TrackerState {
+  return state.trackers.filter(isRemovedFruitAndVegGoal).reduce((next, tracker) => permanentlyDeleteTracker(next, tracker.id, true, 'DELETE'), state);
 }
 
 export function permanentlyDeleteTracker(

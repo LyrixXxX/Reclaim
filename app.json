@@ -6,7 +6,7 @@
   "expo": {
     "name": "Reclaim",
     "slug": "reclaim",
-    "version": "1.0.51",
+    "version": "1.0.74",
     "orientation": "default",
     "icon": "./assets/images/reclaim-icon.png",
     "scheme": "reclaim",
@@ -15,7 +15,7 @@
       "icon": "./assets/images/reclaim-icon-ios.png"
     },
     "android": {
-      "versionCode": 52,
+      "versionCode": 75,
       "permissions": ["android.permission.ACTIVITY_RECOGNITION", "android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"],
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -31,7 +31,26 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning.", "recordAudioAndroid": false }],
+      [
+        "react-native-android-widget",
+        {
+          "fonts": ["./node_modules/@expo-google-fonts/manrope/700Bold/Manrope_700Bold.ttf", "./node_modules/@expo-google-fonts/manrope/800ExtraBold/Manrope_800ExtraBold.ttf"],
+          "widgets": [
+            {
+              "name": "QuitTimer",
+              "label": "Reclaim quit timer",
+              "description": "Days quit, money saved and your next milestone",
+              "minWidth": "180dp",
+              "minHeight": "150dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
+      ["expo-camera", { "cameraPermission": "Allow Reclaim to photograph nutrition and supplement labels for optional AI scanning, and to take photos for your saved routes.", "recordAudioAndroid": false }],
       "./plugins/with-reclaim-signing",
       [
         "expo-splash-screen",
@@ -44,8 +63,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Reclaim to select nutrition labels for food logging.",
-          "cameraPermission": "Allow Reclaim to photograph nutrition labels for food logging.",
+          "photosPermission": "Allow Reclaim to select nutrition labels for food logging and photos for your saved routes.",
+          "cameraPermission": "Allow Reclaim to photograph nutrition labels for food logging and take photos for your saved routes.",
           "microphonePermission": false
         }
       ],

@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reclaim-trails",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    // Requests carry a search location in the query string, so it must never reach logs.
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    }
+  },
+  "secrets": {
+    "required": ["GOOGLE_SERVICE_ACCOUNT_JSON"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "reclaim-trails",
+      "database_id": "ae1835b0-f8be-407f-9f82-ab6218a38351",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "3001",
+      "simple": { "limit": 6, "period": 60 }
+    },
+    {
+      "name": "GLOBAL_RATE_LIMITER",
+      "namespace_id": "3002",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ]
+}

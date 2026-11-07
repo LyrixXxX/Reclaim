@@ -1,4 +1,4 @@
-import { backupSummary, createReclaimBackup, parseReclaimBackup } from '@/lib/backup';
+import { backupSummary, createReclaimBackup, parseReclaimBackup, importFileKind } from '@/lib/backup';
 import { TrackerState } from '@/models/tracker';
 
 const state: TrackerState = {
@@ -21,16 +21,14 @@ describe('full Reclaim backups', () => {
     expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, goodHabitLogs: [{ ...goodHabitLogs[0], amount: -1 }] } }))).toThrow(/invalid good habit logs/);
     expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...habit, habitChecklistHistory: [] }] } }))).toThrow(/invalid tracker/);
   });
-  it('round-trips exercise regimen and produce links while rejecting malformed additions', () => {
+  it('round-trips exercise regimen, still accepts older backups with the removed goal, and rejects malformed additions', () => {
     const exercise = { ...state.trackers[0], mode: 'habit' as const, habitTemplate: 'exercise' as const, habitGoalHistory: [{ effectiveDate: '2026-10-12', value: 3 }], exerciseGoalModes: [{ effectiveDate: '2026-10-12', mode: 'times' as const }], exerciseRegimenHistory: [{ effectiveDate: '2026-10-12', rows: [{ id: 'push', label: 'Push', days: [0, 2] }] }] };
-    const produce = { ...state.trackers[0], id: 'produce', mode: 'habit' as const, habitTemplate: 'produce' as const, habitGoalHistory: [{ effectiveDate: '2026-10-12', value: 5 }], producePresets: [0.5, 1] };
-    const goodHabitLogs = [{ id: 'linked', trackerId: 'produce', eventDate: '2026-10-12', amount: 1, recordedAt: '2026-10-12T10:00:00Z', produceCategory: 'fruit' as const, nutritionEntryId: 'apple', nutritionEntryUpdatedAt: '2026-10-12T09:00:00Z', source: 'nutrition' as const }];
+    const produce = { ...state.trackers[0], id: 'produce', mode: 'habit' as const, habitTemplate: 'produce' as never, habitGoalHistory: [{ effectiveDate: '2026-10-12', value: 5 }], producePresets: [0.5, 1] };
+    const goodHabitLogs = [{ id: 'linked', trackerId: 'produce', eventDate: '2026-10-12', amount: 1, recordedAt: '2026-10-12T10:00:00Z', source: 'manual' as const }];
     const backup = createReclaimBackup({ ...state, trackers: [exercise, produce], goodHabitLogs });
     expect(parseReclaimBackup(JSON.stringify(backup)).state.trackers).toEqual([exercise, produce]);
     expect(parseReclaimBackup(JSON.stringify(backup)).state.goodHabitLogs).toEqual(goodHabitLogs);
     expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [{ ...exercise, exerciseGoalModes: [{ effectiveDate: '2026-10-12', mode: 'distance' }] }, produce] } }))).toThrow(/invalid tracker/);
-    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, trackers: [exercise, { ...produce, producePresets: [-1] }] } }))).toThrow(/invalid tracker/);
-    expect(() => parseReclaimBackup(JSON.stringify({ ...backup, state: { ...backup.state, goodHabitLogs: [{ ...goodHabitLogs[0], produceCategory: 'protein' }] } }))).toThrow(/invalid good habit logs/);
   });
   it('preserves positive habit settings and rejects unknown log styles or reminder times', () => {
     const habit = { ...state.trackers[0], mode: 'habit' as const, habitLogStyle: 'done' as const, habitReminderTime: '09:00' };
@@ -93,5 +91,16 @@ describe('full Reclaim backups', () => {
 
   it('summarizes records before a restore', () => {
     expect(backupSummary(state)).toEqual({ trackers: 1, checkIns: 2, cpapReadings: 1, weightEntries: 1, healthRecords: 0, nutritionEntries: 0 });
+  });
+});
+
+describe('one Import button', () => {
+  it('recognizes each Reclaim file and nothing else', () => {
+    expect(importFileKind(JSON.stringify(createReclaimBackup({ trackers: [], checkIns: [] } as never)))).toBe('backup');
+    expect(importFileKind(JSON.stringify({ format: 'reclaim-weight-export', version: 1, unit: 'lb', entries: [] }))).toBe('weight');
+    expect(importFileKind(JSON.stringify({ format: 'something-else' }))).toBeNull();
+    expect(importFileKind('[]')).toBeNull();
+    expect(importFileKind('null')).toBeNull();
+    expect(importFileKind('not json')).toBeNull();
   });
 });

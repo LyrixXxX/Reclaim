@@ -55,12 +55,23 @@ $syncExclusions = @('.git', 'dist', '.gradle', '.cxx', 'build', '.npm-task-cache
 # The short-path native project is the actual incremental build workspace. The
 # source checkout's older generated Android files must not overwrite it.
 if (Test-Path -LiteralPath (Join-Path $buildRootFull 'android\app\build.gradle')) {
-  $syncExclusions += 'android'
+  # A full path skips only the top-level android folder. A bare 'android' would also skip
+  # modules\*\android, so native module changes would never reach the build.
+  $syncExclusions += (Join-Path $sourceRoot 'android')
 }
 & robocopy $sourceRoot $buildRootFull /E /XD $syncExclusions /XF '.reclaim-local-build' /NFL /NDL /NJH /NJS /NP
 $robocopyExitCode = $LASTEXITCODE
 if ($robocopyExitCode -ge 8) {
   throw "Unable to synchronize the build cache (robocopy exit code $robocopyExitCode)."
+}
+# /E above never deletes. App code and assets must match the source exactly: a screen moved or
+# removed in the source (for example into a route group) would otherwise linger in the cache and
+# be bundled, shadowing the current version.
+foreach ($folder in @('src', 'assets')) {
+  & robocopy (Join-Path $sourceRoot $folder) (Join-Path $buildRootFull $folder) /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "Unable to mirror $folder into the build cache (robocopy exit code $LASTEXITCODE)."
+  }
 }
 if (-not (Test-Path -LiteralPath $markerPath)) {
   Set-Content -LiteralPath $markerPath -Value 'Reclaim local Android build cache. Safe to delete when no build is running.'

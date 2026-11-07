@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { ReportRange, reportChartMaximum, reportLabelIndices, reportNumber, reportPlotLayout, reportValueLabel } from '@/lib/nutrition-report';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export type ReportChartPoint = { key: string; label: string; detail: string; value: number | null; goal: number | null; status: string; segments?: { id: string; name: string; value: number; color: string }[] };
 export function NutritionReportChart({ points, range, color, unit, kind = 'bar' }: { points: ReportChartPoint[]; range: ReportRange; color: string; unit: string; kind?: 'line' | 'bar' | 'stacked' }) {
@@ -64,4 +64,4 @@ export function NutritionBalanceRing({ parts }: { parts: { label: string; percen
     <SvgText x={70} y={85} textAnchor="middle" fill={colors.textMuted} fontSize={12}>{parts.some((part) => part.percent !== null) ? 'balance' : 'data'}</SvgText>
   </Svg>;
 }
-const styles = StyleSheet.create({ key: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 15, marginBottom: 3 }, keyText: { color: colors.textMuted, fontSize: 11 }, detailToggle: { alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12, marginTop: 8, paddingVertical: 11 }, detailToggleText: { color: colors.text, fontSize: 11, fontWeight: '600' }, detail: { backgroundColor: colors.background, borderRadius: 12, padding: 12, marginTop: 6 }, date: { color: colors.text, fontSize: 12, fontWeight: '700' }, value: { fontSize: 17, fontWeight: '600', marginTop: 5 }, goal: { fontSize: 12, color: colors.textMuted, fontWeight: '500' }, hint: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: 5 }, meal: { fontSize: 12, marginTop: 5 } });
+const styles = StyleSheet.create({ key: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 15, marginBottom: 3 }, keyText: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular}, detailToggle: { alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12, marginTop: 8, paddingVertical: 11 }, detailToggleText: { color: colors.text, fontSize: 11, fontFamily: font.semibold }, detail: { backgroundColor: colors.background, borderRadius: 12, padding: 12, marginTop: 6 }, date: { color: colors.text, fontSize: 12, fontFamily: font.bold }, value: { fontSize: 17, fontFamily: font.semibold, marginTop: 5 }, goal: { fontSize: 12, color: colors.textMuted, fontFamily: font.medium }, hint: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, lineHeight: 16, marginTop: 5 }, meal: { fontSize: 12, marginTop: 5 } });

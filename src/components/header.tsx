@@ -1,6 +1,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius } from '@/theme';
+import { Icon } from '@/components/icon';
+import { colors, radius, font } from '@/theme';
 
 export function Header() {
   return (
@@ -10,7 +11,7 @@ export function Header() {
         <Text style={styles.name}>Reclaim</Text>
       </View>
       <View style={styles.privatePill} accessibilityLabel="Records are stored on this device">
-        <View style={styles.dot} />
+        <Icon name="shield" size={13} color={colors.accent} strokeWidth={2.2} />
         <Text style={styles.privateText}>On device</Text>
       </View>
     </View>
@@ -30,7 +31,7 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 7,
   },
-  name: { color: colors.text, fontSize: 16, letterSpacing: 0.2, fontWeight: '700' },
+  name: { color: colors.text, fontSize: 17, letterSpacing: -0.2, fontFamily: font.extrabold },
   privatePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -43,5 +44,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
-  privateText: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  privateText: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold },
 });

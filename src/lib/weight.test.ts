@@ -1,4 +1,4 @@
-import { latestWeightGoal, mergeWeightImport, parseWeightExport, upsertWeightEntry, weightHistoryChronological, weightStats, weightTrendSeries, weightWindow } from './weight';
+import { latestWeightGoal, mergeWeightImport, parseWeightExport, weightImportPlan, upsertWeightEntry, weightHistoryChronological, weightStats, weightTrendSeries, weightWindow } from './weight';
 import { historyPage } from './history-pages';
 import { WeightEntry } from '@/models/tracker';
 
@@ -66,5 +66,32 @@ describe('weight history navigation', () => {
     expect(historyPage(ordered, 1).items[0].date).toBe('2026-03-08');
     expect(historyPage(ordered, 2).items.at(-1)?.date).toBe('2026-03-16');
     expect(JSON.stringify(entries)).toBe(original);
+  });
+});
+
+describe('importing a weight history file', () => {
+  const history = parseWeightExport(JSON.stringify({ format: 'reclaim-weight-export', version: 1, exportedAt: '2026-11-07T00:00:00Z', unit: 'lb', entries: [
+    { date: '2026-03-18', weight: 325.5, caloriesEaten: 2583, estimatedBurn: 3727, goal: 300, notes: '' },
+    { date: '2026-11-01', weight: 999, goal: 290 },
+    { date: '2026-08-14', weight: 294, goal: 290 },
+  ] }));
+  const mine = [{ id: 'weight-2026-11-01', date: '2026-11-01', weight: 289, unit: 'lb' as const, recordedAt: '2026-11-01T08:00:00Z', goal: 250 }];
+
+  test('adds new dates and never changes a weigh-in already recorded', () => {
+    const plan = weightImportPlan(mine, history);
+    expect(plan.added).toBe(2);
+    expect(plan.duplicates).toBe(1);
+    expect(plan.entries.find((entry) => entry.date === '2026-11-01')).toEqual(mine[0]);
+    expect(plan.entries[0].caloriesEaten).toBe(2583);
+    expect([plan.firstDate, plan.lastDate]).toEqual(['2026-03-18', '2026-08-14']);
+  });
+  test('old goal weights do not replace the current goal', () => {
+    const plan = weightImportPlan(mine, history);
+    expect(latestWeightGoal(plan.entries)).toBe(250);
+    expect(latestWeightGoal(weightImportPlan([], history).entries)).toBeUndefined();
+  });
+  test('importing the same file again adds nothing', () => {
+    const once = weightImportPlan(mine, history);
+    expect(weightImportPlan(once.entries, history).added).toBe(0);
   });
 });

@@ -6,7 +6,8 @@ import { useNow } from '@/hooks/use-now';
 import { RollingRange, rollingBounds } from '@/lib/rolling-range';
 
 import { HistoricalEntry } from '@/models/tracker';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
+import { isoToUs } from '@/lib/us-date';
 
 const HEIGHT = 170;
 const PAD = { top: 16, right: 12, bottom: 28, left: 34 };
@@ -35,7 +36,7 @@ export function ValueChart({ entries, color, unit }: { entries: HistoricalEntry[
   if (!points.length) return <View><RollingRangeControls range={range} onRange={setRange} offset={offset} onOffset={setOffset} start={range === 'ALL' ? all[0]?.eventDate ?? bounds.end : bounds.start} end={bounds.end} accent={color} /><View style={styles.empty}><Text style={styles.emptyTitle}>{all.length ? 'No amounts in this date window' : 'No amount history yet'}</Text><Text style={styles.emptyBody}>{all.length ? 'Choose an older window or All.' : 'Add an amount to a historical entry to begin the chart.'}</Text></View></View>;
   return <View onLayout={onLayout} onTouchStart={onTouch} style={styles.wrapper}>
     <RollingRangeControls range={range} onRange={setRange} offset={offset} onOffset={setOffset} start={range === 'ALL' ? all[0]?.eventDate ?? bounds.end : bounds.start} end={bounds.end} accent={color} />
-    {selected && <View style={styles.tooltip}><Text style={styles.tooltipText}>{selected.eventDate} · {selected.value} {unit}</Text></View>}
+    {selected && <View style={styles.tooltip}><Text style={styles.tooltipText}>{isoToUs(selected.eventDate)} · {selected.value} {unit}</Text></View>}
     <Svg width="100%" height={HEIGHT}>
       {[0, 0.5, 1].map((ratio) => <Line key={ratio} x1={PAD.left} x2={width - PAD.right} y1={PAD.top + chartHeight * ratio} y2={PAD.top + chartHeight * ratio} stroke={colors.border} strokeDasharray="3 6" />)}
       <SvgText x={3} y={PAD.top + 4} fill={colors.textDim} fontSize={9}>{max}</SvgText>
@@ -50,6 +51,6 @@ export function ValueChart({ entries, color, unit }: { entries: HistoricalEntry[
 }
 
 const styles = StyleSheet.create({
-  wrapper: { width: '100%', minHeight: HEIGHT + 18 }, tooltip: { position: 'absolute', zIndex: 2, top: 3, alignSelf: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 }, tooltipText: { color: colors.text, fontSize: 11, fontWeight: '700' }, hint: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: -3 },
-  empty: { height: HEIGHT, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontSize: 13, fontWeight: '700' }, emptyBody: { color: colors.textMuted, fontSize: 11, marginTop: 6, textAlign: 'center' },
+  wrapper: { width: '100%', minHeight: HEIGHT + 18 }, tooltip: { position: 'absolute', zIndex: 2, top: 3, alignSelf: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6 }, tooltipText: { color: colors.text, fontSize: 11, fontFamily: font.bold }, hint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: -3 },
+  empty: { height: HEIGHT, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.text, fontSize: 13, fontFamily: font.bold }, emptyBody: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, marginTop: 6, textAlign: 'center' },
 });

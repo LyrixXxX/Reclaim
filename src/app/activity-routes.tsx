@@ -7,12 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityRouteDetails, routeDisplayName } from '@/components/activity-route-details';
 import { HistoryPages } from '@/components/history-pages';
 import { RouteMapPreview } from '@/components/route-map-preview';
+import { RoutePhotos } from '@/components/route-photos';
 import { activityDurationMs, averagePaceMinPerMile, routeMovingDurationMs } from '@/lib/activity';
 import { rasterMapStyle } from '@/lib/activity-map-style';
 import { getMapKey } from '@/lib/activity-maps';
 import { formatMiles } from '@/lib/activity-units';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 export default function SavedRoutesScreen() {
   const { activityRoutes = [], saveActivityRoute, deleteActivityRoute } = useTrackers();
@@ -36,17 +38,19 @@ export default function SavedRoutesScreen() {
       const durationLabel = `${Math.floor(seconds / 3600)}h ${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}m ${String(seconds % 60).padStart(2, '0')}s`;
       const paceLabel = paceSeconds === null ? '—' : `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, '0')} /mi`;
       return <View key={route.id} style={styles.route}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.push(`/activity-map?routeId=${encodeURIComponent(route.id)}` as Href)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${routeDisplayName(route)} on the map`} onPress={() => router.navigate(`/routes?routeId=${encodeURIComponent(route.id)}` as Href)}>
           <RouteMapPreview points={route.points} mapStyle={mapStyle} />
           <Text style={styles.name}>{routeDisplayName(route)}</Text>
           <Text style={styles.date}>{new Date(route.startedAt).toLocaleString(undefined, { hour12: true })}</Text>
           <Text style={styles.stats}>{formatMiles(route.distanceMeters)} · {durationLabel} elapsed · {movingMs == null ? 'Moving time unavailable' : `${Math.round(movingMs / 60_000)} min moving`} · {paceLabel} {movingMs == null ? 'overall pace' : 'moving pace'}{route.estimatedCalories != null ? ` · Estimated ${route.estimatedCalories} kcal` : ''}</Text>
           {route.notes && <Text style={styles.notes} numberOfLines={2}>{route.notes}</Text>}
-          <Text style={styles.open}>View on map ›</Text>
+          <View style={styles.openRow}><Text style={styles.open}>View on map</Text><Chevron size={16} color={colors.activityNav} /></View>
         </Pressable>
+        <RoutePhotos routeId={route.id} photos={route.photos} onChange={(photos) => void saveActivityRoute({ ...route, photos })} />
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit details</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this route?', 'This removes the saved route and its GPS points from Reclaim.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteActivityRoute(route.id) }])} style={styles.action}><Text style={styles.deleteText}>Delete</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setEditingId(route.id)} style={styles.action}><Text style={styles.actionText}>Edit</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Share ${routeDisplayName(route)}`} onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(route.id)}` as Href)} style={styles.action}><Text style={styles.actionText}>Share</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => Alert.alert('Delete this route?', route.photos?.length ? 'This removes the saved route, its GPS points and its photos from Reclaim. Gallery copies aren’t touched.' : 'This removes the saved route and its GPS points from Reclaim.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteActivityRoute(route.id) }])} style={styles.action}><Text style={styles.deleteText}>Delete</Text></Pressable>
         </View>
       </View>;
     })}</HistoryPages>
@@ -54,17 +58,18 @@ export default function SavedRoutesScreen() {
 }
 
 const styles = StyleSheet.create({
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 9 },
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', padding: spacing.lg, paddingBottom: 60 },
-  empty: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  empty: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   route: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 12 },
-  name: { color: colors.text, fontSize: 18, fontWeight: '600', marginTop: 12 },
-  date: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
-  stats: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
-  notes: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 8 },
-  open: { color: colors.activityNav, fontSize: 12, fontWeight: '600', marginTop: 9 },
+  name: { color: colors.text, fontSize: 18, fontFamily: font.semibold, marginTop: 12 },
+  date: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 3 },
+  stats: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  notes: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 19, marginTop: 8 },
+  open: { color: colors.activityNav, fontSize: 12, fontFamily: font.semibold },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   action: { flex: 1, padding: 12, alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
-  actionText: { color: colors.text, fontWeight: '700' },
-  deleteText: { color: colors.danger, fontWeight: '700' },
+  actionText: { color: colors.text, fontFamily: font.bold },
+  deleteText: { color: colors.danger, fontFamily: font.bold },
 });

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAds } from '@/state/ads-context';
 import { TEST_ADS_ENABLED } from '@/lib/monetization';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export function HomeAdBanner() {
   const { bannerReady } = useAds();
@@ -18,5 +18,5 @@ export function HomeAdBanner() {
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', backgroundColor: colors.background, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 3 },
-  label: { color: colors.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
+  label: { color: colors.textDim, fontSize: 11, fontFamily: font.bold, letterSpacing: 1, marginBottom: 2 },
 });

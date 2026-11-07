@@ -1,0 +1,300 @@
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Href, Link, Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { MainScreenHeader } from '@/components/main-screen-header';
+import { ReductionCard } from '@/components/reduction-card';
+import { TimerCard } from '@/components/timer-card';
+import { HabitCard } from '@/components/habit-card';
+import { WaterHabitCard } from '@/components/water-habit-card';
+import { waterDisplayAmount } from '@/lib/water-habit';
+import { GoodHabitTemplateCard } from '@/components/good-habit-template-card';
+import { NextBadgeCard } from '@/components/next-badge-card';
+import { useTrophyCase } from '@/hooks/use-trophy-case';
+import { closestBadge, earnedBadges } from '@/lib/trophy-case';
+import { useTrackers } from '@/state/tracker-context';
+import { colors, layout, spacing, type, font } from '@/theme';
+import { DEFAULT_PREFERENCES, hiddenHabitsDestination } from '@/lib/preferences';
+import { formatTaperQuitStart, taperQuitPhase, trackerJourneySection } from '@/lib/taper-quit';
+import { formatSavings } from '@/lib/habit-savings';
+import { crossAreaInsights } from '@/lib/insights';
+import { activeSavingsGoal, cravingsBeaten, quittingStarts, totalQuitDays as sumQuitDays, totalQuitSavings } from '@/lib/quit-progress';
+import { useNow } from '@/hooks/use-now';
+import { localDateKey } from '@/lib/progress';
+import { Chevron } from '@/components/icon';
+
+export default function HabitsScreen() {
+  const { deleted, view: linkedView, at: linkedAt } = useLocalSearchParams<{ deleted?: string; view?: string; at?: string }>();
+  const router = useRouter();
+  const { trackers, historicalEntries = [], waterLogs = [], goodHabitLogs = [], activityRoutes = [], taperSteps = [], cravings = [], savingsGoals = [], hydrated, preferences = DEFAULT_PREFERENCES, swapHabitOrder, logGoodHabit, saveWaterDrink } = useTrackers();
+  const active = trackers.filter((tracker) => !tracker.archived);
+  const quitting = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'quitting');
+  const reduction = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'reducing');
+  const habits = active.filter((tracker) => trackerJourneySection(tracker, taperSteps) === 'building');
+  const trophies = useTrophyCase();
+  const [view, setView] = useState<'good' | 'quit' | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void AsyncStorage.getItem('reclaim-habits-view').then((saved) => {
+      const chosen = linkedView === 'good' || linkedView === 'quit' ? linkedView : saved;
+      if (linkedView === 'good' || linkedView === 'quit') void AsyncStorage.setItem('reclaim-habits-view', linkedView).catch(() => undefined);
+      if (mounted) setView(chosen === 'good' || chosen === 'quit' ? chosen : habits.length && !quitting.length && !reduction.length ? 'good' : 'quit');
+    }).catch(() => { if (mounted) setView(habits.length && !quitting.length && !reduction.length ? 'good' : 'quit'); });
+    return () => { mounted = false; };
+  }, [habits.length, quitting.length, reduction.length, linkedView, linkedAt]);
+  const selectView = (next: 'good' | 'quit') => { setView(next); void AsyncStorage.setItem('reclaim-habits-view', next).catch(() => undefined); };
+  const [expandedTimers, setExpandedTimers] = useState<Record<string, boolean>>({});
+  const [editingOrder, setEditingOrder] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const now = useNow(60_000);
+  const quitStarts = quittingStarts(trackers, taperSteps);
+  const totalSavings = totalQuitSavings(quitStarts, now);
+  const totalQuitDays = sumQuitDays(quitStarts, now);
+  const totalBeaten = cravingsBeaten(cravings);
+  const goal = activeSavingsGoal(savingsGoals, totalSavings);
+  const insights = crossAreaInsights({ cravings, routes: activityRoutes, now });
+  const canCrave = quitStarts.some((item) => item.startedAt);
+  const orderControls = (section: typeof active, trackerId: string) => {
+    if (!editingOrder) return null;
+    const index = section.findIndex((tracker) => tracker.id === trackerId);
+    return <View style={styles.orderControls}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Move ${section[index].name} up`} disabled={index <= 0} onPress={() => swapHabitOrder(trackerId, section[index - 1].id)} style={[styles.orderButton, index <= 0 && styles.disabled]}><Text style={styles.orderText}>↑ Move up</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Move ${section[index].name} down`} disabled={index >= section.length - 1} onPress={() => swapHabitOrder(trackerId, section[index + 1].id)} style={[styles.orderButton, index >= section.length - 1 && styles.disabled]}><Text style={styles.orderText}>↓ Move down</Text></Pressable>
+    </View>;
+  };
+
+  // The card belongs to the tab it sits under, so it only counts that tab's habits.
+  const tabBadges = trophies.list.filter((badges) => badges.quit === (view === 'quit'));
+  const tabNext = closestBadge(tabBadges);
+  const tabEarned = earnedBadges(tabBadges);
+
+  if (!hydrated || view === null) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingMark}>R</Text>
+      </View>
+    );
+  }
+  if (!preferences.visibleSections.goals) {
+    return <Redirect href={hiddenHabitsDestination(preferences.visibleSections) as Href} />;
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}>
+        <MainScreenHeader
+          title="Habits"
+          subtitle="Track what you’re quitting, reducing, or building."
+          accent={colors.habitsNav}
+        />
+
+        {deleted && <Text style={styles.deletedNotice}>{deleted} was permanently deleted.</Text>}
+
+        <View style={styles.tabRow}>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'good' }} onPress={() => selectView('good')} style={[styles.tab, view === 'good' && styles.tabActive]}><Text style={[styles.tabText, view === 'good' && styles.tabTextActive]}>Good Habits</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: view === 'quit' }} onPress={() => selectView('quit')} style={[styles.tab, view === 'quit' && styles.tabActive]}><Text style={[styles.tabText, view === 'quit' && styles.tabTextActive]}>Quitting & Tapering</Text></Pressable>
+        </View>
+
+        {view === 'quit' && canCrave && <Pressable accessibilityRole="button" onPress={() => router.push('/craving' as Href)} style={({ pressed }) => [styles.craving, pressed && { opacity: 0.85 }]}>
+            <View style={{ flex: 1 }}><Text style={styles.cravingTitle}>Having a craving?</Text><Text style={styles.cravingSub}>Two minutes of help to ride it out.</Text></View>
+            <Chevron color={colors.habitsNav} />
+          </Pressable>}
+
+        {(tabNext || tabEarned.length > 0) && <View style={styles.badges}><NextBadgeCard next={tabNext} earned={tabEarned} showLatest /></View>}
+
+        {view === 'quit' && <View style={styles.summaryCard}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Habits overview" accessibilityState={{ expanded: summaryExpanded }} onPress={() => setSummaryExpanded((current) => !current)} style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>Your progress</Text><Chevron direction={summaryExpanded ? 'up' : 'down'} color={colors.habitsNav} />
+          </Pressable>
+          {summaryExpanded && <View style={styles.summaryBody}>
+            <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total time saved</Text><Text style={styles.summaryValue}>{totalQuitDays.toLocaleString()} {totalQuitDays === 1 ? 'day' : 'days'}</Text></View>
+            <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Total money saved</Text><Text style={styles.summaryValue}>{formatSavings(totalSavings)}</Text></View>
+            {totalBeaten > 0 && <View style={styles.summaryMetric}><Text style={styles.summaryLabel}>Cravings beaten</Text><Text style={styles.summaryValue}>{totalBeaten.toLocaleString()}</Text></View>}
+            <Link href={'/savings-goal' as Href} asChild><Pressable accessibilityRole="button" style={styles.goal}>
+              {goal ? <>
+                <View style={styles.goalRow}><Text style={styles.goalName}>Saving for {goal.goal.name}</Text><Text style={styles.goalAmount}>{formatSavings(Math.min(totalSavings, goal.goal.targetCents))} / {formatSavings(goal.goal.targetCents)}</Text></View>
+                <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${Math.max(2, goal.progress * 100)}%` }]} /></View>
+                <Text style={styles.summaryNote}>{goal.remainingCents > 0 ? `${formatSavings(goal.remainingCents)} to go.` : 'Goal reached. Treat yourself, you earned it.'}</Text>
+              </> : <Text style={styles.goalAdd}>+ Set a savings goal</Text>}
+            </Pressable></Link>
+            <Text style={styles.summaryNote}>Combined across current quitting trackers. Time on simultaneous trackers is counted for each one; money is an estimate from saved expenses.</Text>
+          </View>}
+        </View>}
+
+        {view === 'quit' && insights.length > 0 && <View style={styles.insights}>
+          <Text style={styles.insightsTitle}>What we’ve noticed</Text>
+          {insights.map((item) => <View key={item.id} style={styles.insight}><Text style={styles.insightTitle}>{item.title}</Text><Text style={styles.insightDetail}>{item.detail}</Text></View>)}
+        </View>}
+
+        <View style={styles.managementRow}>
+          <Link href={(view === 'good' ? '/good-habit-types' : '/tracker-form') as Href} style={styles.addTracker}>{view === 'good' ? '+ Add good habit' : '+ Add tracker'}</Link>
+          <Link href="/manage" style={styles.manageTrackers}>Manage trackers</Link>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: editingOrder }} onPress={() => setEditingOrder((editing) => !editing)} style={styles.editOrder}><Text style={styles.editOrderText}>{editingOrder ? 'Done editing order' : 'Edit order'}</Text></Pressable>
+
+        {view === 'quit' && <><View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quitting</Text>
+          <View style={styles.sectionControls}>
+            <Text style={styles.sectionMeta}>{quitting.length} active</Text>
+          </View>
+        </View>
+        <View style={styles.cardStack}>
+          {quitting.map((tracker) => { const phase = taperQuitPhase(tracker, taperSteps); const expanded = expandedTimers[tracker.id] ?? false; const hasTimer = Boolean(phase?.startedAt ?? tracker.startedAt); return <View key={tracker.id}><TimerCard tracker={tracker} phaseStart={phase?.startedAt} phasePrecision={phase?.datePrecision} phaseStartLabel={phase ? formatTaperQuitStart(phase) : undefined} modeLabel={phase ? 'Quit after taper' : undefined} expanded={expanded} beaten={cravingsBeaten(cravings, tracker.id)} />{hasTimer && <View style={styles.timerActions}><Pressable accessibilityRole="button" accessibilityLabel={`${expanded ? 'Hide' : 'Show'} ${tracker.name} timer details`} accessibilityState={{ expanded }} onPress={() => setExpandedTimers((current) => ({ ...current, [tracker.id]: !expanded }))} style={styles.timerButton}><Text style={styles.timerToggle}>{expanded ? 'Hide timer details' : 'Show timer details'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Share ${tracker.name} progress`} onPress={() => router.push({ pathname: '/share-milestone', params: { tracker: tracker.id } } as unknown as Href)} style={[styles.timerButton, styles.shareButton]}><Text style={styles.timerToggle}>Share</Text></Pressable></View>}{orderControls(quitting, tracker.id)}</View>; })}
+        </View>
+
+        {reduction.length > 0 && <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Reducing</Text>
+            <Text style={styles.sectionMeta}>This week</Text>
+          </View>
+          <View style={styles.cardStack}>
+            {reduction.map((tracker) => (
+              <View key={tracker.id}><ReductionCard tracker={tracker} />{orderControls(reduction, tracker.id)}</View>
+            ))}
+          </View>
+        </>}
+
+        </>}
+
+        {view === 'good' && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Good Habits</Text>
+              <Text style={styles.sectionMeta}>{habits.length} active</Text>
+            </View>
+            <View style={styles.cardStack}>
+              {habits.map((tracker) => (
+                <View key={tracker.id}>{tracker.habitTemplate === 'water'
+                  ? <WaterHabitCard tracker={tracker} logs={waterLogs} onLog={(ounces) => Alert.alert('Add water?', `Add ${waterDisplayAmount(ounces, tracker.waterDisplayUnit ?? 'fl oz')} ${tracker.waterDisplayUnit ?? 'fl oz'} to today’s water?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => saveWaterDrink({ id: `water-${Date.now()}-${Math.random().toString(36).slice(2)}`, trackerId: tracker.id, eventDate: localDateKey(), ounces, recordedAt: new Date().toISOString() }) }])} />
+                  : tracker.habitTemplate ? <GoodHabitTemplateCard tracker={tracker} logs={goodHabitLogs} routes={activityRoutes} />
+                    : <HabitCard tracker={tracker} entries={historicalEntries.filter((entry) => entry.trackerId === tracker.id)} onLog={() => logGoodHabit(tracker.id)} />}{orderControls(habits, tracker.id)}</View>
+              ))}
+            </View>
+          </>
+        )}
+        {view === 'good' && habits.length === 0 && <View style={styles.emptyCard}><Text style={styles.sectionTitle}>Build something good.</Text><Text style={styles.emptyText}>Choose a habit, set a flexible goal, and log it as you go.</Text></View>}
+
+        <Text style={styles.disclaimer}>
+          Reclaim is a private tracking tool, not medical advice. Saved records stay
+          on your device. Only content you explicitly submit for AI analysis or
+          choose to export is shared.
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  badges: { marginBottom: 14 },
+  insights: { marginBottom: 14, borderRadius: layout.radius, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18, gap: 14 },
+  insightsTitle: { ...type.eyebrow, color: colors.habitsNav },
+  insight: { gap: 4 },
+  insightTitle: { color: colors.text, fontSize: 15, fontFamily: font.bold },
+  insightDetail: { color: colors.textMuted, fontSize: 13, lineHeight: 19, fontFamily: font.regular },
+  craving: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, borderRadius: layout.radius, borderWidth: 1, borderColor: `${colors.habitsNav}55`, backgroundColor: `${colors.habitsNav}14`, paddingHorizontal: 18, paddingVertical: 16 },
+  cravingTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
+  cravingSub: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, marginTop: 2 },
+  goal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14, gap: 8 },
+  goalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  goalName: { flex: 1, color: colors.text, fontSize: 14, fontFamily: font.bold },
+  goalAmount: { color: colors.success, fontSize: 13, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
+  goalTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
+  goalFill: { height: 8, borderRadius: 4, backgroundColor: colors.success },
+  goalAdd: { color: colors.habitsNav, fontSize: 14, fontFamily: font.bold },
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  content: {
+    width: '100%',
+    maxWidth: layout.maxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 48,
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingMark: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: colors.accent,
+    color: colors.background,
+    textAlign: 'center',
+    lineHeight: 54,
+    fontSize: 28,
+    fontFamily: font.bold,
+  },
+  intro: { marginTop: 34, marginBottom: spacing.xl },
+  eyebrow: {
+    ...type.eyebrow,
+    color: colors.accent,
+    marginBottom: spacing.sm,
+  },
+  title: {
+    color: colors.text,
+    fontSize: 38,
+    lineHeight: 43,
+    letterSpacing: -1.2,
+    fontFamily: font.semibold,
+  },
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: 16, fontFamily: font.regular,
+    lineHeight: 24,
+    marginTop: spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 34,
+    marginBottom: spacing.md,
+  },
+  deletedNotice: { color: colors.success, backgroundColor: colors.accentSoft, borderRadius: 12, padding: 10, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: 8 },
+  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 18, marginTop: 8 },
+  tab: { flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8 },
+  tabActive: { backgroundColor: colors.surfaceRaised, borderColor: colors.borderStrong },
+  tabText: { color: colors.textMuted, fontSize: 12, fontFamily: font.bold, textAlign: 'center' },
+  tabTextActive: { color: colors.text, fontFamily: font.semibold },
+  emptyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: 22, marginTop: 20 },
+  emptyText: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 8 },
+  summaryCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, marginBottom: 18, overflow: 'hidden' },
+  summaryHeader: { minHeight: 54, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryTitle: { color: colors.text, fontSize: 17, fontFamily: font.semibold },
+  summaryBody: { borderTopWidth: 1, borderTopColor: colors.border, padding: 18, gap: 18 },
+  summaryMetric: { flex: 1, gap: 5 },
+  summaryLabel: { color: colors.textMuted, fontSize: 11, fontFamily: font.bold },
+  summaryValue: { color: colors.habitsNav, fontSize: 28, fontFamily: font.bold },
+  summaryNote: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, lineHeight: 15 },
+  managementRow: { flexDirection: 'row', gap: 10, marginTop: 2 },
+  addTracker: { flex: 1, color: colors.background, backgroundColor: colors.accent, borderRadius: 13, paddingVertical: 12, textAlign: 'center', fontSize: 12, fontFamily: font.semibold, overflow: 'hidden' },
+  manageTrackers: { flex: 1, color: colors.textMuted, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 13, paddingVertical: 12, textAlign: 'center', fontSize: 12, fontFamily: font.bold, overflow: 'hidden' },
+  editOrder: { alignSelf: 'flex-end', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: 10 },
+  editOrderText: { color: colors.habitsNav, fontSize: 12, fontFamily: font.semibold },
+  sectionTitle: { color: colors.text, fontSize: 20, fontFamily: font.bold },
+  sectionMeta: { color: colors.textDim, fontSize: 13, fontFamily: font.semibold },
+  sectionControls: { alignItems: 'flex-end', gap: 5 },
+  timerToggle: { color: colors.habitsNav, fontSize: 11, fontFamily: font.semibold },
+  shareButton: { flexGrow: 0, flexBasis: 'auto', paddingHorizontal: 22 },
+  timerActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  timerButton: { flexGrow: 1, flexBasis: 0, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 11 },
+  orderControls: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  orderButton: { flex: 1, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 10 },
+  orderText: { color: colors.text, fontSize: 12, fontFamily: font.bold },
+  disabled: { opacity: 0.35 },
+  cardStack: { gap: spacing.md },
+  disclaimer: {
+    color: colors.textDim,
+    fontSize: 12, fontFamily: font.regular,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 38,
+    paddingHorizontal: spacing.lg,
+  },
+});

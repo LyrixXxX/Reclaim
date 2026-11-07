@@ -1,5 +1,5 @@
-import { Medication } from '@/models/tracker';
-import { logSupplementToday, recordSupplementDose, saveSupplementDraft, supplementDosesForDate, supplementEvents, validateSupplementDraft, visibleSupplements } from './supplements';
+import { Medication, MedicationEvent } from '@/models/tracker';
+import { logSupplementToday, recordSupplementDose, saveSupplementDraft, supplementDosesForDate, supplementEvents, validateSupplementDraft, visibleSupplements, hasSupplementGoal, supplementDayGoal } from './supplements';
 
 const medical: Medication = { id: 'old-med', kind: 'medication', name: 'Prescription', schedule: { type: 'daily', times: ['09:00'] }, remindersEnabled: false, notificationIds: [], archived: false, recordedAt: '2026-10-01T12:00:00Z' };
 
@@ -56,4 +56,27 @@ test('shows weekly servings only on chosen days and preserves interval schedules
   expect(interval.schedule).toMatchObject({ type: 'interval', intervalHours: 8 });
   expect(recordSupplementDose([], interval, 'taken', 'taken', undefined, new Date(2026, 9, 22, 9))).toHaveLength(1);
   expect(validateSupplementDraft({ name: 'Electrolytes', serving: '', notes: '', scheduleType: 'interval', intervalHours: 0 })).toMatch(/interval/);
+});
+
+describe('supplement goal', () => {
+  const DATE = '2026-11-07';
+  const supplement = (id: string, schedule: Medication['schedule']) => ({ id, kind: 'supplement', name: id, schedule, startDate: '2026-01-01' }) as unknown as Medication;
+  const event = (medicationId: string, time: string, outcome: 'taken' | 'skipped') => ({ id: `${medicationId}-${time}`, medicationId, scheduledFor: `${DATE}T${time}`, occurredAt: `${DATE}T${time}:00`, outcome }) as MedicationEvent;
+  const daily = supplement('d3', { type: 'daily', times: ['08:00', '20:00'] });
+  test('counts doses due, with later ones still in the total', () => {
+    expect(supplementDayGoal([daily], [event('d3', '08:00', 'taken')], DATE)).toEqual({ taken: 1, total: 2, reached: false });
+  });
+  test('a skipped dose leaves the total', () => {
+    expect(supplementDayGoal([daily], [event('d3', '08:00', 'taken'), event('d3', '20:00', 'skipped')], DATE)).toEqual({ taken: 1, total: 1, reached: true });
+  });
+  test('no goal when every dose is skipped, or nothing is due', () => {
+    expect(supplementDayGoal([daily], [event('d3', '08:00', 'skipped'), event('d3', '20:00', 'skipped')], DATE)).toBeNull();
+    expect(supplementDayGoal([supplement('w', { type: 'weekly', times: ['08:00'], weekdays: [2] })], [], DATE)).toBeNull();
+  });
+  test('as-needed supplements alone make no goal', () => {
+    expect(hasSupplementGoal([supplement('a', { type: 'as_needed', times: [] })])).toBe(false);
+    expect(supplementDayGoal([supplement('a', { type: 'as_needed', times: [] })], [], DATE)).toBeNull();
+    expect(hasSupplementGoal([daily])).toBe(true);
+    expect(hasSupplementGoal([{ ...daily, archived: true }])).toBe(false);
+  });
 });

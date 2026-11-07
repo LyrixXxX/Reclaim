@@ -1,15 +1,19 @@
 import { TrackerState } from '@/models/tracker';
-import { homeOverview, nutritionGoalDetail, nutritionGoalReached } from './home-overview';
+import { homeOverview } from './home-overview';
 import { DEFAULT_PREFERENCES } from './preferences';
 
 const base: TrackerState = { trackers: [], checkIns: [], preferences: { ...DEFAULT_PREFERENCES, visibleSections: { ...DEFAULT_PREFERENCES.visibleSections, activity: true } } };
 
-test('nutrition goal accepts a logged total within 200 kcal of the target', () => {
-  expect(nutritionGoalReached(2200, 2400, 1)).toBe(true);
-  expect(nutritionGoalReached(2600, 2400, 1)).toBe(true);
-  expect(nutritionGoalReached(2601, 2400, 1)).toBe(false);
-  expect(nutritionGoalReached(2400, 2400, 0)).toBe(false);
-  expect(nutritionGoalDetail(2500, 2400, 5)).toBe('100 kcal over budget · goal met');
+test('calories are reported on Home but never count as a goal', () => {
+  const state: TrackerState = {
+    ...base,
+    nutritionGoals: [{ id: 'goal', effectiveDate: '2026-10-01', calorieTarget: 2000, carbsGrams: 200, proteinGrams: 100, fatGrams: 80, fiberGrams: 20, recordedAt: '2026-10-01T10:00:00Z' }],
+    nutritionEntries: [{ id: 'food', eventDate: '2026-10-02', servings: 1, statedCalories: 2000, nutrients: {} }] as never,
+  };
+  const result = homeOverview(state, { status: 'permission-needed' }, new Date(2026, 9, 2, 10));
+  expect(result.nutrition).toMatchObject({ calories: 2000, budget: 2000, entryCount: 1 });
+  expect(result.goalCount).toBe(0);
+  expect(result.reachedCount).toBe(0);
 });
 
 test('Home counts only active wellness targets, not retained older records', () => {
@@ -21,7 +25,7 @@ test('Home counts only active wellness targets, not retained older records', () 
     cpapUsageGoals: [{ effectiveDate: '2026-10-01', minutes: 240 }],
   };
   const result = homeOverview(state, { status: 'available', count: 2200 }, new Date(2026, 9, 2, 10));
-  expect(result.goalCount).toBe(2);
+  expect(result.goalCount).toBe(1);
   expect(result.reachedCount).toBe(1);
   expect(result.attention).toEqual([]);
   expect('medications' in result).toBe(false);

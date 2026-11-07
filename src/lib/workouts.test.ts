@@ -1,5 +1,5 @@
 import { createReclaimBackup, parseReclaimBackup } from './backup';
-import { BUILTIN_EXERCISES, estimateWorkoutCalories, estimatedOneRepMaxKg, exerciseCaloriesForDate, finishWorkout, manualWorkoutCalories, recentStrengthRecords, remainingWorkoutRestMs, startWorkout, workoutElapsedMs, workoutVolumeKg } from './workouts';
+import { BUILTIN_EXERCISES, estimateWorkoutCalories, estimatedOneRepMaxKg, exerciseCaloriesForDate, finishWorkout, manualWorkoutCalories, recentStrengthRecords, remainingWorkoutRestMs, startWorkout, workoutElapsedMs, workoutVolumeKg, beginWorkoutState } from './workouts';
 import { ActivityRoute, TrackerState, WorkoutSession } from '@/models/tracker';
 
 const session: WorkoutSession = { id: 'one', name: 'Push', startedAt: '2026-10-13T15:00:00.000Z', endedAt: '2026-10-13T16:00:00.000Z', pausedMs: 600_000, exercises: [{ id: 'entry', exerciseId: 'bench', name: 'Bench', primaryMuscle: 'chest', equipment: 'barbell', plannedSets: 2, sets: [{ id: 'set', kind: 'working', reps: 10, weightKg: 50, completedAt: '2026-10-13T15:20:00.000Z' }] }] };
@@ -66,4 +66,12 @@ test('records and estimated one-rep max stay within comparable weighted exercise
   expect(estimatedOneRepMaxKg({ ...session.exercises[0].sets[0], reps: 15 })).toBeUndefined();
   const later = { ...session, id: 'two', startedAt: '2026-10-14T15:00:00Z', endedAt: '2026-10-14T16:00:00Z', exercises: [{ ...session.exercises[0], sets: [{ ...session.exercises[0].sets[0], weightKg: 55, completedAt: '2026-10-14T15:20:00Z' }] }] };
   expect(recentStrengthRecords([session, later])[0]).toMatchObject({ name: 'Bench', weightKg: 55 });
+});
+
+test('a workout can start as a blank page or from a routine, one page at a time', () => {
+  const empty = { trackers: [], checkIns: [] } as unknown as TrackerState;
+  const blank = beginWorkoutState(empty, 'Monday workout', undefined, '2026-11-02T10:00:00Z');
+  expect(blank.activeWorkout).toMatchObject({ name: 'Monday workout', exercises: [], startedAt: '2026-11-02T10:00:00Z' });
+  expect(blank.activeWorkout?.routineId).toBeUndefined();
+  expect(beginWorkoutState(blank, 'Another', undefined)).toBe(blank);
 });

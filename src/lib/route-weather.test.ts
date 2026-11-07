@@ -15,7 +15,7 @@ test('loads current-hour NWS forecast and caches the location', async () => {
       : { properties: { periods: [{ startTime: '2026-10-18T12:00:00Z', endTime: '2026-10-18T13:00:00Z', temperature: 65, temperatureUnit: 'F', shortForecast: 'Partly Cloudy' }] } },
   })) as unknown as typeof fetch;
   const now = Date.parse('2026-10-18T12:30:00Z');
-  expect(await getRouteForecast(35.95, -85.03, now, request)).toMatchObject({ status: 'ready', area: 'Crossville, TN', temperature: 65, symbol: '☁' });
+  expect(await getRouteForecast(35.95, -85.03, now, request)).toMatchObject({ status: 'ready', area: 'Crossville, TN', temperature: 65, symbol: '☁️' });
   await getRouteForecast(35.951, -85.031, now + 1000, request);
   expect(request).toHaveBeenCalledTimes(2);
 });

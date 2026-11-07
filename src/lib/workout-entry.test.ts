@@ -1,4 +1,4 @@
-import { clearSetDraft, emptySetDraft, hasUnloggedSetInput, loggedWeightLabel, parseRoutineDraft, parseSetDraft, recordCompletedSet, routineDraftFor, updateSetDraft, weightFieldLabel } from './workout-entry';
+import { clearSetDraft, emptySetDraft, hasUnloggedSetInput, loggedWeightLabel, notepadSetLabel, parseRoutineDraft, parseSetDraft, recordCompletedSet, routineDraftFor, updateSetDraft, weightFieldLabel } from './workout-entry';
 import { WorkoutExercise } from '@/models/tracker';
 
 const chestPress: WorkoutExercise = { id: 'press', exerciseId: 'press', name: 'Chest Press', primaryMuscle: 'chest', equipment: 'machine', plannedSets: 3, targetReps: 10, sets: [] };
@@ -60,4 +60,14 @@ test('carried values do not look unfinished, but typed set inputs do', () => {
   expect(hasUnloggedSetInput({ press: carried })).toBe(false);
   expect(hasUnloggedSetInput({ press: { ...carried, reps: '12', autoSuggested: false } })).toBe(true);
   expect(hasUnloggedSetInput({ press: emptySetDraft('lb') })).toBe(false);
+});
+
+test('notepad lines read like a handwritten log for every measurement type', () => {
+  const at = '2026-11-02T10:00:00Z';
+  expect(notepadSetLabel({ id: 'a', kind: 'working', weightKg: 61.235, reps: 10, completedAt: at }, 'barbell', 'lb')).toBe('135 lb × 10');
+  expect(notepadSetLabel({ id: 'b', kind: 'working', reps: 12, completedAt: at }, 'bodyweight', 'lb', 'bodyweight_reps')).toBe('BW × 12');
+  expect(notepadSetLabel({ id: 'c', kind: 'working', weightKg: 10, reps: 8, completedAt: at }, 'bodyweight', 'kg', 'bodyweight_reps')).toBe('BW + 10 kg × 8');
+  expect(notepadSetLabel({ id: 'd', kind: 'working', assistanceKg: 20, reps: 6, completedAt: at }, 'machine', 'kg', 'assisted_reps')).toBe('−20 kg assist × 6');
+  expect(notepadSetLabel({ id: 'e', kind: 'working', holdSeconds: 60, reps: 1, completedAt: at }, 'bodyweight', 'lb', 'timed_hold')).toBe('60 s hold');
+  expect(notepadSetLabel({ id: 'f', kind: 'working', distanceMeters: 40, weightKg: 20, reps: 1, completedAt: at }, 'dumbbell', 'kg', 'distance_carry')).toBe('40 m carry · 20 kg');
 });

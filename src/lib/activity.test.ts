@@ -1,4 +1,4 @@
-import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, routeMovingDurationMs, validActivityPoint } from './activity';
+import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, pointDistanceMeters, routeCaloriesForDate, routeDistanceMeters, routeMovingDurationMs, validActivityPoint, movedEnoughToUpdate } from './activity';
 import { createFreshState, completeOnboarding } from './onboarding';
 import { DEFAULT_PREFERENCES, migratePreferences } from './preferences';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
@@ -35,7 +35,8 @@ describe('Activity route data', () => {
     expect(averagePaceMinPerMile(1609.344, 1_200_000)).toBeCloseTo(20);
     expect(averagePaceMinPerMile(10, 1_200_000)).toBeNull();
     expect(estimatedRouteCalories(1609.344, 1_200_000, 90)).toBe(75);
-    expect(estimatedRouteCalories(1609.344, 1_200_000, 90, 'hike')).toBe(150);
+    expect(estimatedRouteCalories(1609.344, 1_200_000, 90, 'hike')).toBe(75);
+    expect(estimatedRouteCalories(1609.344, 1_200_000, 90, 'hike', 100)).toBe(156);
     expect(estimatedRouteCalories(1609.344, 720_000, 90, 'run')).toBeGreaterThan(estimatedRouteCalories(1609.344, 1_200_000, 90)!);
     expect(estimatedRouteCalories(1609.344, 1_200_000)).toBeNull();
   });
@@ -75,4 +76,10 @@ describe('Activity route data', () => {
     expect(migrated.preferences?.visibleSections).toMatchObject({ activity: true, routes: true });
     expect(migratePreferences({ ...migrated, preferences: { ...migrated.preferences!, visibleSections: { ...migrated.preferences!.visibleSections, routes: false } } }).preferences?.visibleSections.routes).toBe(false);
   });
+});
+
+test('GPS drift does not move the map, but a real move does', () => {
+  expect(movedEnoughToUpdate(null, [-85, 36])).toBe(true);
+  expect(movedEnoughToUpdate([-85, 36], [-85, 36.00002])).toBe(false);
+  expect(movedEnoughToUpdate([-85, 36], [-85, 36.0002])).toBe(true);
 });

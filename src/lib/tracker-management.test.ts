@@ -7,8 +7,7 @@ import {
   trackerHasHistory,
   setTrackerArchived,
   TrackerDraft,
-  validateTrackerDraft,
-} from './tracker-management';
+  validateTrackerDraft, removeFruitAndVegGoals } from './tracker-management';
 import { TrackerMode, TrackerState } from '@/models/tracker';
 
 function draft(mode: TrackerMode, name = 'My tracker'): TrackerDraft {
@@ -207,4 +206,15 @@ describe('custom tracker management', () => {
     expect(second.trackers).toHaveLength(2);
     expect(new Set(second.trackers.map((tracker) => tracker.id)).size).toBe(2);
   });
+});
+
+test('an old Fruits & vegetables goal is deleted with its logs, and nothing else changes', () => {
+  const produce = { id: 'p', name: 'Fruits', mode: 'habit', habitTemplate: 'produce' };
+  const water = { id: 'w', name: 'Water', mode: 'habit', habitTemplate: 'water' };
+  const state = { trackers: [produce, water], checkIns: [], goodHabitLogs: [{ id: 'a', trackerId: 'p' }, { id: 'b', trackerId: 'w' }] } as never;
+  const next = removeFruitAndVegGoals(state);
+  expect(next.trackers.map((item) => item.id)).toEqual(['w']);
+  expect(next.goodHabitLogs?.map((item) => item.id)).toEqual(['b']);
+  const clean = { trackers: [water], checkIns: [] } as never;
+  expect(removeFruitAndVegGoals(clean)).toBe(clean);
 });

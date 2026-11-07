@@ -64,3 +64,42 @@ export function validWaterDate(date: string) {
 export function removeWaterLog(state: TrackerState, id: string): TrackerState {
   return { ...state, waterLogs: (state.waterLogs ?? []).filter((log) => log.id !== id) };
 }
+
+/** Most quick-add buttons a water habit keeps: the main one plus up to this many more. */
+export const MAX_WATER_SHORTCUTS = 8;
+
+/** The water habit's quick-add buttons, main first, without duplicates. */
+export function waterShortcuts(tracker: Tracker): { main: number; others: number[] } {
+  const main = tracker.waterQuickAddOz ?? 8;
+  const others = [...new Set((tracker.waterPresetOz ?? []).filter((amount) => Math.abs(amount - main) > 0.001))];
+  return { main, others };
+}
+
+/** Adds a quick-add button, or makes an existing one the main button. */
+export function addWaterShortcut(tracker: Tracker, ounces: number, makeMain: boolean): Pick<Tracker, 'waterQuickAddOz' | 'waterPresetOz'> {
+  const { main, others } = waterShortcuts(tracker);
+  const rounded = Math.round(ounces * 100) / 100;
+  const rest = others.filter((amount) => Math.abs(amount - rounded) > 0.001);
+  if (makeMain) return { waterQuickAddOz: rounded, waterPresetOz: [main, ...rest].filter((amount) => Math.abs(amount - rounded) > 0.001).slice(0, MAX_WATER_SHORTCUTS) };
+  if (Math.abs(rounded - main) <= 0.001) return { waterQuickAddOz: main, waterPresetOz: others };
+  return { waterQuickAddOz: main, waterPresetOz: [...rest, rounded].slice(-MAX_WATER_SHORTCUTS) };
+}
+
+/** Removes a quick-add button that isn't the main one. */
+export function removeWaterShortcut(tracker: Tracker, ounces: number): Pick<Tracker, 'waterQuickAddOz' | 'waterPresetOz'> {
+  const { main, others } = waterShortcuts(tracker);
+  return { waterQuickAddOz: main, waterPresetOz: others.filter((amount) => Math.abs(amount - ounces) > 0.001) };
+}
+
+export const WATER_HABIT_NAME = 'Drink Water';
+const OLD_WATER_HABIT_NAME = 'Drink more water';
+
+/** The old default name was cut off on Home tiles. Habits still using it get the shorter name; renamed ones are left alone. */
+export function renameDefaultWaterHabit(state: TrackerState): TrackerState {
+  if (!state.trackers?.some((tracker) => tracker.habitTemplate === 'water' && (tracker.name === OLD_WATER_HABIT_NAME || tracker.displayName === OLD_WATER_HABIT_NAME))) return state;
+  return { ...state, trackers: state.trackers.map((tracker) => tracker.habitTemplate !== 'water' ? tracker : {
+    ...tracker,
+    name: tracker.name === OLD_WATER_HABIT_NAME ? WATER_HABIT_NAME : tracker.name,
+    displayName: tracker.displayName === OLD_WATER_HABIT_NAME ? WATER_HABIT_NAME : tracker.displayName,
+  }) };
+}

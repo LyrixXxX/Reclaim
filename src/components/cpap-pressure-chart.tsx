@@ -5,7 +5,7 @@ import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg
 import { activeCpapSettings, CpapTrendRange, cpapAxisLabelIndices, cpapTrendAxis, cpapTrendDescription, cpapTrendPoints } from '@/lib/cpap';
 import { CpapChartPeriod, cpapPeriodDataAxis, cpapCalendarPoints, cpapCalendarSettingSegments } from '@/lib/cpap-calendar';
 import { CpapReading, CpapTherapySettings } from '@/models/tracker';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 const HEIGHT = 190;
 const LEFT = 36;
@@ -13,7 +13,7 @@ const RIGHT = 24;
 const TOP = 30;
 const PLOT_HEIGHT = 105;
 const AVG_COLOR = '#78B7FF';
-const P95_COLOR = '#C8F15A';
+const P95_COLOR = '#B5E37A';
 const MIN_COLOR = '#B98CFF';
 const MAX_COLOR = '#F2B766';
 
@@ -94,4 +94,4 @@ function legacyReferenceDate(key: string, range: CpapTrendRange) {
 function formatPressure(value: number) { return Number.isInteger(value) ? value.toFixed(1) : `${Math.round(value * 10) / 10}`; }
 function formatPeriod(start: string, end: string) { const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); return start === end ? format(start) : `${format(start)}–${format(end)}`; }
 
-const styles = StyleSheet.create({ wrapper: { width: '100%', marginBottom: 10 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }, title: { color: colors.textMuted, fontSize: 11, fontWeight: '600' }, aggregation: { color: colors.textMuted, fontSize: 11 }, legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 }, legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 }, legendLine: { width: 14, borderTopWidth: 2 }, legendText: { color: colors.textDim, fontSize: 8.5 }, detail: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.surfaceRaised, marginTop: -5, marginBottom: 8 }, detailDate: { color: colors.textMuted, fontSize: 11 }, detailValue: { color: colors.text, fontSize: 11, fontWeight: '600', marginTop: 3 }, detailSettings: { color: colors.textMuted, fontSize: 9.5, marginTop: 2 }, empty: { minHeight: 96, alignItems: 'center', justifyContent: 'center' }, muted: { color: colors.textMuted, fontSize: 12 } });
+const styles = StyleSheet.create({ wrapper: { width: '100%', marginBottom: 10 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }, title: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold }, aggregation: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular}, legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 }, legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 }, legendLine: { width: 14, borderTopWidth: 2 }, legendText: { color: colors.textDim, fontSize: 8.5 , fontFamily: font.regular}, detail: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: colors.surfaceRaised, marginTop: -5, marginBottom: 8 }, detailDate: { color: colors.textMuted, fontSize: 11 , fontFamily: font.regular}, detailValue: { color: colors.text, fontSize: 11, fontFamily: font.semibold, marginTop: 3 }, detailSettings: { color: colors.textMuted, fontSize: 9.5, fontFamily: font.regular, marginTop: 2 }, empty: { minHeight: 96, alignItems: 'center', justifyContent: 'center' }, muted: { color: colors.textMuted, fontSize: 12 , fontFamily: font.regular} });

@@ -13,7 +13,6 @@ import { exerciseModeOn, habitProgress, templateConfig } from './good-habit-temp
 export type DashboardContent = {
   value: string;
   caption: string;
-  calorieStatus?: 'within' | 'over';
   rows: { label: string; value: string }[];
   trend?: { date: string; value: number }[];
   trendLabel?: string;
@@ -39,7 +38,7 @@ export function dashboardContent(state: TrackerState, widget: DashboardWidget, n
     const totals = nutritionTotals(entries);
     const budget = goal ? nutritionCalorieTarget(goal) + exerciseCaloriesForDate(state.activityRoutes ?? [], state.workoutSessions ?? [], today, state.preferences?.includeRouteCaloriesInNutrition ?? false, state.preferences?.includeWorkoutCaloriesInNutrition ?? false).total : null;
     const recordedDates = [...new Set((state.nutritionEntries ?? []).filter((entry) => entry.eventDate <= today).map((entry) => entry.eventDate))].sort().slice(-7);
-    return { value: `${number(totals.calories)} kcal`, calorieStatus: budget !== null ? (totals.calories > budget ? 'over' : 'within') : undefined, caption: `Today · ${entries.length} food ${entries.length === 1 ? 'entry' : 'entries'}${budget !== null ? ` · ${number(budget)} kcal target` : ''}`,
+    return { value: `${number(totals.calories)} kcal`, caption: `Today · ${entries.length} food ${entries.length === 1 ? 'entry' : 'entries'}${budget !== null ? ` · ${number(budget)} kcal target` : ''}`,
       rows: ([['Carbs', 'carbsGrams'], ['Protein', 'proteinGrams'], ['Fat', 'fatGrams'], ['Fiber', 'fiberGrams']] as const).map(([label, key]) => ({ label, value: `${number(totals[key])}${goal && (key === 'fiberGrams' || hasMacroTargets(goal)) ? ` / ${number(goal[key])}` : ''} g` })),
       trend: recordedDates.map((date) => ({ date, value: nutritionTotals(state.nutritionEntries ?? [], date).calories })), trendLabel: 'Calories logged · recorded days only' };
   }

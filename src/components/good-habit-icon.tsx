@@ -6,7 +6,6 @@ const images: Record<NonNullable<Tracker['habitTemplate']>, ImageSourcePropType>
   walk: require('../../assets/good-habits/walk.png'),
   sleep: require('../../assets/good-habits/sleep.png'),
   exercise: require('../../assets/good-habits/exercise.png'),
-  produce: require('../../assets/good-habits/produce.png'),
   reading: require('../../assets/good-habits/reading.png'),
   mindfulness: require('../../assets/good-habits/mindfulness.png'),
   dental: require('../../assets/good-habits/dental.png'),

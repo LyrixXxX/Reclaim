@@ -1,52 +1,64 @@
 import { Camera, GeoJSONSource, Layer, Map, type StyleSpecification } from '@maplibre/maplibre-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Href, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Alert, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Chevron, Icon } from '@/components/icon';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { SavedAdConfirmation } from '@/components/saved-ad-confirmation';
 import { routeDisplayName } from '@/components/activity-route-details';
+import { RouteMapPreview } from '@/components/route-map-preview';
 import { RoutePreview } from '@/components/route-preview';
 import { RouteElevationCard } from '@/components/route-elevation-card';
+import { routeElevation } from '@/lib/route-elevation';
 import { activityToday } from '@/lib/activity-overview';
-import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs } from '@/lib/activity';
+import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs, movedEnoughToUpdate } from '@/lib/activity';
 import { motionTotals } from '@/lib/activity-motion';
 import { readRouteAutoPauseEnabled } from '@/lib/route-auto-pause';
+import { readRouteStartView, RouteStartView } from '@/lib/route-start-view';
 import { formatMiles } from '@/lib/activity-units';
 import { getMapKey, loadMapStyle } from '@/lib/activity-maps';
 import { localDateKey } from '@/lib/progress';
+import { routeMapBounds } from '@/lib/route-map-preview';
 import { readRouteMileAlertsEnabled } from '@/lib/route-mile-alerts';
-import { compassDirection, directionArrowCoordinates, usableCompassHeading } from '@/lib/route-compass';
-import { getRouteForecast, gpsAccuracyBars, type RouteForecast } from '@/lib/route-weather';
-import { clearFinishedRoute, finishRoute, isRouteRecording, pauseRoute, readActiveRoute, readPendingRoute, resumeRoute, startRoute, ActiveRoute } from '@/lib/activity-recording';
+import { compassDirection, directionArrowCoordinates, headingDelta, smoothHeading, usableCompassHeading } from '@/lib/route-compass';
+import { GPS_FIX_STALE_MS, gpsAccuracyBars } from '@/lib/route-weather';
+import { clearFinishedRoute, finishRoute, isRouteRecording, pauseRoute, readActiveRoute, readPendingRoute, resumeRoute, setPendingRoutePhotos, startRoute, ActiveRoute } from '@/lib/activity-recording';
+import { deleteRoutePhotos } from '@/lib/route-photos';
+import { RoutePhotos } from '@/components/route-photos';
 import { ActivityPoint, ActivityRoute } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
 import { useAds } from '@/state/ads-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
+
+// Follow mode: how long the heading takes to settle (phones report ~18 readings a second that
+// swing ±15° while still), how often the camera moves (linear eases of the same length chain
+// into continuous motion), the turn the camera ignores, and how long a brief low-accuracy
+// dropout keeps the last good heading instead of flickering back to the dot.
+const HEADING_SETTLE_MS = 800;
+const FOLLOW_DEADBAND_DEGREES = 3;
+const FOLLOW_FRAME_MS = 250;
+const HEADING_HOLD_MS = 3000;
 
 type MapCamera = React.ComponentRef<typeof Camera>;
 type MapSurface = React.ComponentRef<typeof Map>;
 type MapViewport = { center: [number, number]; zoom: number; bearing: number; pitch: number };
-const MAP_CONTROL_SIZE = 48;
-const MAP_ART_VISIBLE_SIZE = 37;
-function MapControlArtwork({ control }: { control: 'expand' | 'recenter' }) {
-  const artwork = control === 'expand' ? { centerX: 433.5, centerY: 454.5, extent: 574 } : { centerX: 1319, centerY: 448.5, extent: 658 };
-  const scale = MAP_ART_VISIBLE_SIZE / artwork.extent;
-  return <Image accessible={false} source={require('../../assets/images/route-map-controls-black.png')} resizeMode="stretch" style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: MAP_CONTROL_SIZE / 2 - artwork.centerX * scale, top: MAP_CONTROL_SIZE / 2 - artwork.centerY * scale }} />;
-}
-function MapModeArtwork({ following }: { following: boolean }) {
-  // The supplied artwork has the filled arrow on the left and outline on the right.
-  const artwork = following ? { centerX: 483, centerY: 439.5, extent: 604 } : { centerX: 1277, centerY: 441, extent: 613 };
-  const scale = 38 / artwork.extent;
-  return <Image accessible={false} source={require('../../assets/images/route-map-mode-arrows.png')} resizeMode="stretch" style={{ position: 'absolute', width: 1774 * scale, height: 887 * scale, left: MAP_CONTROL_SIZE / 2 - artwork.centerX * scale, top: MAP_CONTROL_SIZE / 2 - artwork.centerY * scale }} />;
-}
+const ROUTE_KIND_KEY = 'reclaim-route-kind';
+
 export default function ActivityMapScreen() {
   const { showCompletionAd } = useAds();
-  const { activityRoutes = [], weightEntries = [], saveActivityRoute, setSectionVisibility } = useTrackers();
+  const { activityRoutes = [], weightEntries = [], saveActivityRoute, setSectionVisibility, savedTrails = [] } = useTrackers();
   const { routeId } = useLocalSearchParams<{ routeId?: string }>();
-  const [kind, setKind] = useState<'walk' | 'hike' | 'run'>('walk');
+  const [kind, setKindState] = useState<'walk' | 'hike' | 'run'>('walk');
+  const [kindPicker, setKindPicker] = useState(false);
+  const [pendingKindOpen, setPendingKindOpen] = useState(false);
+  useEffect(() => {
+    void AsyncStorage.getItem(ROUTE_KIND_KEY).then((saved) => { if (saved === 'walk' || saved === 'hike' || saved === 'run') setKindState(saved); }).catch(() => undefined);
+  }, []);
+  const setKind = (next: 'walk' | 'hike' | 'run') => { setKindState(next); setKindPicker(false); void AsyncStorage.setItem(ROUTE_KIND_KEY, next).catch(() => undefined); };
   const [pending, setPending] = useState<ActivityRoute | null>(null);
   const [savedConfirmation, setSavedConfirmation] = useState(false);
   const [routeName, setRouteName] = useState('');
@@ -64,18 +76,21 @@ export default function ActivityMapScreen() {
   const [locationMessage, setLocationMessage] = useState('Finding your location…');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsFixTime, setGpsFixTime] = useState(0);
-  const [forecast, setForecast] = useState<RouteForecast | null>(null);
   const cameraRef = useRef<MapCamera>(null);
   const mapRef = useRef<MapSurface>(null);
   const viewportRef = useRef<MapViewport | null>(null);
   const [cameraStart, setCameraStart] = useState<MapViewport | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const navigation = useNavigation();
   const followingRef = useRef(true);
   const positionRef = useRef<[number, number] | null>(null);
   const mapModeRef = useRef<'map' | 'follow'>('map');
   const headingRef = useRef<number | null>(null);
   const lastHeadingCameraRef = useRef({ degrees: -1, time: 0 });
   const lastCompassDisplayRef = useRef({ degrees: -1, accuracy: -1, time: 0 });
+  const lastGoodHeadingRef = useRef(0);
+  const lastHeadingReadingRef = useRef(0);
+  const lastCameraCenterRef = useRef<[number, number] | null>(null);
   const [mapMode, setMapMode] = useState<'map' | 'follow'>('map');
   const [mapZoom, setMapZoom] = useState(15);
   const [compass, setCompass] = useState<{ heading: number; accuracy: number; trueNorth: boolean } | null>(null);
@@ -89,6 +104,7 @@ export default function ActivityMapScreen() {
   const [routeWeightKg, setRouteWeightKg] = useState<number | undefined>();
   const [mileAlerts, setMileAlerts] = useState(false);
   const [autoPause, setAutoPause] = useState(false);
+  const [startView, setStartView] = useState<RouteStartView>({ fullScreen: false, navigation: false });
   const [showTimingDetails, setShowTimingDetails] = useState(false);
   const [weightDraft, setWeightDraft] = useState('');
   const [weightUnit, setWeightUnit] = useState<'lb' | 'kg'>('lb');
@@ -103,6 +119,7 @@ export default function ActivityMapScreen() {
   useFocusEffect(useCallback(() => {
     void readRouteMileAlertsEnabled().then(setMileAlerts).catch(() => undefined);
     void readRouteAutoPauseEnabled().then(setAutoPause).catch(() => undefined);
+    void readRouteStartView().then(setStartView).catch(() => undefined);
     if (mapPermissionRefresh > 0) setLocationMessage('Finding your location…');
     void getMapKey().then((value) => { if (!cancelled) { setKey(value); if (!value) setMapLoading(false); } }).catch(() => { if (!cancelled) { setMapError('Map configuration could not be read.'); setMapLoading(false); } });
     void refresh();
@@ -110,9 +127,6 @@ export default function ActivityMapScreen() {
     const clockTimer = setInterval(() => setNow(Date.now()), 1000);
     let locationSubscription: Location.LocationSubscription | undefined;
     let cancelled = false;
-    const updateForecast = (latitude: number, longitude: number) => {
-      void getRouteForecast(latitude, longitude).then((result) => { if (!cancelled) setForecast(result); });
-    };
     void (async () => {
       // Opening the live map is the first moment foreground location is useful.
       // Reviewing a saved route does not need a new permission request.
@@ -130,19 +144,19 @@ export default function ActivityMapScreen() {
         setCenter((previous) => previous ?? coordinate);
         setGpsAccuracy(initial.coords.accuracy);
         setGpsFixTime(initial.timestamp);
-        if (Date.now() - initial.timestamp < 5 * 60_000) updateForecast(initial.coords.latitude, initial.coords.longitude);
       }
-      locationSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 5000 }, (location) => {
+      // No distance filter: Android would send nothing while standing still, freezing the signal bars.
+      locationSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 0, timeInterval: 5000 }, (location) => {
         if (cancelled) return;
+        setGpsAccuracy(location.coords.accuracy);
+        setGpsFixTime(location.timestamp);
+        setLocationMessage('');
         const coordinate: [number, number] = [location.coords.longitude, location.coords.latitude];
+        if (!movedEnoughToUpdate(positionRef.current, coordinate)) return;
         setPosition(coordinate);
         positionRef.current = coordinate;
         setCenter((previous) => previous ?? coordinate);
-        setGpsAccuracy(location.coords.accuracy);
-        setGpsFixTime(location.timestamp);
-        updateForecast(location.coords.latitude, location.coords.longitude);
-        setLocationMessage('');
-        if (followingRef.current) cameraRef.current?.easeTo({ center: coordinate, ...(mapModeRef.current === 'follow' && headingRef.current !== null ? { bearing: headingRef.current } : {}), duration: 400 });
+        if (followingRef.current && !(mapModeRef.current === 'follow' && headingRef.current !== null)) cameraRef.current?.easeTo({ center: coordinate, duration: 400 });
       });
       if (cancelled) locationSubscription.remove();
     })().catch(() => { if (!cancelled) setLocationMessage('Could not get your location. Tap Re-Center to try again.'); });
@@ -163,23 +177,25 @@ export default function ActivityMapScreen() {
         if (cancelled || AppState.currentState !== 'active') return;
         const subscription = await Location.watchHeadingAsync((reading) => {
           if (cancelled) return;
-          const heading = usableCompassHeading(reading);
-          if (heading === null) { headingRef.current = null; setCompass(null); setCompassNeedsCalibration(true); return; }
+          const raw = usableCompassHeading(reading);
+          const now = Date.now();
+          if (raw === null) {
+            if (headingRef.current !== null && now - lastGoodHeadingRef.current < HEADING_HOLD_MS) return;
+            headingRef.current = null; setCompass(null); setCompassNeedsCalibration(true); return;
+          }
+          lastGoodHeadingRef.current = now;
+          // Time-based blend, so the settle time is the same whatever rate the sensor reports at.
+          const elapsed = Math.min(1000, now - (lastHeadingReadingRef.current || now));
+          lastHeadingReadingRef.current = now;
+          const heading = smoothHeading(headingRef.current, raw, 1 - Math.exp(-elapsed / HEADING_SETTLE_MS));
           headingRef.current = heading;
           setCompassNeedsCalibration(false);
-          const now = Date.now();
           const displayed = lastCompassDisplayRef.current;
-          const displayChange = Math.abs(((heading - displayed.degrees + 540) % 360) - 180);
-          if (displayChange >= 2 || reading.accuracy !== displayed.accuracy || now - displayed.time >= 1000) {
+          if (displayed.degrees < 0 || Math.abs(headingDelta(displayed.degrees, heading)) >= 3 || reading.accuracy !== displayed.accuracy || now - displayed.time >= 1000) {
             setCompass({ heading, accuracy: reading.accuracy, trueNorth: reading.trueHeading >= 0 });
             lastCompassDisplayRef.current = { degrees: heading, accuracy: reading.accuracy, time: now };
           }
           setCompassUnavailable(false);
-          const last = lastHeadingCameraRef.current;
-          const change = Math.abs(((heading - last.degrees + 540) % 360) - 180);
-          if (!followingRef.current || !positionRef.current || change < 2 || (now - last.time < 450 && change < 8)) return;
-          cameraRef.current?.easeTo({ center: positionRef.current, bearing: heading, duration: 350 });
-          lastHeadingCameraRef.current = { degrees: heading, time: now };
         }, () => { if (!cancelled) setCompassUnavailable(true); });
         if (cancelled || AppState.currentState !== 'active') subscription.remove();
         else headingSubscription = subscription;
@@ -187,11 +203,25 @@ export default function ActivityMapScreen() {
       finally { starting = false; }
     };
     void startHeading();
+    // One camera driver for Follow mode: steady linear eases toward the smoothed heading and the
+    // latest fix, instead of every compass reading and GPS fix interrupting each other.
+    const followTimer = setInterval(() => {
+      const heading = headingRef.current;
+      const center = positionRef.current;
+      if (!followingRef.current || !center || heading === null) return;
+      const last = lastHeadingCameraRef.current;
+      const lastCenter = lastCameraCenterRef.current;
+      const moved = !lastCenter || lastCenter[0] !== center[0] || lastCenter[1] !== center[1];
+      if (!moved && last.degrees >= 0 && Math.abs(headingDelta(last.degrees, heading)) < FOLLOW_DEADBAND_DEGREES) return;
+      cameraRef.current?.easeTo({ center, bearing: heading, duration: FOLLOW_FRAME_MS, easing: 'linear' });
+      lastHeadingCameraRef.current = { degrees: heading, time: Date.now() };
+      lastCameraCenterRef.current = center;
+    }, FOLLOW_FRAME_MS);
     const appSubscription = AppState.addEventListener('change', (status) => {
       if (status === 'active') void startHeading();
       else { headingSubscription?.remove(); headingSubscription = undefined; }
     });
-    return () => { cancelled = true; headingSubscription?.remove(); appSubscription.remove(); };
+    return () => { cancelled = true; clearInterval(followTimer); headingSubscription?.remove(); appSubscription.remove(); };
   }, [mapMode, active?.id, selected]));
   const withBusy = async (action: () => Promise<void>) => {
     if (busy) return;
@@ -201,7 +231,7 @@ export default function ActivityMapScreen() {
     finally { setBusy(false); }
   };
   const startConfiguredRoute = (weightKg: number) => {
-    void withBusy(async () => { setSelected(null); await startRoute(kind, weightKg, mileAlerts, autoPause); setSectionVisibility('routes', true); setMapPermissionRefresh((value) => value + 1); });
+    void withBusy(async () => { setSelected(null); await startRoute(kind, weightKg, mileAlerts, autoPause); setSectionVisibility('routes', true); setMapPermissionRefresh((value) => value + 1); if (startView.navigation && mapModeRef.current === 'map') toggleMapMode(); if (startView.fullScreen) openExpandedMap(); });
   };
   const checkPermissionsAndBegin = async (weightKg: number) => {
     setRouteWeightKg(weightKg);
@@ -230,7 +260,7 @@ export default function ActivityMapScreen() {
   };
   const finish = () => Alert.alert('Finish route?', 'This stops GPS recording and opens the route summary.', [
     { text: 'Keep recording', style: 'cancel' },
-    { text: 'Finish', onPress: () => void withBusy(async () => { const route = await finishRoute(); setPending(route); setRouteName(''); setRouteNotes(''); mapModeRef.current = 'map'; headingRef.current = null; setMapMode('map'); setCompass(null); if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: 0, duration: 400 }); }) },
+    { text: 'Finish', onPress: () => void withBusy(async () => { const route = await finishRoute(); setPending(route); setRouteName(''); setRouteNotes(''); mapModeRef.current = 'map'; headingRef.current = null; setMapMode('map'); setCompass(null); setCameraStart((start) => start && { ...start, bearing: 0 }); if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: 0, duration: 400 }); }) },
   ]);
   const savePending = () => void withBusy(async () => {
     if (!pending) return;
@@ -239,9 +269,9 @@ export default function ActivityMapScreen() {
     setPending(null);
     setSavedConfirmation(true);
   });
-  const discardPending = () => Alert.alert('Discard this route?', 'This permanently removes its GPS path and stats.', [
+  const discardPending = () => Alert.alert('Discard this route?', pending?.photos?.length ? 'This permanently removes its GPS path, stats and the photos you added here.' : 'This permanently removes its GPS path and stats.', [
     { text: 'Keep route', style: 'cancel' },
-    { text: 'Discard', style: 'destructive', onPress: () => void withBusy(async () => { await clearFinishedRoute(); setPending(null); }) },
+    { text: 'Discard', style: 'destructive', onPress: () => void withBusy(async () => { deleteRoutePhotos(pending?.photos); await clearFinishedRoute(); setPending(null); }) },
   ]);
   const findPosition = async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -270,6 +300,7 @@ export default function ActivityMapScreen() {
     setCompassNeedsCalibration(false);
     lastHeadingCameraRef.current = { degrees: -1, time: 0 };
     lastCompassDisplayRef.current = { degrees: -1, accuracy: -1, time: 0 };
+    lastCameraCenterRef.current = null;
     followingRef.current = true;
     if (next === 'map') { headingRef.current = null; setCompass(null); }
     if (positionRef.current) cameraRef.current?.easeTo({ center: positionRef.current, bearing: next === 'follow' ? headingRef.current ?? 0 : 0, duration: 400 });
@@ -290,8 +321,14 @@ export default function ActivityMapScreen() {
   const changePendingKind = (choice: 'walk' | 'hike' | 'run') => {
     if (!pending) return;
     const calorieDuration = pending.movingMs === undefined ? activityDurationMs(pending) : pending.movingMs;
-    setPending({ ...pending, kind: choice, estimatedCalories: estimatedRouteCalories(pending.distanceMeters, calorieDuration, pending.estimateWeightKg, choice) ?? undefined });
+    setPending({ ...pending, kind: choice, estimatedCalories: estimatedRouteCalories(pending.distanceMeters, calorieDuration, pending.estimateWeightKg, choice, routeElevation(pending.points)?.gainMeters) ?? undefined });
   };
+  // Page swiping in the section pager only conflicts with a pannable map: the expanded map, or a
+  // route being recorded. The collapsed idle map ignores drags, so sections can swipe past it.
+  // nestedScrollEnabled on the page follows the same rule: on Android it swallows page swipes.
+  useEffect(() => {
+    navigation.setOptions({ swipeEnabled: !active && !mapExpanded });
+  }, [navigation, active, mapExpanded]);
   useEffect(() => {
     if (!routeId || routeId === handledRouteId.current || !activityRoutes.some((route) => route.id === routeId)) return;
     handledRouteId.current = routeId;
@@ -302,11 +339,10 @@ export default function ActivityMapScreen() {
   useEffect(() => {
     if (!selectedRoute?.points.length || !style) return;
     const timer = setTimeout(() => {
-      const { west, south, east, north } = selectedRoute.points.reduce((bounds, point) => ({
-        west: Math.min(bounds.west, point.longitude), south: Math.min(bounds.south, point.latitude),
-        east: Math.max(bounds.east, point.longitude), north: Math.max(bounds.north, point.latitude),
-      }), { west: 180, south: 90, east: -180, north: -90 });
-      cameraRef.current?.fitBounds([west, south, east, north], { padding: { top: 32, right: 32, bottom: 32, left: 32 }, duration: 400 });
+      // Shared bounds keep a minimum margin, so a short or stationary route frames at street
+      // level instead of zooming in until the map has no tiles.
+      const bounds = routeMapBounds(selectedRoute.points);
+      if (bounds) cameraRef.current?.fitBounds(bounds, { padding: { top: 32, right: 32, bottom: 32, left: 32 }, duration: 400 });
     }, 350);
     return () => clearTimeout(timer);
   }, [selectedRoute, style]);
@@ -332,10 +368,10 @@ export default function ActivityMapScreen() {
   const activeTimes = motionTotals(active?.motion, activeDuration);
   const activePace = averagePaceMinPerMile(activeDistance, activeTimes.movingMs ?? 0);
   const activeOverallPace = averagePaceMinPerMile(activeDistance, activeDuration);
-  const activeCalories = active ? estimatedRouteCalories(activeDistance, active?.motion ? activeTimes.movingMs ?? 0 : activeDuration, active.estimateWeightKg, active.kind) : null;
+  const activeCalories = active ? estimatedRouteCalories(activeDistance, active?.motion ? activeTimes.movingMs ?? 0 : activeDuration, active.estimateWeightKg, active.kind, routeElevation(active.points)?.gainMeters) : null;
   const routeStatus = active?.pausedAt ? 'Manually paused' : active?.autoPausedAt ? 'Auto-paused' : recording ? 'Recording…' : 'Interrupted';
-  const gpsStatus = !position ? 'Finding signal' : active?.pausedAt ? 'Paused' : recording ? 'Tracking' : 'Needs attention';
-  const currentAccuracy = now && now - gpsFixTime > 30_000 ? null : gpsAccuracy;
+  // Fixes only arrive after moving ~10 m, so a still phone keeps its last reading for a couple of minutes.
+  const currentAccuracy = now && now - gpsFixTime > GPS_FIX_STALE_MS ? null : gpsAccuracy;
   const accuracyBars = gpsAccuracyBars(currentAccuracy);
   const today = activityToday(activityRoutes, new Date());
   const openExpandedMap = () => { setCameraStart(viewportRef.current); setMapExpanded(true); };
@@ -347,6 +383,9 @@ export default function ActivityMapScreen() {
   const renderMapPanel = (expanded: boolean) => <View style={expanded ? styles.expandedMap : [styles.fullMap, active && styles.recordingMap]}>
     {style && mapCenter && !mapError ? <Map
       ref={mapRef}
+      // Once loaded the map takes input focus, and the section pager then spends its next touch
+      // reclaiming focus, so the first swipe off Routes would do nothing.
+      focusable={false}
       style={styles.map}
       mapStyle={style}
       compass={false}
@@ -369,45 +408,46 @@ export default function ActivityMapScreen() {
     >
       <Camera ref={cameraRef} initialViewState={cameraStart ?? { center: mapCenter, zoom: 15 }} />
       {line && <GeoJSONSource id="activity-route" data={line}><Layer id="activity-line" type="line" paint={{ 'line-color': colors.activityNav, 'line-width': 4 }} /></GeoJSONSource>}
-      {currentPoint && !directionArrow && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }} /></GeoJSONSource>}
+      {/* The dot stays mounted and fades under the heading arrow; swapping sources flickered. */}
+      {currentPoint && <GeoJSONSource id="activity-position" data={currentPoint}><Layer id="activity-position-dot" type="circle" paint={{ 'circle-color': colors.activityNav, 'circle-radius': 7, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-opacity': directionArrow ? 0 : 1, 'circle-stroke-opacity': directionArrow ? 0 : 1 }} /></GeoJSONSource>}
       {directionArrow && <GeoJSONSource id="activity-heading-arrow" data={directionArrow}><Layer id="activity-heading-fill" type="fill" paint={{ 'fill-color': colors.activityNav, 'fill-opacity': 1 }} /><Layer id="activity-heading-outline" type="line" paint={{ 'line-color': '#FFFFFF', 'line-width': 2 }} /></GeoJSONSource>}
-    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={styles.buttonText}>Retry map</Text></Pressable>}</View>}
-    {active && !selectedRoute && <View style={styles.navigationControls}>
-      <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.navigationButton}><MapModeArtwork following={mapMode === 'follow'} /></Pressable>
-      {mapMode === 'follow' && <View style={styles.compassBadge}><Text style={styles.compassText}>{compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>{compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}</View>}
+    </Map> : <View style={styles.mapEmpty}><Text style={styles.body}>{mapError || (mapLoading ? 'Loading map…' : !key ? 'Map service is not configured in this build. GPS routes can still be recorded.' : locationMessage || 'Finding your location…')}</Text>{!!mapError && <Pressable accessibilityRole="button" onPress={retryMap} style={styles.retry}><Text style={[styles.buttonText, styles.buttonTextOnFill]}>Retry map</Text></Pressable>}</View>}
+    {active && !selectedRoute && mapMode === 'follow' && <View style={styles.compassPill}>
+      <Icon name="heading" size={12} color={colors.accent} fill={colors.accent} strokeWidth={1.5} />
+      <Text style={styles.compassText} numberOfLines={1}>Follow · {compass ? `${compassDirection(compass.heading)} · ${String(Math.round(compass.heading)).padStart(3, '0')}°${compass.trueNorth ? '' : ' magnetic'}` : compassUnavailable ? 'Compass unavailable' : compassNeedsCalibration ? 'Calibrate compass' : 'Finding heading…'}</Text>
+      {compass?.accuracy === 1 && <Text style={styles.compassWarning}>Low accuracy</Text>}
     </View>}
-    {expanded ? <View pointerEvents="none" style={styles.mapHint}><Text style={styles.mapHintText}>Drag with one finger · pinch to zoom{active ? ' · Re-Center resumes following' : ''}</Text></View> : <Pressable accessibilityRole="button" accessibilityLabel="Expand map for one-finger navigation" onPress={openExpandedMap} style={styles.expandMapButton}><MapControlArtwork control="expand" /></Pressable>}
-    <Pressable accessibilityRole="button" accessibilityLabel="Re-center map on my location" onPress={recenter} style={styles.recenter}><MapControlArtwork control="recenter" /></Pressable>
-    {style && mapCenter && !mapError && <View pointerEvents="box-none" style={styles.mapAttributionRow}>
-      <Text style={styles.mapLibreLabel}>MapLibre</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Map attribution and information" onPress={showMapAttribution} hitSlop={8} style={styles.mapAttributionButton}><Text style={styles.mapAttributionIcon}>i</Text></Pressable>
-    </View>}
-  </View>;
-  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled contentContainerStyle={styles.content}>
-    <MainScreenHeader title="Routes" subtitle="Record walks, hikes, and runs with GPS." accent={colors.activityNav} action={<Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Settings</Text></Pressable>} />
-    {pending ? <View style={styles.card}><Text style={styles.cardTitle}>Route completed 🎉</Text><Text style={styles.body}>{new Date(pending.endedAt).toLocaleString(undefined, { hour12: true })}</Text><RoutePreview points={pending.points} /><View style={styles.metrics}><Metric label="Distance" value={formatMiles(pending.distanceMeters)} /><Metric label="Elapsed time" value={formatDuration(activityDurationMs(pending))} /><Metric label="Moving time" value={pending.movingMs === undefined ? '—' : formatDuration(pending.movingMs)} /><Metric label="Moving pace" value={formatPace(pending.movingMs === undefined ? null : averagePaceMinPerMile(pending.distanceMeters, pending.movingMs))} /><Metric label="Stopped time" value={pending.stoppedMs === undefined ? "—" : formatDuration(pending.stoppedMs)} /><Metric label="Overall pace" value={formatPace(averagePaceMinPerMile(pending.distanceMeters, activityDurationMs(pending)))} /><Metric label="Est. calories" value={pending.estimatedCalories == null ? '—' : `${pending.estimatedCalories} kcal`} /><Metric label="Route Steps" value={pending.routeSteps === undefined ? '—' : pending.routeSteps.toLocaleString()} /></View><Text style={styles.note}>Elapsed time excludes manual pauses. Unclassified GPS time is not counted as movement.</Text><Text style={styles.body}>Route name</Text><TextInput accessibilityLabel="Route name" value={routeName} onChangeText={setRouteName} maxLength={120} placeholder={pending.kind === 'route' ? 'Route' : pending.kind} placeholderTextColor={colors.textDim} style={styles.input} /><Text style={styles.body}>Activity type</Text><View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} onPress={() => changePendingKind(choice)} style={[styles.smallButton, pending.kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View><Text style={styles.body}>Notes (optional)</Text><TextInput accessibilityLabel="Route notes" value={routeNotes} onChangeText={setRouteNotes} maxLength={2000} multiline placeholder="Anything you want to remember" placeholderTextColor={colors.textDim} style={[styles.input, { minHeight: 80 }]} /><View style={styles.row}><View style={{ flex: 1 }}><Button label="Save route" onPress={savePending} /></View><View style={{ flex: 1 }}><Button label="Discard" onPress={discardPending} secondary /></View></View></View> : null}
-    {!pending && <View style={active ? styles.recordingShell : styles.idleShell}>
-    {active ? <View style={styles.recordingCard}><View style={styles.recordingHeader}><Text style={styles.cardTitle}>{active.pausedAt ? 'Route paused' : active.autoPausedAt ? 'Auto-paused' : 'Recording route'}</Text><Text style={[styles.recordingStatus, (active.pausedAt || !recording) && styles.statusWarning]}>● {routeStatus}</Text></View><Text accessibilityLabel={`Elapsed time ${formatDuration(activeDuration)}`} style={styles.timer}>{formatClock(activeDuration)}</Text><Text style={styles.timerCaption}>Elapsed time · {active.kind.toUpperCase()}{active.mileAlerts ? ' · Mile alerts on' : ''}</Text><View style={styles.recordingMetrics}><Metric compact label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><Metric compact label="Distance" value={formatMiles(activeDistance)} /><Metric compact label="Moving pace" value={formatPace(activePace)} /></View><View style={styles.recordingMetrics}><Metric compact label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /><Metric compact label="Route Steps" value={active.routeSteps === undefined ? '—' : active.routeSteps.toLocaleString()} /></View><Pressable accessibilityRole="button" accessibilityState={{ expanded: showTimingDetails }} onPress={() => setShowTimingDetails((value) => !value)}><Text style={styles.note}>{showTimingDetails ? 'Hide' : 'Show'} timing details</Text></Pressable>{showTimingDetails && <View><StatusRow label="Overall pace" value={formatPace(activeOverallPace)} /><StatusRow label="Stopped time" value={formatDuration(activeTimes.stoppedMs ?? 0)} /><StatusRow label="Unclassified GPS time" value={formatDuration(activeTimes.unclassifiedMs)} /><Text style={styles.note}>Elapsed excludes manual pauses; uncertain or missing GPS time is not assumed to be moving.</Text></View>}{active.mileAlertError && <Text style={styles.note}>Mile alert unavailable: {active.mileAlertError}</Text>}</View> : !pending && !selectedRoute ? <View style={styles.card}><Text style={styles.cardTitle}>Track an activity</Text><Text style={styles.body}>Choose an activity, then start your route.</Text><View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} accessibilityRole="button" onPress={() => setKind(choice)} style={[styles.smallButton, kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View></View> : null}
-    <View style={styles.conditions}>
-      <View style={styles.conditionHalf} accessibilityLabel={forecast?.status === 'ready' ? `Forecast for ${forecast.area}: ${forecast.temperature} degrees ${forecast.unit === 'F' ? 'Fahrenheit' : 'Celsius'}, ${forecast.condition}` : 'Forecast unavailable'}>
-        <Text style={styles.conditionLabel}>NWS FORECAST</Text>
-        <Text style={styles.conditionValue}>{forecast?.status === 'ready' ? `${forecast.symbol} ${forecast.temperature}°${forecast.unit}` : forecast?.status === 'unavailable' ? 'Unavailable here' : forecast?.status === 'error' ? 'Unavailable now' : 'Loading…'}</Text>
-        <Text style={styles.conditionDetail} numberOfLines={2}>{forecast?.status === 'ready' ? `${forecast.area} · ${forecast.condition}` : forecast?.status === 'unavailable' ? 'U.S. areas only' : forecast?.status === 'error' ? 'Check connection later' : 'Based on your location'}</Text>
-      </View>
-      <View style={styles.conditionHalf} accessibilityLabel={`GPS estimated accuracy ${currentAccuracy == null ? 'unavailable' : `approximately ${Math.round(currentAccuracy)} meters`}`}>
-        <Text style={styles.conditionLabel}>GPS ACCURACY</Text>
-        <View accessible accessibilityLabel={`GPS accuracy ${accuracyBars} of 4 bars`} style={styles.signalBars}>{[1, 2, 3, 4].map((bar) => <View key={bar} style={[styles.signalBar, { height: 6 + bar * 4 }, bar <= accuracyBars && styles.signalBarOn]} />)}</View>
-        <Text style={styles.conditionDetail}>{currentAccuracy == null ? 'Finding a fix' : `Approx. ±${Math.round(currentAccuracy)} m`}</Text>
-      </View>
+    <View style={styles.controlStack}>
+      {!expanded && <Pressable accessibilityRole="button" accessibilityLabel="Expand map for one-finger navigation" onPress={openExpandedMap} style={styles.mapButton}><Icon name="expand" size={18} strokeWidth={1.8} /></Pressable>}
+      {active && !selectedRoute && <Pressable accessibilityRole="button" accessibilityLabel={mapMode === 'map' ? 'Fixed north-up map. Switch to Follow mode' : 'Follow mode on. Switch to fixed north-up map'} accessibilityState={{ selected: mapMode === 'follow' }} onPress={toggleMapMode} style={styles.mapButton}><Icon name="heading" size={18} strokeWidth={1.8} color={mapMode === 'follow' ? colors.accent : colors.text} fill={mapMode === 'follow' ? colors.accent : 'none'} /></Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Re-center map on my location" onPress={recenter} style={styles.mapButton}><Icon name="locate" size={18} strokeWidth={1.8} /></Pressable>
     </View>
+    {!pending && <View pointerEvents="none" accessible accessibilityLabel={`GPS signal ${accuracyBars} of 4 bars${currentAccuracy == null ? ', finding a fix' : `, about ${Math.round(currentAccuracy)} meters`}`} style={styles.gpsBadge}>
+      <View style={styles.signalBars}>{[1, 2, 3, 4].map((bar) => <View key={bar} style={[styles.gpsBar, { height: 3 + bar * 2.5 }, bar <= accuracyBars && styles.signalBarOn]} />)}</View>
+      <Text style={styles.gpsText}>{currentAccuracy == null ? 'GPS…' : `±${Math.round(currentAccuracy)} m`}</Text>
+    </View>}
+    {expanded && <View pointerEvents="none" style={styles.mapHint}><Text style={styles.mapHintText}>Drag with one finger · pinch to zoom{active ? ' · Re-Center resumes following' : ''}</Text></View>}
+    {style && mapCenter && !mapError && <Pressable accessibilityRole="button" accessibilityLabel="Map attribution and information" onPress={showMapAttribution} hitSlop={8} style={styles.attribution}><Text style={styles.attributionText}>MapLibre ⓘ</Text></Pressable>}
+  </View>;
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView ref={scrollRef} nestedScrollEnabled={!!active || mapExpanded} contentContainerStyle={styles.content}>
+    <MainScreenHeader title="Routes" subtitle="Record walks, hikes, and runs with GPS." accent={colors.activityNav} action={<Pressable accessibilityRole="button" accessibilityLabel="Route settings" onPress={() => router.push('/route-settings' as Href)} style={styles.settingsButton}><Text style={styles.settingsButtonText}>Settings</Text></Pressable>} />
+    {pending ? <View style={styles.card}><Text style={styles.cardTitle}>Route completed 🎉</Text><Text style={styles.body}>{new Date(pending.endedAt).toLocaleString(undefined, { hour12: true })}</Text><RouteMapPreview points={pending.points} mapStyle={style} height={200} /><View style={styles.metrics}><Metric label="Distance" value={formatMiles(pending.distanceMeters)} /><Metric label="Elapsed time" value={formatDuration(activityDurationMs(pending))} /><Metric label="Moving time" value={pending.movingMs === undefined ? '—' : formatDuration(pending.movingMs)} /><Metric label="Moving pace" value={formatPace(pending.movingMs === undefined ? null : averagePaceMinPerMile(pending.distanceMeters, pending.movingMs))} /><Metric label="Stopped time" value={pending.stoppedMs === undefined ? "—" : formatDuration(pending.stoppedMs)} /><Metric label="Overall pace" value={formatPace(averagePaceMinPerMile(pending.distanceMeters, activityDurationMs(pending)))} /><Metric label="Est. calories" value={pending.estimatedCalories == null ? '—' : `${pending.estimatedCalories} kcal`} /><Metric label="Route Steps" value={pending.routeSteps === undefined ? '—' : pending.routeSteps.toLocaleString()} /></View><Text style={styles.note}>Elapsed time excludes manual pauses. Unclassified GPS time is not counted as movement.</Text><Text style={styles.body}>Route name</Text><TextInput accessibilityLabel="Route name" value={routeName} onChangeText={setRouteName} maxLength={120} placeholder={pending.kind === 'route' ? 'Route' : pending.kind} placeholderTextColor={colors.textDim} style={styles.input} /><View style={styles.kindLine}><Text style={styles.body}>Recorded as {pending.kind === 'route' ? 'a route' : pending.kind === 'hike' ? 'a hike' : pending.kind === 'run' ? 'a run' : 'a walk'}</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: pendingKindOpen }} hitSlop={8} onPress={() => setPendingKindOpen((open) => !open)}><Text style={styles.kindChipText}>{pendingKindOpen ? 'Done' : 'Change'}</Text></Pressable></View>{pendingKindOpen && <View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: pending.kind === choice }} onPress={() => { changePendingKind(choice); setPendingKindOpen(false); }} style={[styles.smallButton, pending.kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View>}<Text style={styles.body}>Notes (optional)</Text><TextInput accessibilityLabel="Route notes" value={routeNotes} onChangeText={setRouteNotes} maxLength={2000} multiline placeholder="Anything you want to remember" placeholderTextColor={colors.textDim} style={[styles.input, { minHeight: 80 }]} /><RoutePhotos routeId={pending.id} photos={pending.photos} onChange={(photos) => { setPending({ ...pending, photos }); void setPendingRoutePhotos(photos); }} /><Button label="Share route" onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(pending.id)}` as Href)} secondary /><View style={styles.row}><View style={{ flex: 1 }}><Button label="Save route" onPress={savePending} /></View><View style={{ flex: 1 }}><Button label="Discard" onPress={discardPending} secondary /></View></View></View> : null}
+    {!pending && <View style={active ? styles.recordingShell : styles.idleShell}>
+    {active ? <View style={styles.recordingCard}><View style={styles.recordingHeader}><Text style={styles.cardTitle}>{active.pausedAt ? 'Route paused' : active.autoPausedAt ? 'Auto-paused' : 'Recording route'}</Text><Text style={[styles.recordingStatus, (active.pausedAt || !recording) && styles.statusWarning]}>● {routeStatus}</Text></View><Text accessibilityLabel={`Elapsed time ${formatDuration(activeDuration)}`} style={styles.timer}>{formatClock(activeDuration)}</Text><Text style={styles.timerCaption}>Elapsed time · {active.kind.toUpperCase()}{active.mileAlerts ? ' · Mile alerts on' : ''}</Text><View style={styles.recordingMetrics}><Metric compact label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><Metric compact label="Distance" value={formatMiles(activeDistance)} /><Metric compact label="Moving pace" value={formatPace(activePace)} /></View><View style={styles.recordingMetrics}><Metric compact label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /><Metric compact label="Route Steps" value={active.routeSteps === undefined ? '—' : active.routeSteps.toLocaleString()} /></View><Pressable accessibilityRole="button" accessibilityState={{ expanded: showTimingDetails }} onPress={() => setShowTimingDetails((value) => !value)}><Text style={styles.note}>{showTimingDetails ? 'Hide' : 'Show'} timing details</Text></Pressable>{showTimingDetails && <View><StatusRow label="Overall pace" value={formatPace(activeOverallPace)} /><StatusRow label="Stopped time" value={formatDuration(activeTimes.stoppedMs ?? 0)} /><StatusRow label="Unclassified GPS time" value={formatDuration(activeTimes.unclassifiedMs)} /><Text style={styles.note}>Elapsed excludes manual pauses; uncertain or missing GPS time is not assumed to be moving.</Text></View>}{active.mileAlertError && <Text style={styles.note}>Mile alert unavailable: {active.mileAlertError}</Text>}</View> : null}
     {!pending && (mapExpanded ? <View style={[styles.fullMap, active && styles.recordingMap]} /> : renderMapPanel(false))}
     {selectedRoute && (mapError || !style) && <RoutePreview points={selectedRoute.points} />}
-    {active ? <><Text style={styles.note}>{active.pausedAt ? 'Recording paused' : recording ? 'Recording continues with the screen locked' : 'Recording interrupted · tap Resume'}</Text><View style={styles.row}><View style={{ flex: 1 }}><Button label={active.pausedAt || !recording ? 'Resume' : 'Pause'} onPress={() => void withBusy(async () => { if (active.pausedAt || !recording) await resumeRoute(); else await pauseRoute(); })} secondary /></View><View style={{ flex: 1 }}><Button label="Finish" onPress={finish} danger /></View></View></> : !pending && !selectedRoute ? <Button label="Start Route" onPress={begin} /> : null}
+    {active ? <><Text style={styles.note}>{active.pausedAt ? 'Recording paused' : recording ? 'Recording continues with the screen locked' : 'Recording interrupted · tap Resume'}</Text><View style={styles.row}><View style={{ flex: 1 }}><Button label={active.pausedAt || !recording ? 'Resume' : 'Pause'} onPress={() => void withBusy(async () => { if (active.pausedAt || !recording) await resumeRoute(); else await pauseRoute(); })} secondary /></View><View style={{ flex: 1 }}><Button label="Finish" onPress={finish} danger /></View></View></> : !pending && !selectedRoute ? <View style={{ gap: 8 }}>
+      <View style={styles.startRow}>
+        <View style={{ flex: 1 }}><Button label={`Start ${kind}`} onPress={begin} /></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Activity type: ${kind}. Change`} accessibilityState={{ expanded: kindPicker }} onPress={() => setKindPicker((open) => !open)} style={styles.kindChip}><Text style={styles.kindChipText}>{kindPicker ? 'Done' : 'Change'}</Text></Pressable>
+      </View>
+      {kindPicker && <View style={styles.row}>{(['walk', 'hike', 'run'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: kind === choice }} onPress={() => setKind(choice)} style={[styles.smallButton, kind === choice && styles.selected]}><Text style={styles.buttonText}>{choice.toUpperCase()}</Text></Pressable>)}</View>}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Find trails${savedTrails.length ? `, ${savedTrails.length} saved` : ''}`} onPress={() => router.push('/trails' as Href)} style={({ pressed }) => [styles.trailsRow, pressed && { opacity: 0.8 }]}><Text style={styles.trailsPin}>⌖</Text><View style={{ flex: 1 }}><Text style={styles.trailsTitle}>Find trails{savedTrails.length ? ` · ${savedTrails.length} saved` : ''}</Text><Text style={styles.trailsDetail}>Hiking trails near you, with directions</Text></View><Chevron size={18} color={colors.textMuted} /></Pressable>
+    </View> : null}
     </View>}
-    {active && <View style={styles.card}><Text style={styles.cardTitle}>Current activity</Text><StatusRow label="Activity type" value={active.kind.charAt(0).toUpperCase() + active.kind.slice(1)} /><StatusRow label="GPS" value={gpsStatus} /><StatusRow label="Distance" value={formatMiles(activeDistance)} /><StatusRow label="Elapsed time" value={formatClock(activeDuration)} /><StatusRow label="Moving time" value={formatClock(activeTimes.movingMs ?? 0)} /><StatusRow label="Est. calories" value={activeCalories === null ? '—' : `${activeCalories} kcal`} /></View>}
     <SavedAdConfirmation visible={savedConfirmation} title="Route saved" subject="Your route" onContinue={() => { setSavedConfirmation(false); void showCompletionAd('route'); }} />
     {mapExpanded && !pending && <Modal visible animationType="slide" onRequestClose={closeExpandedMap}><SafeAreaView style={styles.expandedSafe} edges={['top', 'bottom']}>
-      <View style={styles.expandedHeader}><Pressable accessibilityRole="button" accessibilityLabel="Back to route screen" onPress={closeExpandedMap} style={styles.closeMapButton}><Text style={styles.buttonText}>‹ Back to route</Text></Pressable><Text style={styles.expandedTitle} numberOfLines={1}>{active ? `${active.kind.toUpperCase()} · ${formatMiles(activeDistance)}` : selectedRoute ? routeDisplayName(selectedRoute) : 'Routes map'}</Text></View>
+      <View style={styles.expandedHeader}><Pressable accessibilityRole="button" accessibilityLabel="Back to route screen" onPress={closeExpandedMap} style={styles.closeMapButton}><Chevron direction="left" size={18} color={colors.text} /><Text style={styles.buttonText}>Back to route</Text></Pressable><Text style={styles.expandedTitle} numberOfLines={1}>{active ? `${active.kind.toUpperCase()} · ${formatMiles(activeDistance)}` : selectedRoute ? routeDisplayName(selectedRoute) : 'Routes map'}</Text></View>
       {renderMapPanel(true)}
     </SafeAreaView></Modal>}
     <Modal visible={weightPrompt} transparent animationType="fade" onRequestClose={() => setWeightPrompt(false)}><View style={styles.modalShade}><View style={styles.card}><Text style={styles.cardTitle}>Weight for this route</Text><Text style={styles.body}>No saved weight is available. Enter one for an approximate calorie estimate. This will not add a Weight entry.</Text><TextInput accessibilityLabel="Route weight" keyboardType="decimal-pad" value={weightDraft} onChangeText={setWeightDraft} placeholder="Weight" placeholderTextColor={colors.textDim} style={styles.input} /><View style={styles.row}>{(['lb', 'kg'] as const).map((unit) => <Pressable key={unit} onPress={() => setWeightUnit(unit)} style={[styles.smallButton, weightUnit === unit && styles.selected]}><Text style={styles.buttonText}>{unit}</Text></Pressable>)}</View><Button label="Start Route" onPress={beginWithEnteredWeight} /><Button label="Cancel" onPress={() => setWeightPrompt(false)} secondary /></View></View></Modal>
@@ -425,6 +465,8 @@ export default function ActivityMapScreen() {
         <Metric label="Route Steps" value={selectedRoute.routeSteps === undefined ? '—' : selectedRoute.routeSteps.toLocaleString()} />
       </View>
       <RouteElevationCard points={selectedRoute.points} />
+      <RoutePhotos routeId={selectedRoute.id} photos={selectedRoute.photos} onChange={(photos) => void saveActivityRoute({ ...selectedRoute, photos })} />
+      <Button label="Share route" onPress={() => router.push(`/share-route?routeId=${encodeURIComponent(selectedRoute.id)}` as Href)} secondary />
       <StatusRow label="Started" value={new Date(selectedRoute.startedAt).toLocaleString(undefined, { hour12: true })} />
       <StatusRow label="Finished" value={new Date(selectedRoute.endedAt).toLocaleString(undefined, { hour12: true })} />
       {selectedRoute.pausedMs > 0 && <StatusRow label="Time paused" value={formatDuration(selectedRoute.pausedMs)} />}
@@ -434,7 +476,7 @@ export default function ActivityMapScreen() {
       {selectedRoute.notes && <View><Text style={styles.metricLabel}>Notes</Text><Text style={styles.body}>{selectedRoute.notes}</Text></View>}
       <Button label="Back to live map" onPress={() => { setSelected(null); followingRef.current = true; if (position) cameraRef.current?.easeTo({ center: position, zoom: 15, duration: 400 }); }} secondary />
     </View>}
-    <View style={styles.card}>
+    {!pending && !active && <><View style={styles.card}>
       <Text style={styles.cardTitle}>Today’s routes</Text>
       <View style={styles.metrics}>
         <Metric label="Distance" value={formatMiles(today.distanceMeters)} />
@@ -444,7 +486,7 @@ export default function ActivityMapScreen() {
       </View>
       <Text style={styles.note}>Route steps are included in your daily step count—not added to it again. Older routes may not have a step count.</Text>
     </View>
-    <Button label="View saved routes" onPress={() => router.push('/activity-routes' as Href)} secondary />
+    <Button label="View saved routes" onPress={() => router.push('/activity-routes' as Href)} secondary /></>}
   </ScrollView></SafeAreaView>;
 }
 
@@ -454,7 +496,7 @@ function routeGeoJSON(points: ActivityPoint[]) {
   for (const point of points) segments.set(point.segment ?? 0, [...(segments.get(point.segment ?? 0) ?? []), [point.longitude, point.latitude]]);
   return { type: 'Feature' as const, properties: {}, geometry: { type: 'MultiLineString' as const, coordinates: [...segments.values()].filter((segment) => segment.length > 1) } };
 }
-function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={styles.buttonText}>{label}</Text></Pressable>; }
+function Button({ label, onPress, secondary = false, danger = false }: { label: string; onPress: () => void; secondary?: boolean; danger?: boolean }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, secondary && styles.secondary, danger && styles.dangerButton]}><Text style={[styles.buttonText, !secondary && styles.buttonTextOnFill]}>{label}</Text></Pressable>; }
 function Metric({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) { return <View style={[styles.metric, compact && styles.compactMetric]}><Text style={styles.metricLabel}>{label}</Text><Text style={[styles.metricValue, compact && styles.compactMetricValue]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text></View>; }
 function StatusRow({ label, value }: { label: string; value: string }) { return <View style={styles.statusRow}><Text style={styles.body}>{label}</Text><Text style={styles.statusValue}>{value}</Text></View>; }
 function formatClock(ms: number) {
@@ -473,67 +515,75 @@ const styles = StyleSheet.create({
   content: { maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
   settingsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   settingsButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
-  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontWeight: '600' },
-  eyebrow: { color: colors.activityNav, fontWeight: '600', letterSpacing: 2 },
-  body: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  settingsButtonText: { color: colors.activityNav, fontSize: 13, fontFamily: font.semibold },
+  eyebrow: { color: colors.activityNav, fontFamily: font.semibold, letterSpacing: 2 },
+  body: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   card: { padding: 20, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 22, gap: 12 },
   recordingShell: { padding: 14, backgroundColor: colors.surface, borderColor: colors.activityNav, borderWidth: 1, borderRadius: 22, gap: 12, overflow: 'hidden' },
   idleShell: { gap: 12 },
   recordingCard: { gap: 12 },
   recordingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  recordingStatus: { color: colors.danger, fontSize: 13, fontWeight: '600' },
+  recordingStatus: { color: colors.danger, fontSize: 13, fontFamily: font.semibold },
   statusWarning: { color: colors.textMuted },
   fullMap: { marginHorizontal: -spacing.lg, height: 380, position: 'relative', backgroundColor: colors.surfaceRaised },
   recordingMap: { marginHorizontal: 0, height: 340, borderRadius: 16, overflow: 'hidden', borderColor: colors.border, borderWidth: 1 },
   expandedSafe: { flex: 1, backgroundColor: colors.background },
   expandedHeader: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface },
-  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '600', textAlign: 'right' },
-  closeMapButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
+  expandedTitle: { flex: 1, color: colors.text, fontSize: 15, fontFamily: font.semibold, textAlign: 'right' },
+  closeMapButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   expandedMap: { flex: 1, position: 'relative', backgroundColor: colors.surfaceRaised },
   conditions: { flexDirection: 'row', gap: 8 },
+  startRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  trailsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  trailsPin: { color: colors.activityNav, fontSize: 22, width: 24, textAlign: 'center' },
+  trailsTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  trailsDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 2 },
+  kindLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  kindChip: { minWidth: 92, borderRadius: 15, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  kindChipText: { color: colors.activityNav, fontSize: 14, fontFamily: font.bold },
+  gpsBadge: { position: 'absolute', right: 12, bottom: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, backgroundColor: `${colors.surface}E6` },
+  gpsBar: { width: 4, borderRadius: 2, backgroundColor: colors.borderStrong },
+  gpsText: { color: colors.text, fontSize: 11, fontFamily: font.semibold },
   conditionHalf: { flex: 1, minWidth: 0, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, gap: 4 },
-  conditionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  conditionValue: { color: colors.activityNav, fontSize: 19, fontWeight: '600' }, signalBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 26 }, signalBar: { width: 7, borderRadius: 2, backgroundColor: colors.border }, signalBarOn: { backgroundColor: colors.activityNav },
-  conditionDetail: { color: colors.textDim, fontSize: 11 },
+  conditionLabel: { color: colors.textMuted, fontSize: 11, fontFamily: font.semibold },
+  conditionValue: { color: colors.activityNav, fontSize: 19, fontFamily: font.semibold }, signalBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 26 }, signalBar: { width: 7, borderRadius: 2, backgroundColor: colors.border }, signalBarOn: { backgroundColor: colors.activityNav },
+  conditionDetail: { color: colors.textDim, fontSize: 11 , fontFamily: font.regular},
   map: { flex: 1 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 26 },
-  mapAttributionRow: { position: 'absolute', left: 8, right: 8, bottom: 4, height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mapLibreLabel: { color: '#526265', fontSize: 13, fontWeight: '600', textShadowColor: '#FFFFFF', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
-  mapAttributionButton: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#208D9E', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9F8F4CC' },
-  mapAttributionIcon: { color: '#208D9E', fontSize: 16, fontWeight: '600', lineHeight: 19, textAlign: 'center' },
-  recenter: { position: 'absolute', right: 16, top: 16, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  expandMapButton: { position: 'absolute', left: 12, bottom: 44, width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  navigationControls: { position: 'absolute', left: 12, right: MAP_CONTROL_SIZE + 28, top: 16, alignItems: 'flex-start', gap: 6 },
-  navigationButton: { width: MAP_CONTROL_SIZE, height: MAP_CONTROL_SIZE, overflow: 'hidden' },
-  compassBadge: { maxWidth: '100%', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9, backgroundColor: '#10191CDD' },
-  compassText: { color: colors.text, fontSize: 12, fontWeight: '600' },
-  compassWarning: { color: colors.danger, fontSize: 11, fontWeight: '700' },
+  // Map controls: dark translucent discs with thin icons, stacked where the thumb is.
+  controlStack: { position: 'absolute', right: 12, top: 12, gap: 8 },
+  mapButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.surface}E6` },
+  compassPill: { position: 'absolute', left: 12, top: 12, maxWidth: '70%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: `${colors.surface}E6` },
+  compassText: { flexShrink: 1, color: colors.text, fontSize: 12, fontFamily: font.semibold, fontVariant: ['tabular-nums'] },
+  attribution: { position: 'absolute', left: 10, bottom: 6, paddingVertical: 2 },
+  attributionText: { color: '#5E6A70', fontSize: 11, fontFamily: font.medium },
+  compassWarning: { color: colors.danger, fontSize: 11, fontFamily: font.bold },
   mapHint: { position: 'absolute', left: 12, bottom: 42, right: 12, alignItems: 'center' },
-  mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 },
+  mapHintText: { color: colors.text, backgroundColor: '#10191CCC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, fontSize: 11 , fontFamily: font.regular},
   retry: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.activityNav },
   routeControls: { gap: 10 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   recordingMetrics: { flexDirection: 'row', gap: 8 },
   metric: { width: '48%', flexGrow: 1, padding: 12, backgroundColor: colors.surface, borderRadius: 12 },
   compactMetric: { width: 0, minWidth: 0, flexGrow: 1, alignItems: 'center', paddingHorizontal: 4, backgroundColor: colors.surfaceRaised },
-  compactMetricValue: { fontSize: 16 },
+  compactMetricValue: { fontSize: 16},
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 9 },
-  statusValue: { color: colors.activityNav, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-  metricLabel: { color: colors.textMuted, fontSize: 12 },
-  metricValue: { color: colors.text, fontSize: 18, fontWeight: '600' },
-  cardTitle: { color: colors.text, fontSize: 20, fontWeight: '600' },
-  timer: { color: colors.text, fontSize: 36, fontWeight: '700', textAlign: 'center' },
-  timerCaption: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: -12 },
-  big: { color: colors.activityNav, fontSize: 42, fontWeight: '600' },
+  statusValue: { color: colors.activityNav, fontSize: 14, fontFamily: font.bold, textAlign: 'right' },
+  metricLabel: { color: colors.textMuted, fontSize: 12 , fontFamily: font.regular},
+  metricValue: { color: colors.text, fontSize: 18, fontFamily: font.semibold },
+  cardTitle: { color: colors.text, fontSize: 20, fontFamily: font.semibold },
+  timer: { color: colors.text, fontSize: 36, fontFamily: font.bold, textAlign: 'center' },
+  timerCaption: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, textAlign: 'center', marginTop: -12 },
+  big: { color: colors.activityNav, fontSize: 42, fontFamily: font.semibold },
   stepRing: { alignSelf: 'center', width: 164, height: 164, alignItems: 'center', justifyContent: 'center' },
   ringLabel: { position: 'absolute', alignItems: 'center' },
   stepHistoryRow: { paddingVertical: 10, borderTopColor: colors.border, borderTopWidth: 1 },
   button: { backgroundColor: colors.activityNav, padding: 15, borderRadius: 14, alignItems: 'center' },
   secondary: { backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   dangerButton: { backgroundColor: colors.danger },
-  buttonText: { color: colors.text, fontWeight: '600' },
-  note: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
-  deleteText: { color: colors.danger, fontSize: 12, paddingTop: 8 },
+  buttonText: { color: colors.text, fontFamily: font.semibold }, buttonTextOnFill: { color: colors.background, fontFamily: font.bold },
+  note: { color: colors.textDim, fontSize: 12, fontFamily: font.regular, lineHeight: 18 },
+  deleteText: { color: colors.danger, fontSize: 12, fontFamily: font.regular, paddingTop: 8 },
   input: { color: colors.text, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14 },
   row: { flexDirection: 'row', gap: 8 },
   smallButton: { flex: 1, padding: 10, backgroundColor: colors.surfaceRaised, alignItems: 'center', borderRadius: 10 },

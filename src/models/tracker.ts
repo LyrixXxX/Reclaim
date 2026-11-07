@@ -1,3 +1,7 @@
+import type { HomeCardId } from '@/lib/home-cards';
+import type { SavedTrail } from '@/lib/trails';
+
+export type { SavedTrail };
 export type TrackerId = string;
 export type TrackerMode = 'abstinence' | 'reduction' | 'habit';
 export type FrequencyPeriod = 'day' | 'week' | 'month';
@@ -25,12 +29,11 @@ export type Tracker = {
   frequencyCount?: number;
   frequencyPeriod?: FrequencyPeriod;
   habitLogStyle?: 'done' | 'count';
-  habitTemplate?: 'water' | 'walk' | 'sleep' | 'exercise' | 'produce' | 'reading' | 'mindfulness' | 'dental';
+  habitTemplate?: 'water' | 'walk' | 'sleep' | 'exercise' | 'reading' | 'mindfulness' | 'dental';
   habitGoalHistory?: { effectiveDate: string; value: number }[];
   mindfulnessVisualMode?: 'breathing' | 'quiet';
   exerciseGoalModes?: { effectiveDate: string; mode: 'times' | 'minutes' }[];
   exerciseRegimenHistory?: { effectiveDate: string; rows: { id: string; label: string; days: number[] }[] }[];
-  producePresets?: number[];
   habitChecklistHistory?: { effectiveDate: string; items: { id: string; label: string }[] }[];
   waterQuickAddOz?: number;
   waterDisplayUnit?: 'fl oz' | 'mL';
@@ -42,6 +45,13 @@ export type Tracker = {
   savingsExpenses?: SavingsExpense[];
   archived?: boolean;
 };
+
+/** What someone did to get through a craving. */
+export type CravingHelper = 'breathing' | 'walk' | 'water' | 'distraction' | 'waited';
+/** A logged urge. "beaten" means it passed without using; "slipped" is recorded separately from lapses. */
+export type CravingEvent = { id: string; trackerId?: TrackerId; at: string; intensity?: 1 | 2 | 3 | 4 | 5; outcome: 'beaten' | 'slipped'; helped?: CravingHelper; note?: string };
+/** Something to put estimated quit savings toward, like hiking boots. */
+export type SavingsGoal = { id: string; name: string; targetCents: number; createdAt: string; achievedAt?: string };
 
 export type LapseEvent = {
   id: string;
@@ -69,7 +79,7 @@ export type HistoricalEntry = {
 };
 
 export type WaterLog = { id: string; trackerId: TrackerId; eventDate: string; ounces: number; recordedAt: string };
-export type GoodHabitLog = { id: string; trackerId: TrackerId; eventDate: string; amount: number; recordedAt: string; note?: string; durationMinutes?: number; checklistItemId?: string; nutritionEntryId?: string; nutritionEntryUpdatedAt?: string; workoutRowId?: string; workoutLabel?: string; produceCategory?: 'fruit' | 'vegetable'; source?: 'manual' | 'nutrition' };
+export type GoodHabitLog = { id: string; trackerId: TrackerId; eventDate: string; amount: number; recordedAt: string; note?: string; durationMinutes?: number; checklistItemId?: string; workoutRowId?: string; workoutLabel?: string; source?: 'manual' };
 
 export type TaperStep = {
   id: string;
@@ -147,9 +157,9 @@ export type WeightEntry = {
 };
 
 export type WeightTdeeProfile = {
-  heightCm: number;
-  birthDate: string;
-  formulaSex: 'male' | 'female';
+  heightCm?: number;
+  birthYear?: number;
+  formulaSex?: 'male' | 'female';
 };
 
 export type CpapEquipment = {
@@ -178,6 +188,7 @@ export type CpapMaintenanceEvent = {
 };
 
 export type AppSection = 'goals' | 'health' | 'cpap' | 'weight' | 'nutrition' | 'activity' | 'routes' | 'workouts' | 'supplements';
+export type OnboardingQuit = { id: string; name: string; icon: string; color: string; startDate: string; weeklyCost?: string };
 export type NavigationSection = 'activity' | 'routes' | 'goals' | 'weight' | 'nutrition' | 'workouts' | 'supplements';
 export type HealthModule = 'bloodPressure' | 'medications' | 'labs';
 
@@ -193,12 +204,25 @@ export type AppPreferences = {
   includeRouteCaloriesInNutrition?: boolean;
   includeWorkoutCaloriesInNutrition?: boolean;
   includeSupplementNutrientsInNutrition?: boolean;
+  /** Quit tracker shown as the Home headline; defaults to the first quit tracker in habit order. */
+  featuredTrackerId?: string;
+  /** The one-time "swipe between sections" hint has been dismissed. */
+  swipeHintSeen?: boolean;
+  /** Start Here card: first-use steps already done, and whether it is minimized or dismissed. */
+  startHere?: { done?: string[]; collapsed?: boolean; dismissed?: boolean };
+  /** Notification ids the user cleared from the bell. */
+  dismissedNotices?: string[];
+  /** Badges already celebrated, as trackerId:days. Unset until the first check, which celebrates nothing. */
+  seenBadges?: string[];
+  /** The order of the cards on Home. */
+  homeCardOrder?: HomeCardId[];
+  hiddenHomeCards?: HomeCardId[];
 };
 
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
 export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; altitudeMeters?: number | null; altitudeAccuracyMeters?: number | null; segment?: number };
 export type ActivityTimeInterval = { startedAt: string; endedAt: string };
-export type ActivityRoute = { id: string; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; routeSteps?: number; routeStepStatus?: 'available' | 'unavailable' | 'partial'; name?: string; notes?: string };
+export type ActivityRoute = { id: string; /** 2 once calories use distance and climb. */ calorieModel?: number; /** Photo file names kept on this phone. */ photos?: string[]; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; routeSteps?: number; routeStepStatus?: 'available' | 'unavailable' | 'partial'; name?: string; notes?: string };
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'arms' | 'quadriceps' | 'hamstrings' | 'glutes' | 'calves' | 'legs' | 'core' | 'traps' | 'forearms' | 'full body';
 export type ExerciseEquipment = 'machine' | 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'other';
 export type ExerciseMeasurement = 'weighted_reps' | 'bodyweight_reps' | 'assisted_reps' | 'timed_hold' | 'distance_carry';
@@ -412,8 +436,14 @@ export type TrackerState = {
   onboardingSelections?: OnboardingArea[];
   onboardingSetupDraft?: {
     weight?: { value: string; unit: 'lb' | 'kg'; skipped?: boolean };
+    /** Optional height, birth year and BMR formula, for areas that estimate calories. */
+    details?: { feet: string; inches: string; birthYear: string; formulaSex: '' | 'male' | 'female'; skipped?: boolean };
     nutrition?: { calories?: string; carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
     activity?: { stepGoal: string; enableStepTracking: boolean; skipped?: boolean };
+    /** Things to quit, set up as abstinence trackers when setup finishes. */
+    quits?: OnboardingQuit[];
+    /** Good-habit templates to start, with sensible default goals. */
+    builds?: NonNullable<Tracker['habitTemplate']>[];
   };
   lapseEvents?: LapseEvent[];
   historicalEntries?: HistoricalEntry[];
@@ -459,6 +489,10 @@ export type TrackerState = {
   actualOneRepMaxes?: ActualOneRepMax[];
   activeWorkout?: WorkoutSession;
   workoutSettings?: WorkoutSettings;
+  cravings?: CravingEvent[];
+  savingsGoals?: SavingsGoal[];
+  /** Trails saved from Find trails; favorites are pinned to the top. */
+  savedTrails?: SavedTrail[];
 };
 
 export type OnboardingArea = 'habits' | 'nutrition' | 'cpap' | 'weight' | 'activity' | 'routes' | 'workouts' | 'supplements' | 'bloodPressure' | 'medications' | 'labs';

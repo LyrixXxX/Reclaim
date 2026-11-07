@@ -2,7 +2,7 @@ import { Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
 export function NutritionNavigation({ date }: { date: string }) {
   return <View style={styles.row}>
@@ -25,8 +25,8 @@ function Tile({ href, label, icon, hint }: { href: Href; label: string; icon: 'c
 
 const styles = StyleSheet.create({
   row: { width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'stretch', justifyContent: 'center', gap: 8, marginTop: 9 },
-  tile: { flex: 1, minWidth: 0, minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 5, paddingVertical: 8, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: '#51415F', borderRadius: 14 },
+  tile: { flex: 1, minWidth: 0, minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 5, paddingVertical: 8, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 16 },
   icon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  pressed: { backgroundColor: '#2A2140', borderColor: colors.nutritionNav },
-  label: { color: colors.text, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
+  pressed: { backgroundColor: colors.surface, borderColor: colors.nutritionNav },
+  label: { color: colors.text, fontSize: 11, lineHeight: 14, fontFamily: font.semibold, textAlign: 'center' },
 });

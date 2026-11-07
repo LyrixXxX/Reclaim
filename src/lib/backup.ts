@@ -1,3 +1,5 @@
+import { isRoutePhotoName } from './route-photo-names';
+import { isSavedTrail } from './trails';
 import { TrackerState } from '@/models/tracker';
 import { validWaterDate } from '@/lib/water-habit';
 import { GOOD_HABIT_TEMPLATES, validHabitLog } from '@/lib/good-habit-templates';
@@ -29,6 +31,7 @@ const stateArrayKeys = [
   'cpapMaintenanceItems', 'cpapMaintenanceEvents', 'medications', 'supplementStacks',
   'medicationEvents', 'labTrackers', 'labResults', 'nutritionGoals', 'nutrientSelections', 'customNutrients', 'nutritionMealGroups',
   'savedFoods', 'savedMeals', 'nutritionEntries', 'activityRoutes', 'stepHistory', 'stepGoals', 'waterLogs', 'goodHabitLogs', 'strengthExercises', 'workoutRoutines', 'workoutSessions', 'actualOneRepMaxes',
+  'cravings', 'savingsGoals', 'savedTrails',
 ] as const;
 
 export function createReclaimBackup(
@@ -95,13 +98,12 @@ function validateState(value: Record<string, unknown>) {
     || typeof tracker.name !== 'string'
     || !['abstinence', 'reduction', 'habit'].includes(String(tracker.mode))
     || (tracker.habitLogStyle !== undefined && !['done', 'count'].includes(String(tracker.habitLogStyle)))
-    || (tracker.habitTemplate !== undefined && (![...GOOD_HABIT_TEMPLATES.map((item) => item.id), 'water'].includes(String(tracker.habitTemplate)) || tracker.mode !== 'habit'))
+    || (tracker.habitTemplate !== undefined && (![...GOOD_HABIT_TEMPLATES.map((item) => item.id), 'water', 'produce'].includes(String(tracker.habitTemplate)) || tracker.mode !== 'habit'))
     || (GOOD_HABIT_TEMPLATES.some((item) => item.id === tracker.habitTemplate && (item.checklist ? !Array.isArray(tracker.habitChecklistHistory) || !tracker.habitChecklistHistory.length : !Array.isArray(tracker.habitGoalHistory) || !tracker.habitGoalHistory.length)))
     || (tracker.habitGoalHistory !== undefined && (!Array.isArray(tracker.habitGoalHistory) || tracker.habitGoalHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || typeof item.value !== 'number' || !Number.isFinite(item.value) || item.value <= 0 || item.value > 10000)))
     || (tracker.mindfulnessVisualMode !== undefined && tracker.mindfulnessVisualMode !== 'breathing' && tracker.mindfulnessVisualMode !== 'quiet')
     || (tracker.exerciseGoalModes !== undefined && (!Array.isArray(tracker.exerciseGoalModes) || tracker.exerciseGoalModes.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !['times', 'minutes'].includes(String(item.mode)))))
     || (tracker.exerciseRegimenHistory !== undefined && (!Array.isArray(tracker.exerciseRegimenHistory) || tracker.exerciseRegimenHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !Array.isArray(item.rows) || item.rows.length > 20 || new Set(item.rows.map((row: unknown) => isObject(row) ? row.id : undefined)).size !== item.rows.length || item.rows.some((row: unknown) => !isObject(row) || typeof row.id !== 'string' || typeof row.label !== 'string' || !row.label.trim() || !Array.isArray(row.days) || row.days.some((day: unknown) => typeof day !== 'number' || !Number.isInteger(day) || day < 0 || day > 6)))))
-    || (tracker.producePresets !== undefined && (!Array.isArray(tracker.producePresets) || tracker.producePresets.length > 8 || tracker.producePresets.some((value: unknown) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 20)))
     || (tracker.habitChecklistHistory !== undefined && (!Array.isArray(tracker.habitChecklistHistory) || tracker.habitChecklistHistory.some((item: unknown) => !isObject(item) || typeof item.effectiveDate !== 'string' || !validWaterDate(item.effectiveDate) || !Array.isArray(item.items) || !item.items.length || item.items.some((step: unknown) => !isObject(step) || typeof step.id !== 'string' || typeof step.label !== 'string' || !step.label.trim()))))
     || (tracker.habitTemplate === 'water' && (!Array.isArray(tracker.waterGoals) || !tracker.waterGoals.length || tracker.waterQuickAddOz === undefined))
     || (tracker.waterQuickAddOz !== undefined && (typeof tracker.waterQuickAddOz !== 'number' || !Number.isFinite(tracker.waterQuickAddOz) || tracker.waterQuickAddOz <= 0 || tracker.waterQuickAddOz > 1000))
@@ -156,12 +158,24 @@ function validateState(value: Record<string, unknown>) {
     }
   }
   if (value.weightTdeeProfile !== undefined && (!isObject(value.weightTdeeProfile)
-    || typeof value.weightTdeeProfile.heightCm !== 'number' || !Number.isFinite(value.weightTdeeProfile.heightCm)
-    || value.weightTdeeProfile.heightCm < 80 || value.weightTdeeProfile.heightCm > 250
-    || typeof value.weightTdeeProfile.birthDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.weightTdeeProfile.birthDate)
-    || !Number.isFinite(Date.parse(`${value.weightTdeeProfile.birthDate}T12:00:00`))
-    || !['male', 'female'].includes(String(value.weightTdeeProfile.formulaSex)))) {
+    || (value.weightTdeeProfile.heightCm !== undefined && (typeof value.weightTdeeProfile.heightCm !== 'number' || !Number.isFinite(value.weightTdeeProfile.heightCm) || value.weightTdeeProfile.heightCm < 80 || value.weightTdeeProfile.heightCm > 250))
+    || (value.weightTdeeProfile.birthYear !== undefined && !Number.isInteger(value.weightTdeeProfile.birthYear))
+    // Older backups hold a full birth date, which becomes a year when restored.
+    || (value.weightTdeeProfile.birthDate !== undefined && (typeof value.weightTdeeProfile.birthDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.weightTdeeProfile.birthDate)))
+    || (value.weightTdeeProfile.formulaSex !== undefined && !['male', 'female'].includes(String(value.weightTdeeProfile.formulaSex))))) {
     throw new Error('This Reclaim backup contains an invalid Weight estimate profile. Nothing was restored.');
+  }
+  if (Array.isArray(value.cravings) && value.cravings.some((item) => !isObject(item) || typeof item.id !== 'string' || typeof item.at !== 'string' || !Number.isFinite(Date.parse(item.at))
+    || (item.outcome !== 'beaten' && item.outcome !== 'slipped') || (item.trackerId !== undefined && typeof item.trackerId !== 'string')
+    || (item.intensity !== undefined && ![1, 2, 3, 4, 5].includes(item.intensity as number)))) {
+    throw new Error('This Reclaim backup contains an invalid craving entry. Nothing was restored.');
+  }
+  if (Array.isArray(value.savedTrails) && value.savedTrails.some((trail) => !isSavedTrail(trail))) {
+    throw new Error('This Reclaim backup contains an invalid saved trail. Nothing was restored.');
+  }
+  if (Array.isArray(value.savingsGoals) && value.savingsGoals.some((goal) => !isObject(goal) || typeof goal.id !== 'string' || typeof goal.name !== 'string'
+    || typeof goal.targetCents !== 'number' || !Number.isInteger(goal.targetCents) || goal.targetCents <= 0)) {
+    throw new Error('This Reclaim backup contains an invalid savings goal. Nothing was restored.');
   }
   if (Array.isArray(value.activityRoutes) && value.activityRoutes.some((route) => !isObject(route)
     || typeof route.id !== 'string'
@@ -174,10 +188,12 @@ function validateState(value: Record<string, unknown>) {
     || ['manualPauseIntervals', 'stationaryIntervals', 'autoPauseIntervals'].some((key) => route[key] !== undefined && (!Array.isArray(route[key]) || route[key].some((interval: unknown) => !isObject(interval) || typeof interval.startedAt !== 'string' || typeof interval.endedAt !== 'string' || !Number.isFinite(Date.parse(interval.startedAt)) || !Number.isFinite(Date.parse(interval.endedAt)) || Date.parse(interval.endedAt) < Date.parse(interval.startedAt))))
     || (route.estimateWeightKg !== undefined && (typeof route.estimateWeightKg !== 'number' || !Number.isFinite(route.estimateWeightKg) || route.estimateWeightKg <= 0))
     || (route.estimatedCalories !== undefined && (typeof route.estimatedCalories !== 'number' || !Number.isFinite(route.estimatedCalories) || route.estimatedCalories < 0))
+    || (route.calorieModel !== undefined && typeof route.calorieModel !== 'number')
     || (route.routeSteps !== undefined && (typeof route.routeSteps !== 'number' || !Number.isInteger(route.routeSteps) || route.routeSteps < 0))
     || (route.routeStepStatus !== undefined && !['available', 'unavailable', 'partial'].includes(String(route.routeStepStatus)))
     || (route.name !== undefined && (typeof route.name !== 'string' || route.name.length > 120))
     || (route.notes !== undefined && (typeof route.notes !== 'string' || route.notes.length > 2000))
+    || (route.photos !== undefined && (!Array.isArray(route.photos) || !route.photos.every(isRoutePhotoName)))
     || !Array.isArray(route.points)
     || route.points.some((point: unknown) => !isObject(point)
       || typeof point.latitude !== 'number' || !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90
@@ -287,4 +303,16 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** Which kind of Reclaim file this is, so one Import button can handle them all. Null for anything else. */
+export function importFileKind(raw: string): 'backup' | 'weight' | null {
+  try {
+    const format = (JSON.parse(raw) as { format?: unknown } | null)?.format;
+    if (format === RECLAIM_BACKUP_FORMAT) return 'backup';
+    if (format === 'reclaim-weight-export') return 'weight';
+    return null;
+  } catch {
+    return null;
+  }
 }

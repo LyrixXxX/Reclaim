@@ -1,0 +1,9 @@
+{
+  "name": "reclaim-trails-import",
+  "private": true,
+  "type": "module",
+  "description": "Builds the trail database from OpenStreetMap extracts. Runs on a PC, not in the app or the Worker.",
+  "dependencies": {
+    "osm-pbf-parser-node": "1.1.4"
+  }
+}

@@ -1,19 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, Pressable, StyleSheet, Text } from 'react-native';
 import { BrandedLoading } from '@/components/branded-loading';
 import { OnboardingScreen } from '@/components/onboarding-screen';
+import { removeSavedTrail, saveTrail, SavedTrail, toggleFavoriteTrail, TrailResult } from '@/lib/trails';
+import { updateQuitWidget } from '@/widgets/update-widget';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createLocalStateWriter, readLocalState, SaveStatus, STATE_STORAGE_KEY } from '@/lib/local-storage';
-import { colors } from '@/theme';
+import { colors, font } from '@/theme';
 
-import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings } from '@/models/tracker';
+import { ActivityRoute, ActualOneRepMax, AppSection, CustomNutrient, DashboardWidget, GoodHabitLog, HistoricalEntry, NavigationSection, NutrientSelection, NutritionGoalProfile, NutritionMealGroup, OnboardingArea, StrengthExercise, SupplementStack, Tracker, TrackerId, TrackerState, WaterLog, WeightEntry, WeightTdeeProfile, WorkoutRoutine, WorkoutSession, WorkoutSettings, CravingEvent, SavingsGoal } from '@/models/tracker';
 import { validateNutrientSelection } from '@/lib/nutrient-totals';
 import { markSupplementDoseSkipped, recordSupplementDose, saveSupplementDraft, SupplementDraft } from '@/lib/supplements';
 import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication-regimen';
-import { DEFAULT_WORKOUT_SETTINGS, finishWorkout, startWorkout } from '@/lib/workouts';
-import { createFreshState, needsOnboarding, normalizeOnboardingSelections, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
+import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/lib/workouts';
+import { createFreshState, needsOnboarding, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
+import { migrateRouteCalories } from '@/lib/daily-calories';
+import type { HomeCardId } from '@/lib/home-cards';
+import { migrateTdeeProfile } from '@/lib/weight-tdee';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
 import { deleteTrackerHistory } from '@/lib/recovery';
@@ -27,30 +32,33 @@ import {
   editTracker,
   permanentlyDeleteTracker,
   setTrackerArchived,
-  TrackerDraft,
-} from '@/lib/tracker-management';
+  TrackerDraft, isRemovedFruitAndVegGoal, removeFruitAndVegGoals } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
-import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
-import { DEFAULT_PREFERENCES, migratePreferences, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
+import { upsertWeightEntry, weightImportPlan, WeightExport } from '@/lib/weight';
+import { deleteRoutePhotos } from '@/lib/route-photos';
+import { assignHomeGoalColors, DEFAULT_PREFERENCES, migratePreferences, setHomeCards, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
 import { swapHabitOrder } from '@/lib/habit-order';
 import { cancelMedicationNotifications } from '@/lib/medication-notifications';
 import { cancelHabitReminder, scheduleHabitReminder } from '@/lib/habit-notifications';
 import { logHabitCompletion } from '@/lib/habit-log';
-import { removeWaterLog, saveWaterLog } from '@/lib/water-habit';
-import { validHabitLog } from '@/lib/good-habit-templates';
+import { removeWaterLog, renameDefaultWaterHabit, saveWaterLog } from '@/lib/water-habit';
+import { isRetiredHabit, retireHabits, validHabitLog } from '@/lib/good-habit-templates';
 import { applyMealBuilderSave, applyMealGroupEdit, applyNutritionLogBatch, replaceLoggedMeal, applyPreparedSavedMeal, migrateNutritionState, NutritionEntryInput, NutritionLogBatch, prepareNutritionLogBatch, prepareSavedMeal, removeMealGroup, removeNutritionEntry, removeNutritionGoal, removeSavedFood, removeSavedMeal, SavedFoodInput, SavedMealInput, upsertNutritionEntry, upsertNutritionGoal, upsertSavedFood } from '@/lib/nutrition';
+import { renameFood } from '@/lib/food-search';
 
 type TrackerContextValue = TrackerState & {
   hydrated: boolean;
-  setOnboardingSelections: (selected: OnboardingArea[]) => void;
-  setOnboardingSetupDraft: (draft: OnboardingSetupDraft) => void;
+  setOnboardingSelections: (selected: OnboardingArea[] | ((previous: OnboardingArea[]) => OnboardingArea[])) => void;
+  setOnboardingSetupDraft: (draft: OnboardingSetupDraft | ((previous: OnboardingSetupDraft) => OnboardingSetupDraft)) => void;
   finishOnboarding: () => Promise<void>;
   saveDashboard: (widgets: DashboardWidget[]) => void;
   setHomeHabitVisible: (id: string, visible: boolean) => void;
   setHomeGoalColors: (colors: Record<string, string>) => void;
   setQuittingTaperingOnHome: (visible: boolean) => void;
   setTrainingOverviewOnHome: (visible: boolean) => void;
+  setHomeCards: (order: readonly HomeCardId[], hidden: readonly HomeCardId[]) => void;
+  markBadgesSeen: (keys: string[]) => void;
   swapHabitOrder: (firstId: string, secondId: string) => void;
   saveStatus: SaveStatus;
   retrySave: () => void;
@@ -67,6 +75,7 @@ type TrackerContextValue = TrackerState & {
   editExistingTracker: (id: TrackerId, draft: TrackerDraft) => Promise<void>;
   logGoodHabit: (id: TrackerId) => void;
   saveWaterDrink: (log: WaterLog) => void;
+  setWaterShortcuts: (id: TrackerId, shortcuts: Pick<Tracker, 'waterQuickAddOz' | 'waterPresetOz'>) => void;
   deleteWaterDrink: (id: string) => void;
   saveGoodHabitLog: (log: GoodHabitLog) => void;
   deleteGoodHabitLog: (id: string) => void;
@@ -94,6 +103,7 @@ type TrackerContextValue = TrackerState & {
   saveNutritionLogBatch: (batch: NutritionLogBatch) => void;
   deleteNutritionEntry: (id: string, confirmed: boolean) => void;
   saveNutritionFood: (input: SavedFoodInput, id?: string) => void;
+  renameLoggedFood: (food: { foodId?: string; name: string; servingLabel: string }, name: string) => void;
   deleteNutritionFood: (id: string, confirmed: boolean) => void;
   saveNutritionSavedMeal: (input: SavedMealInput, id?: string) => void;
   saveNutritionMealBuilder: (meal: SavedMealInput, batch?: NutritionLogBatch, standaloneFoods?: SavedFoodInput[]) => void;
@@ -115,6 +125,17 @@ type TrackerContextValue = TrackerState & {
   deleteWorkoutHistory: (id: string) => void;
   saveActualOneRepMax: (record: ActualOneRepMax) => void;
   deleteActualOneRepMax: (id: string) => void;
+  logCraving: (craving: CravingEvent) => void;
+  deleteCraving: (id: string) => void;
+  saveSavingsGoal: (goal: SavingsGoal) => void;
+  deleteSavingsGoal: (id: string) => void;
+  saveTrailPlace: (trail: TrailResult) => void;
+  toggleFavoriteTrailPlace: (trail: TrailResult | SavedTrail) => void;
+  removeTrailPlace: (id: string) => void;
+  setFeaturedTracker: (trackerId: string | undefined) => void;
+  markSwipeHintSeen: () => void;
+  updateStartHere: (update: { done?: string[]; collapsed?: boolean; dismissed?: boolean }) => void;
+  dismissNotice: (id: string) => void;
   updateWorkoutSettings: (update: Partial<WorkoutSettings>) => void;
   setWorkoutCaloriesInNutrition: (enabled: boolean) => void;
   saveSupplement: (draft: SupplementDraft, id: string) => void;
@@ -131,7 +152,9 @@ type TrackerContextValue = TrackerState & {
 const TrackerContext = createContext<TrackerContextValue | null>(null);
 
 export function TrackerProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<TrackerState>(() => migrateStoredState(createFreshState()));
+  const [state, setStoredState] = useState<TrackerState>(() => migrateStoredState(createFreshState()));
+  // Every change passes through here, so a new goal has its own Home color as soon as it exists.
+  const setState = useCallback<typeof setStoredState>((update) => setStoredState((previous) => assignHomeGoalColors(typeof update === 'function' ? update(previous) : update)), []);
   const [hydrated, setHydrated] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -151,7 +174,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       .then(async (parsed) => {
         if (!active) return;
         if (parsed !== null) {
-          for (const tracker of parsed.trackers) if (tracker.habitTemplate === 'exercise') await cancelHabitReminder(tracker.habitNotificationId);
+          for (const tracker of parsed.trackers) if (isRetiredHabit(tracker.habitTemplate) || isRemovedFruitAndVegGoal(tracker)) await cancelHabitReminder(tracker.habitNotificationId);
           const migrated = (parsed.lapseEvents ?? []).map((event): HistoricalEntry => ({
             id: `legacy-${event.id}`,
             trackerId: event.trackerId,
@@ -195,20 +218,35 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       })
       .catch(() => { if (active) setLoadFailed(true); });
     return () => { active = false; };
-  }, [loadAttempt]);
+  }, [setState, loadAttempt]);
 
   useEffect(() => {
     if (hydrated) void writer.save(JSON.stringify(state)).catch(() => undefined);
   }, [hydrated, state, writer]);
 
+  // Keep the home-screen widget in step, without redrawing it on every keystroke.
+  useEffect(() => {
+    if (!hydrated || state.onboardingStatus === 'pending') return;
+    const timer = setTimeout(() => updateQuitWidget(state), 1500);
+    return () => clearTimeout(timer);
+  }, [hydrated, state]);
+
+  // Steps change without changing saved state, so also refresh the widget whenever the app is left.
+  const widgetState = useRef(state);
+  useEffect(() => { widgetState.current = state; }, [state]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => { if (status === 'background' && widgetState.current.onboardingStatus !== 'pending') updateQuitWidget(widgetState.current); });
+    return () => subscription.remove();
+  }, []);
+
   const value = useMemo<TrackerContextValue>(() => ({
     ...state,
     hydrated,
     setOnboardingSelections: (selected) => setState((previous) => previous.onboardingStatus === 'pending'
-      ? { ...previous, onboardingSelections: normalizeOnboardingSelections(selected) }
+      ? { ...previous, onboardingSelections: pickedAreas(typeof selected === 'function' ? selected(pickedAreas(previous.onboardingSelections)) : selected) }
       : previous),
     setOnboardingSetupDraft: (draft) => setState((previous) => previous.onboardingStatus === 'pending'
-      ? { ...previous, onboardingSetupDraft: draft }
+      ? { ...previous, onboardingSetupDraft: typeof draft === 'function' ? draft(previous.onboardingSetupDraft ?? {}) : draft }
       : previous),
     finishOnboarding: async () => {
       if (state.onboardingStatus !== 'pending') return;
@@ -224,6 +262,13 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     setHomeGoalColors: (selected) => setState((previous) => setHomeGoalColors(previous, selected)),
     setQuittingTaperingOnHome: (visible) => setState((previous) => setQuittingTaperingOnHome(previous, visible)),
     setTrainingOverviewOnHome: (visible) => setState((previous) => setTrainingOverviewOnHome(previous, visible)),
+    setHomeCards: (order, hidden) => setState((previous) => setHomeCards(previous, order, hidden)),
+    markBadgesSeen: (keys) => setState((previous) => {
+      const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
+      const current = preferences.seenBadges;
+      const added = keys.filter((key) => !current?.includes(key));
+      return current && !added.length ? previous : { ...previous, preferences: { ...preferences, seenBadges: [...(current ?? []), ...added] } };
+    }),
     swapHabitOrder: (firstId, secondId) => setState((previous) => swapHabitOrder(previous, firstId, secondId)),
     saveStatus,
     retrySave: () => { void writer.retry().catch(() => undefined); },
@@ -297,13 +342,13 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     },
     logGoodHabit: (id) => setState((previous) => logHabitCompletion(previous, id, localDateKey())),
     saveWaterDrink: (log) => setState((previous) => saveWaterLog(previous, log)),
+    setWaterShortcuts: (id, shortcuts) => setState((previous) => ({ ...previous, trackers: previous.trackers.map((tracker) => tracker.id === id ? { ...tracker, ...shortcuts } : tracker) })),
     deleteWaterDrink: (id) => setState((previous) => removeWaterLog(previous, id)),
     saveGoodHabitLog: (log) => setState((previous) => {
       const tracker = previous.trackers.find((item) => item.id === log.trackerId && item.habitTemplate && item.habitTemplate !== 'water' && !item.archived);
-      if (!tracker || tracker.habitTemplate === 'exercise' || !validHabitLog(log) || (log.nutritionEntryId && tracker.habitTemplate !== 'produce')) return previous;
+      if (!tracker || tracker.habitTemplate === 'exercise' || !validHabitLog(log)) return previous;
       return { ...previous, goodHabitLogs: [...(previous.goodHabitLogs ?? []).filter((item) => item.id !== log.id
-        && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)
-        && !(log.nutritionEntryId && item.trackerId === log.trackerId && item.nutritionEntryId === log.nutritionEntryId)), log] };
+        && !(log.checklistItemId && item.trackerId === log.trackerId && item.eventDate === log.eventDate && item.checklistItemId === log.checklistItemId)), log] };
     }),
     deleteGoodHabitLog: (id) => setState((previous) => ({ ...previous, goodHabitLogs: (previous.goodHabitLogs ?? []).filter((log) => log.id !== id) })),
     setArchived: (id, archived) => {
@@ -332,12 +377,12 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteReductionStep: (stepId, confirmed) =>
       setState((previous) => deleteTaperStep(previous, stepId, confirmed).state),
     importWeightHistory: (file) => {
-      const result = mergeWeightImport(state.weightEntries ?? [], file);
-      setState((previous) => ({ ...previous, weightEntries: mergeWeightImport(previous.weightEntries ?? [], file).entries }));
+      const result = weightImportPlan(state.weightEntries ?? [], file);
+      setState((previous) => ({ ...previous, weightEntries: weightImportPlan(previous.weightEntries ?? [], file).entries }));
       return { added: result.added, duplicates: result.duplicates };
     },
     saveWeightEntry: (entry) => setState((previous) => ({ ...previous, weightEntries: upsertWeightEntry(previous.weightEntries ?? [], entry) })),
-    saveWeightTdeeProfile: (profile) => setState((previous) => ({ ...previous, weightTdeeProfile: profile })),
+    saveWeightTdeeProfile: (profile) => setState((previous) => ({ ...previous, weightTdeeProfile: Object.keys(profile).length ? profile : undefined })),
     deleteWeightEntry: (date, confirmed) => {
       if (confirmed) setState((previous) => ({ ...previous, weightEntries: (previous.weightEntries ?? []).filter((entry) => entry.date !== date) }));
     },
@@ -375,6 +420,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       setState((previous) => replaceLoggedMeal(previous, instanceId, prepared));
     },
     deleteNutritionEntry: (id, confirmed) => setState((previous) => ({ ...previous, nutritionEntries: removeNutritionEntry(previous.nutritionEntries ?? [], id, confirmed) })),
+    renameLoggedFood: (food, name) => setState((previous) => renameFood(previous, food, name)),
     saveNutritionFood: (input, id) => setState((previous) => ({ ...previous, savedFoods: upsertSavedFood(previous.savedFoods ?? [], input, id) })),
     deleteNutritionFood: (id, confirmed) => setState((previous) => ({ ...previous, savedFoods: removeSavedFood(previous.savedFoods ?? [], id, confirmed) })),
     saveNutritionSavedMeal: (input, id) => {
@@ -396,12 +442,15 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       await writer.save(JSON.stringify(next));
       setState(next);
     },
-    deleteActivityRoute: (id) => setState((previous) => ({ ...previous, activityRoutes: (previous.activityRoutes ?? []).filter((route) => route.id !== id) })),
+    deleteActivityRoute: (id) => {
+      deleteRoutePhotos((state.activityRoutes ?? []).find((route) => route.id === id)?.photos);
+      setState((previous) => ({ ...previous, activityRoutes: (previous.activityRoutes ?? []).filter((route) => route.id !== id) }));
+    },
     saveStepGoal: (date, count) => setState((previous) => ({ ...previous, stepGoals: setDailyStepGoal(previous.stepGoals ?? [], date, count) })),
     saveStrengthExercise: (exercise) => setState((previous) => ({ ...previous, strengthExercises: [...(previous.strengthExercises ?? []).filter((item) => item.id !== exercise.id), exercise] })),
     saveWorkoutRoutine: (routine) => setState((previous) => ({ ...previous, workoutRoutines: [...(previous.workoutRoutines ?? []).filter((item) => item.id !== routine.id), routine] })),
     deleteWorkoutRoutine: (id) => setState((previous) => ({ ...previous, workoutRoutines: (previous.workoutRoutines ?? []).filter((item) => item.id !== id) })),
-    beginWorkout: (name, routine) => setState((previous) => previous.activeWorkout || !routine?.exercises.length ? previous : { ...previous, activeWorkout: startWorkout(name, routine, new Date().toISOString(), previous.strengthExercises ?? []) }),
+    beginWorkout: (name, routine) => setState((previous) => beginWorkoutState(previous, name, routine)),
     updateActiveWorkout: (update) => setState((previous) => previous.activeWorkout ? { ...previous, activeWorkout: update(previous.activeWorkout) } : previous),
     completeWorkout: () => setState((previous) => finishWorkout(previous)),
     discardWorkout: () => setState((previous) => ({ ...previous, activeWorkout: undefined })),
@@ -409,6 +458,23 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteWorkoutHistory: (id) => setState((previous) => ({ ...previous, workoutSessions: (previous.workoutSessions ?? []).filter((item) => item.id !== id) })),
     saveActualOneRepMax: (record) => setState((previous) => ({ ...previous, actualOneRepMaxes: [...(previous.actualOneRepMaxes ?? []).filter((item) => item.id !== record.id), record] })),
     deleteActualOneRepMax: (id) => setState((previous) => ({ ...previous, actualOneRepMaxes: (previous.actualOneRepMaxes ?? []).filter((item) => item.id !== id) })),
+    logCraving: (craving) => setState((previous) => ({ ...previous, cravings: [...(previous.cravings ?? []).filter((item) => item.id !== craving.id), craving] })),
+    deleteCraving: (id) => setState((previous) => ({ ...previous, cravings: (previous.cravings ?? []).filter((item) => item.id !== id) })),
+    saveSavingsGoal: (goal) => setState((previous) => ({ ...previous, savingsGoals: [...(previous.savingsGoals ?? []).filter((item) => item.id !== goal.id), goal] })),
+    deleteSavingsGoal: (id) => setState((previous) => ({ ...previous, savingsGoals: (previous.savingsGoals ?? []).filter((item) => item.id !== id) })),
+    saveTrailPlace: (trail) => setState((previous) => ({ ...previous, savedTrails: saveTrail(previous.savedTrails ?? [], trail) })),
+    toggleFavoriteTrailPlace: (trail) => setState((previous) => ({ ...previous, savedTrails: toggleFavoriteTrail(previous.savedTrails ?? [], trail) })),
+    removeTrailPlace: (id) => setState((previous) => ({ ...previous, savedTrails: removeSavedTrail(previous.savedTrails ?? [], id) })),
+    setFeaturedTracker: (trackerId) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), featuredTrackerId: trackerId } })),
+    dismissNotice: (id) => setState((previous) => { const preferences = previous.preferences ?? DEFAULT_PREFERENCES; const current = preferences.dismissedNotices ?? []; return current.includes(id) ? previous : { ...previous, preferences: { ...preferences, dismissedNotices: [...current, id].slice(-100) } }; }),
+    updateStartHere: ({ done, collapsed, dismissed }) => setState((previous) => {
+      const preferences = previous.preferences ?? DEFAULT_PREFERENCES;
+      const current = preferences.startHere ?? {};
+      const nextDone = done ? [...new Set([...(current.done ?? []), ...done])] : current.done;
+      if ((nextDone?.length ?? 0) === (current.done?.length ?? 0) && (collapsed === undefined || collapsed === !!current.collapsed) && (dismissed === undefined || dismissed === !!current.dismissed)) return previous;
+      return { ...previous, preferences: { ...preferences, startHere: { ...current, done: nextDone, ...(collapsed === undefined ? {} : { collapsed }), ...(dismissed === undefined ? {} : { dismissed }) } } };
+    }),
+    markSwipeHintSeen: () => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), swipeHintSeen: true } })),
     updateWorkoutSettings: (update) => setState((previous) => ({ ...previous, workoutSettings: { ...DEFAULT_WORKOUT_SETTINGS, ...previous.workoutSettings, ...update } })),
     setWorkoutCaloriesInNutrition: (enabled) => setState((previous) => ({ ...previous, preferences: { ...(previous.preferences ?? DEFAULT_PREFERENCES), includeWorkoutCaloriesInNutrition: enabled } })),
     saveSupplement: (draft, id) => setState((previous) => ({ ...previous, medications: saveSupplementDraft(previous.medications ?? [], draft, id) })),
@@ -455,10 +521,10 @@ export function TrackerProvider({ children }: PropsWithChildren) {
         throw new Error('The imported history is open in memory but could not be saved on this device. Keep Reclaim open and use Retry save.');
       }
     },
-  }), [hydrated, state, saveStatus, writer]);
+  }), [setState, hydrated, state, saveStatus, writer]);
 
   return <TrackerContext.Provider value={value}>{hydrated ? needsOnboarding(state)
-    ? <OnboardingScreen selected={normalizeOnboardingSelections(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />
+    ? <OnboardingScreen selected={pickedAreas(state.onboardingSelections)} draft={state.onboardingSetupDraft ?? {}} onChange={value.setOnboardingSelections} onDraftChange={value.setOnboardingSetupDraft} onFinish={value.finishOnboarding} />
     : children : !loadFailed ? <BrandedLoading /> :
     <SafeAreaView style={storageStyles.loading}>
         <Text style={storageStyles.title}>Could not open local history</Text>
@@ -470,15 +536,15 @@ export function TrackerProvider({ children }: PropsWithChildren) {
 
 const storageStyles = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', padding: 28, gap: 16, backgroundColor: colors.background },
-  title: { color: colors.text, fontWeight: '700', fontSize: 16 },
-  text: { color: colors.textMuted, fontSize: 14, lineHeight: 21 },
+  title: { color: colors.text, fontFamily: font.bold, fontSize: 16 },
+  text: { color: colors.textMuted, fontSize: 14, fontFamily: font.regular, lineHeight: 21 },
   button: { padding: 16, borderRadius: 16, backgroundColor: colors.surfaceRaised },
 });
 
 function migrateStoredState(parsed: TrackerState): TrackerState {
   // Keep older medical records untouched for future full-edition restores.
-  const migrated = migratePreferences(migrateNutritionState(migrateTaperState(parsed)));
-  return { ...migrated, trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
+  const migrated = migratePreferences(renameDefaultWaterHabit(migrateNutritionState(migrateTaperState(removeFruitAndVegGoals(parsed)))));
+  return { ...migrated, weightTdeeProfile: migrateTdeeProfile(migrated.weightTdeeProfile), activityRoutes: migrated.activityRoutes && migrateRouteCalories(migrated.activityRoutes, migrated.weightEntries), trackers: retireHabits(migrated.trackers) };
 }
 
 export function useTrackers() {

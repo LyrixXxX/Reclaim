@@ -9,6 +9,13 @@ export function pointDistanceMeters(a: ActivityPoint, b: ActivityPoint): number 
   return 12_742_000 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
+/** Small GPS drift shouldn't move the map, so the position only changes after a real move. */
+export function movedEnoughToUpdate(previous: [number, number] | null, next: [number, number], minMeters = 10): boolean {
+  if (!previous) return true;
+  const point = ([longitude, latitude]: [number, number]) => ({ longitude, latitude, timestamp: 0 });
+  return pointDistanceMeters(point(previous), point(next)) >= minMeters;
+}
+
 export function routeDistanceMeters(points: ActivityPoint[]): number {
   return points.reduce((total, point, index) => index && (point.segment ?? 0) === (points[index - 1].segment ?? 0) ? total + pointDistanceMeters(points[index - 1], point) : total, 0);
 }
@@ -43,17 +50,21 @@ export function averagePaceMinPerMile(distanceMeters: number, activeMs: number):
   return activeMs / 60_000 / (distanceMeters / 1609.344);
 }
 
-// 2024 Adult Compendium: level walking, speed-based MET categories.
-// Subtract resting expenditure when adding an exercise estimate to a daily budget.
-export function estimatedRouteCalories(distanceMeters: number, activeMs: number, weightKg?: number, kind: ActivityRoute['kind'] = 'walk'): number | null {
+/** Net of resting: a ~3 mph walk (MET 3.5, minus 1 for resting), so 2.5 MET-hours per 3 miles per kg. */
+export const KCAL_PER_MILE_PER_KG = 2.5 / 3;
+// ACSM walking equation: 1.8 mL O2 per kg for each meter climbed, at about 5 kcal per liter of O2.
+const KCAL_PER_METER_CLIMBED_PER_KG = 0.009;
+
+/**
+ * Calories on top of resting. Walks and hikes use distance and climb, so going slower adds nothing.
+ * Runs use the 2024 Adult Compendium's pace-based MET categories.
+ */
+export function estimatedRouteCalories(distanceMeters: number, activeMs: number, weightKg?: number, kind: ActivityRoute['kind'] = 'walk', gainMeters = 0): number | null {
   if (!weightKg || weightKg <= 0 || !Number.isFinite(weightKg) || distanceMeters < 160.9344 || activeMs < 60_000) return null;
   const hours = activeMs / 3_600_000;
   const mph = distanceMeters / 1609.344 / hours;
-  // 2024 Adult Compendium: cross-country hiking and pace-based running.
-  // Walking and legacy neutral routes retain their original estimate.
-  const met = kind === 'hike' ? 6.0 : kind === 'run'
-    ? mph < 4.3 ? 6.5 : mph < 5 ? 7.8 : mph < 6 ? 8.5 : mph < 7 ? 9.3 : 11.0
-    : mph < 2.8 ? 3.0 : mph < 3.5 ? 3.5 : mph < 4 ? 3.8 : 5.0;
+  if (kind !== 'run') return Math.round(weightKg * (distanceMeters / 1609.344 * KCAL_PER_MILE_PER_KG + Math.max(0, gainMeters) * KCAL_PER_METER_CLIMBED_PER_KG));
+  const met = mph < 4.3 ? 6.5 : mph < 5 ? 7.8 : mph < 6 ? 8.5 : mph < 7 ? 9.3 : 11.0;
   return Math.round((met - 1) * weightKg * hours);
 }
 

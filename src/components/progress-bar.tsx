@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, type } from '@/theme';
+import { colors, type, font } from '@/theme';
 
 type Props = { label: string; progress: number; color: string; totalLabel?: string; secondaryLabel?: string };
 
@@ -25,9 +25,9 @@ const styles = StyleSheet.create({
   item: { flex: 1, minWidth: 64 },
   durationItem: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 },
-  label: { ...type.micro, color: colors.textMuted, fontWeight: '600' },
+  label: { ...type.micro, color: colors.textMuted, fontFamily: font.semibold },
   percent: { ...type.micro, color: colors.textMuted, fontVariant: ['tabular-nums'] },
-  total: { color: colors.text, fontSize: 12, fontWeight: '700', marginBottom: 7, fontVariant: ['tabular-nums'] },
+  total: { color: colors.text, fontSize: 12, fontFamily: font.bold, marginBottom: 7, fontVariant: ['tabular-nums'] },
   track: { height: 4, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 4 },
   secondary: { ...type.micro, color: colors.textMuted, marginTop: 5, fontVariant: ['tabular-nums'] },

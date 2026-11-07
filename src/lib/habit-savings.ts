@@ -18,7 +18,7 @@ export function validateSavingsDrafts(drafts: readonly SavingsExpenseDraft[]): s
     if (!draft.label.trim()) return 'Name each recurring expense.';
     if (!/^\d+(?:\.\d{1,2})?$/.test(draft.amount.trim()) || Number(draft.amount) <= 0 || Number(draft.amount) > 100000) return 'Enter an amount greater than $0, with up to two decimal places.';
     if (!Number.isInteger(Number(draft.everyCount)) || Number(draft.everyCount) < 1 || Number(draft.everyCount) > 10000) return 'Enter a recurrence from 1 to 10,000 days, weeks, or months.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.effectiveDate) || Number.isNaN(Date.parse(`${draft.effectiveDate}T00:00:00`))) return 'Use YYYY-MM-DD for the effective date.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.effectiveDate) || Number.isNaN(Date.parse(`${draft.effectiveDate}T00:00:00`))) return 'Use MM/DD/YYYY for the effective date.';
   }
   return undefined;
 }

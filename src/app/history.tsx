@@ -14,7 +14,8 @@ import { localDateKey } from '@/lib/progress';
 import { taperQuitPhase } from '@/lib/taper-quit';
 import { DayOutcome, HistoricalEntry, TrackerId } from '@/models/tracker';
 import { useTrackers } from '@/state/tracker-context';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, spacing, font } from '@/theme';
+import { Chevron } from '@/components/icon';
 
 const OUTCOMES: { value: DayOutcome; label: string; hint: string }[] = [
   { value: 'stayed_on_plan', label: 'Stayed on plan', hint: 'A successful day' },
@@ -131,7 +132,7 @@ export default function HistoryScreen() {
         <View style={styles.calendar}>
           <View style={styles.monthHeader}>
             <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(shiftMonth(month, -1))} style={styles.monthButton}>
-              <Text style={styles.monthButtonText}>‹</Text>
+              <Chevron direction="left" color={colors.textMuted} />
             </Pressable>
             <Text style={styles.monthTitle}>
               {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
@@ -142,7 +143,7 @@ export default function HistoryScreen() {
               disabled={isCurrentMonth(month)}
               onPress={() => setMonth(shiftMonth(month, 1))}
               style={[styles.monthButton, isCurrentMonth(month) && styles.disabled]}>
-              <Text style={styles.monthButtonText}>›</Text>
+              <Chevron color={colors.textMuted} />
             </Pressable>
           </View>
           <View style={styles.weekRow}>
@@ -375,34 +376,34 @@ function formatRecorded(timestamp: string) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 680, alignSelf: 'center', padding: spacing.lg, paddingBottom: 42 },
-  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.5, fontWeight: '600', marginTop: 12 },
-  title: { color: colors.text, fontSize: 31, lineHeight: 36, letterSpacing: -0.7, fontWeight: '700', marginTop: 8 },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 10 },
+  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 1.5, fontFamily: font.semibold, marginTop: 12 },
+  title: { color: colors.text, fontSize: 31, lineHeight: 36, letterSpacing: -0.7, fontFamily: font.bold, marginTop: 8 },
+  subtitle: { color: colors.textMuted, fontSize: 13, fontFamily: font.regular, lineHeight: 20, marginTop: 10 },
   trackerTabs: { gap: 8, paddingVertical: 22 },
   trackerTab: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: colors.border, borderRadius: 99, paddingHorizontal: 13, paddingVertical: 9 },
   trackerTabActive: { backgroundColor: colors.surfaceRaised },
   trackerDot: { width: 7, height: 7, borderRadius: 4 },
-  trackerTabText: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  trackerTabText: { color: colors.textDim, fontSize: 11, fontFamily: font.bold },
   trackerTabTextActive: { color: colors.text },
   metricRow: { flexDirection: 'row', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, paddingVertical: 18 },
   metric: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   metricDivider: { width: 1, backgroundColor: colors.border },
-  metricValue: { color: colors.text, fontSize: 24, fontWeight: '600' },
-  metricLabel: { color: colors.textMuted, fontSize: 11, letterSpacing: 1, fontWeight: '600', textAlign: 'center', marginTop: 5 },
-  metricHint: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 4 },
+  metricValue: { color: colors.text, fontSize: 24, fontFamily: font.semibold },
+  metricLabel: { color: colors.textMuted, fontSize: 11, letterSpacing: 1, fontFamily: font.semibold, textAlign: 'center', marginTop: 5 },
+  metricHint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: 4 },
   calendar: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: spacing.md, marginTop: 14 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, marginBottom: 14 },
   monthButton: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  monthButtonText: { color: colors.text, fontSize: 24 },
-  monthTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  monthButtonText: { color: colors.text, fontSize: 24 , fontFamily: font.regular},
+  monthTitle: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
   disabled: { opacity: 0.3 },
   weekRow: { flexDirection: 'row' },
-  weekDay: { width: '14.2857%', color: colors.textDim, fontSize: 11, fontWeight: '600', textAlign: 'center', paddingBottom: 7 },
+  weekDay: { width: '14.2857%', color: colors.textDim, fontSize: 11, fontFamily: font.semibold, textAlign: 'center', paddingBottom: 7 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCell: { width: '14.2857%', aspectRatio: 0.9, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   todayCell: { borderWidth: 1, borderColor: colors.accentSoft },
   futureCell: { opacity: 0.35 },
-  dayNumber: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  dayNumber: { color: colors.text, fontSize: 12, fontFamily: font.bold },
   futureText: { color: colors.textDim },
   stateDot: { width: 7, height: 7, borderRadius: 4, borderWidth: 1, marginTop: 5 },
   unrecordedDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 6 },
@@ -410,43 +411,43 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 12, paddingTop: 13 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 7, height: 7, borderRadius: 4, borderWidth: 1 },
-  legendText: { color: colors.textDim, fontSize: 11 },
+  legendText: { color: colors.textDim, fontSize: 11 , fontFamily: font.regular},
   recentPanel: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: spacing.lg, marginTop: 14 },
-  panelEyebrow: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontWeight: '600' },
-  emptyText: { color: colors.textMuted, fontSize: 12, marginTop: 14 },
+  panelEyebrow: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontFamily: font.semibold },
+  emptyText: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, marginTop: 14 },
   entryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   entryMark: { width: 9, height: 9, borderRadius: 5, borderWidth: 2, marginRight: 11 },
   entryCopy: { flex: 1 },
-  entryTitle: { color: colors.text, fontSize: 12, fontWeight: '700' },
-  entryMeta: { color: colors.textDim, fontSize: 11, marginTop: 4 },
-  entryNote: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
-  editText: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginLeft: 8 },
-  footer: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 26 },
+  entryTitle: { color: colors.text, fontSize: 12, fontFamily: font.bold },
+  entryMeta: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, marginTop: 4 },
+  entryNote: { color: colors.textMuted, fontSize: 11, fontFamily: font.regular, marginTop: 4 },
+  editText: { color: colors.textDim, fontSize: 11, fontFamily: font.bold, marginLeft: 8 },
+  footer: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center', marginTop: 26 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.76)', justifyContent: 'center', padding: spacing.lg },
   modalScroll: { flexGrow: 1, justifyContent: 'center' },
   modalCard: { width: '100%', maxWidth: 520, alignSelf: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: spacing.lg },
   confirmCard: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: layout.radius, padding: spacing.lg },
-  modalTitle: { color: colors.text, fontSize: 22, fontWeight: '600', marginTop: 8 },
-  modalBody: { color: colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 7 },
-  recordedText: { color: colors.textDim, fontSize: 11, marginTop: 8 },
+  modalTitle: { color: colors.text, fontSize: 22, fontFamily: font.semibold, marginTop: 8 },
+  modalBody: { color: colors.textMuted, fontSize: 12, fontFamily: font.regular, lineHeight: 19, marginTop: 7 },
+  recordedText: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, marginTop: 8 },
   outcomeList: { gap: 7, marginTop: 18 },
   outcomeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 13, padding: 11 },
-  outcomeButtonActive: { borderColor: '#45503D' },
+  outcomeButtonActive: { borderColor: '#2A4A3A' },
   outcomeRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.textDim, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   outcomeRadioFill: { width: 8, height: 8, borderRadius: 4 },
   outcomeCopy: { flex: 1 },
-  outcomeTitle: { color: colors.text, fontSize: 12, fontWeight: '700' },
-  outcomeHint: { color: colors.textDim, fontSize: 11, marginTop: 2 },
-  noteLabel: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontWeight: '600', marginTop: 18, marginBottom: 7 },
+  outcomeTitle: { color: colors.text, fontSize: 12, fontFamily: font.bold },
+  outcomeHint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, marginTop: 2 },
+  noteLabel: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontFamily: font.semibold, marginTop: 18, marginBottom: 7 },
   noteInput: { minHeight: 70, color: colors.text, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 13, padding: 11, textAlignVertical: 'top' },
   amountInput: { minHeight: 46, color: colors.text, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 13, paddingHorizontal: 11 },
   modalActions: { flexDirection: 'row', gap: 9, marginTop: 20 },
   cancelButton: { flex: 1, backgroundColor: colors.surfaceRaised, borderRadius: 13, alignItems: 'center', paddingVertical: 13 },
-  cancelText: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  cancelText: { color: colors.text, fontSize: 12, fontFamily: font.bold },
   saveButton: { flex: 1, backgroundColor: colors.accent, borderRadius: 13, alignItems: 'center', paddingVertical: 13 },
-  saveText: { color: colors.background, fontSize: 12, fontWeight: '600' },
+  saveText: { color: colors.background, fontSize: 12, fontFamily: font.semibold },
   removeButton: { alignItems: 'center', paddingTop: 17 },
-  removeText: { color: colors.danger, fontSize: 11, fontWeight: '700' },
+  removeText: { color: colors.danger, fontSize: 11, fontFamily: font.bold },
   confirmRemoveButton: { flex: 1, backgroundColor: colors.danger, borderRadius: 13, alignItems: 'center', paddingVertical: 13 },
-  confirmRemoveText: { color: colors.background, fontSize: 12, fontWeight: '600' },
+  confirmRemoveText: { color: colors.background, fontSize: 12, fontFamily: font.semibold },
 });

@@ -3,7 +3,7 @@ import { createFreshState } from './onboarding';
 import { createReclaimBackup, parseReclaimBackup } from './backup';
 import { estimateDailyTdee, feetInchesFromCm, heightCmFromFeetInches, previousDayCalories, previousLocalDate, validTdeeProfile } from './weight-tdee';
 
-const profile: WeightTdeeProfile = { heightCm: 180, birthDate: '1990-06-15', formulaSex: 'male' };
+const profile: WeightTdeeProfile = { heightCm: 180, birthYear: 1990, formulaSex: 'male' };
 const food: NutritionEntry = {
   id: 'food', eventDate: '2026-10-03', recordedAt: '', updatedAt: '', mealGroupId: 'meal', mealLabel: 'Dinner',
   name: 'Meal', servingLabel: '1 meal', servings: 1,
@@ -55,7 +55,7 @@ test('route movement is not counted again as steps; missing and partial days sta
 
 test('profile validation and backup preserve the optional estimate setup', () => {
   expect(validTdeeProfile(profile)).toBe(true);
-  expect(validTdeeProfile({ ...profile, birthDate: '2026-02-30' })).toBe(false);
+  expect(validTdeeProfile({ ...profile, birthYear: 2020 })).toBe(false);
   expect(estimateDailyTdee({ profile: { ...profile, heightCm: 0 }, weighInDate: '2026-10-04', weight: 100, unit: 'kg', steps: [], routes: [] })).toBeNull();
   const state = { ...createFreshState(), weightTdeeProfile: profile };
   expect(parseReclaimBackup(JSON.stringify(createReclaimBackup(state))).state.weightTdeeProfile).toEqual(profile);
