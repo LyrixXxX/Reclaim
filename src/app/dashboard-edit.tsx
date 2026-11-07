@@ -7,6 +7,7 @@ import { Chevron } from '@/components/icon';
 import { DASHBOARD_WIDGETS, dashboardWidgetAllowed, normalizeDashboard } from '@/lib/dashboard';
 import { HOME_CARDS, hiddenCardsLast, HomeCardId, moveHomeCard, normalizeHiddenHomeCards, normalizeHomeCardOrder, reorderForVisibility } from '@/lib/home-cards';
 import { quittingStarts, taperingStarts } from '@/lib/quit-progress';
+import { hasSupplementGoal, SUPPLEMENT_GOAL_ID } from '@/lib/supplements';
 import { DEFAULT_PREFERENCES, homeColorGoals } from '@/lib/preferences';
 import { HOME_GOAL_COLOR_NAMES, HOME_GOAL_COLORS, homeGoalColor } from '@/lib/home-goal-colors';
 import { templateConfig } from '@/lib/good-habit-templates';
@@ -15,7 +16,7 @@ import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, font } from '@/theme';
 
 export default function DashboardEditor() {
-  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setHomeCards, setQuittingTaperingOnHome, setTrainingOverviewOnHome, taperSteps = [] } = useTrackers();
+  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], medications = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setHomeCards, setQuittingTaperingOnHome, setTrainingOverviewOnHome, taperSteps = [] } = useTrackers();
   const [draft, setDraft] = useState(() => normalizeDashboard(preferences.dashboard));
   const [hiddenHabits, setHiddenHabits] = useState<string[]>(preferences.hiddenHomeHabitIds ?? []);
   const [goalColors, setGoalColors] = useState<Record<string, string>>(preferences.homeGoalColors ?? {});
@@ -35,12 +36,14 @@ export default function DashboardEditor() {
   const insets = useSafeAreaInsets();
   const update = (id: DashboardWidgetId, patch: Partial<DashboardWidget>) => setDraft((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
   const activeHabits = trackers.filter((item) => !item.archived && (item.habitTemplate === 'water' || templateConfig(item.habitTemplate)));
+  const showSupplementGoal = !!preferences.visibleSections.supplements && hasSupplementGoal(medications);
   const colorGoals = [
     ...(preferences.visibleSections.activity && stepGoals.length ? [{ id: 'steps', title: 'Steps', fallback: colors.activityNav }] : []),
     ...(preferences.visibleSections.nutrition && nutritionGoals.length ? [{ id: 'nutrition', title: 'Nutrition', fallback: colors.nutritionNav }] : []),
     ...activeHabits.filter((item) => !hiddenHabits.includes(item.id)).map((item) => ({ id: item.id, title: item.displayName || item.name, fallback: colors.habitsNav })),
+    ...(showSupplementGoal && !hiddenHabits.includes(SUPPLEMENT_GOAL_ID) ? [{ id: SUPPLEMENT_GOAL_ID, title: 'Supplements', fallback: colors.habitsNav }] : []),
   ];
-  const colorsInUse = (goalId: string) => new Set(homeColorGoals({ trackers, stepGoals, nutritionGoals }).filter((goal) => goal.id !== goalId).map((goal) => goalColors[goal.id]));
+  const colorsInUse = (goalId: string) => new Set(homeColorGoals({ trackers, stepGoals, nutritionGoals, medications }).filter((goal) => goal.id !== goalId).map((goal) => goalColors[goal.id]));
   const exit = () => router.replace('/' as Href);
   const sections = preferences.visibleSections;
   const hasQuitsOrTapers = quittingStarts(trackers, taperSteps).length + taperingStarts(trackers, taperSteps).length > 0;
@@ -63,7 +66,7 @@ export default function DashboardEditor() {
     setHiddenCards((current) => visible ? current.filter((item) => item !== id) : [...current, id]);
   };
   const save = () => {
-    for (const item of trackers) if ((preferences.hiddenHomeHabitIds ?? []).includes(item.id) !== hiddenHabits.includes(item.id)) setHomeHabitVisible(item.id, !hiddenHabits.includes(item.id));
+    for (const id of [...trackers.map((item) => item.id), SUPPLEMENT_GOAL_ID]) if ((preferences.hiddenHomeHabitIds ?? []).includes(id) !== hiddenHabits.includes(id)) setHomeHabitVisible(id, !hiddenHabits.includes(id));
     const showQuitting = !hiddenCards.includes('quit');
     if ((preferences.showQuittingTaperingOnHome !== false) !== showQuitting) setQuittingTaperingOnHome(showQuitting);
     if ((preferences.showTrainingOverviewOnHome !== false) === hiddenCards.includes('training')) setTrainingOverviewOnHome(!hiddenCards.includes('training'));
@@ -79,9 +82,10 @@ export default function DashboardEditor() {
     <View style={styles.orderList}>
       {shownOrder.map((id, index) => <OrderRow key={id} id={id} index={index} count={onHome.length} height={rowHeight} hidden={hiddenCards.includes(id)} dragging={!!drag} shift={drag ? rowShift(index, onHome.indexOf(drag.id), drag.target) : 0} move={moveCard} onDragTarget={(target) => setDrag((current) => current?.id === id && current.target === target ? current : { id, target })} onDragEnd={() => setDrag(null)} onVisible={(visible) => setCardVisible(id, visible)} />)}
     </View>
-    {activeHabits.length > 0 && <><Text style={styles.section}>Goals on Home</Text>
-    <Text style={styles.help}>Choose which habits count toward your daily goals or get their own card.</Text></>}
+    {(activeHabits.length > 0 || showSupplementGoal) && <><Text style={styles.section}>Goals on Home</Text>
+    <Text style={styles.help}>Choose what counts toward your daily goals or gets its own card.</Text></>}
     {activeHabits.map((item) => <View key={item.id} style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>{item.displayName || item.name}</Text><Text style={styles.status}>{item.habitTemplate === 'mindfulness' ? 'Mindfulness card' : templateConfig(item.habitTemplate)?.period === 'week' ? 'Weekly card' : 'Daily goal'}</Text></View><Switch accessibilityLabel={`Show ${item.displayName || item.name} on Home`} value={!hiddenHabits.includes(item.id)} onValueChange={(visible) => setHiddenHabits((current) => visible ? current.filter((id) => id !== item.id) : [...current, item.id])} /></View>)}
+    {showSupplementGoal && <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.flexText}>Supplements</Text><Text style={styles.status}>Daily goal · supplements scheduled for today</Text></View><Switch accessibilityLabel="Show Supplements on Home" value={!hiddenHabits.includes(SUPPLEMENT_GOAL_ID)} onValueChange={(visible) => setHiddenHabits((current) => visible ? current.filter((id) => id !== SUPPLEMENT_GOAL_ID) : [...current, SUPPLEMENT_GOAL_ID])} /></View>}
     <Text style={styles.section}>Goal colors</Text>
     {colorGoals.length > 0 && <Text style={styles.help}>Each goal has its own color. Tap one to change it. Dimmed colors are already used by another goal, including hidden ones.</Text>}
     {colorGoals.map((goal) => <View key={goal.id} style={styles.colorCard}><Pressable accessibilityRole="button" accessibilityState={{ expanded: openColor === goal.id }} accessibilityLabel={`${goal.title} color`} onPress={() => setOpenColor((current) => current === goal.id ? null : goal.id)} style={styles.colorHeading}><View style={[styles.colorMarker, { backgroundColor: homeGoalColor(goal.id, goalColors, goal.fallback) }]} /><Text style={styles.flexText}>{goal.title}</Text><Chevron direction={openColor === goal.id ? 'up' : 'down'} size={16} color={colors.textMuted} /></Pressable>{openColor === goal.id && <View style={styles.colorChoices}>{HOME_GOAL_COLORS.map((color) => <Pressable key={color} accessibilityRole="radio" accessibilityLabel={`${goal.title}: ${HOME_GOAL_COLOR_NAMES[color]}`} accessibilityState={{ checked: homeGoalColor(goal.id, goalColors, goal.fallback) === color, disabled: colorsInUse(goal.id).has(color) }} disabled={colorsInUse(goal.id).has(color)} onPress={() => setGoalColors((current) => ({ ...current, [goal.id]: color }))} style={[styles.colorChoice, { backgroundColor: color }, homeGoalColor(goal.id, goalColors, goal.fallback) === color && styles.colorSelected, colorsInUse(goal.id).has(color) && styles.colorTaken]}><Text style={styles.colorCheck}>{homeGoalColor(goal.id, goalColors, goal.fallback) === color ? '✓' : ''}</Text></Pressable>)}</View>}</View>)}

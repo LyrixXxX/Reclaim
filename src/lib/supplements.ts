@@ -79,6 +79,24 @@ export function supplementDosesForDate(items: Medication[], events: MedicationEv
   return scheduledDosesForDate(visibleSupplements(items), supplementEvents(items, events), date);
 }
 
+export const SUPPLEMENT_GOAL_ID = 'supplements';
+
+/** Only supplements on a daily or weekly schedule have doses due, so only they make a goal. */
+export function hasSupplementGoal(items: readonly Medication[] | undefined) {
+  return visibleSupplements([...(items ?? [])]).some((item) => !item.archived && (item.schedule.type === 'daily' || item.schedule.type === 'weekly'));
+}
+
+/**
+ * A day's doses as one goal. A dose skipped on purpose leaves the total, so skipping never counts
+ * against anyone. Null when nothing is due that day.
+ */
+export function supplementDayGoal(items: Medication[], events: MedicationEvent[], date: string) {
+  const due = supplementDosesForDate(items, events, date).filter((dose) => dose.status !== 'skipped');
+  if (!due.length) return null;
+  const taken = due.filter((dose) => dose.status === 'taken').length;
+  return { taken, total: due.length, reached: taken >= due.length };
+}
+
 export function recordSupplementDose(events: MedicationEvent[], supplement: Medication, id: string,
   outcome: 'taken' | 'skipped', scheduledFor?: string, now = new Date(), unitsTaken = supplement.defaultUnitsTaken ?? 1, customNutrients: CustomNutrient[] = []) {
   if (supplement.kind !== 'supplement' || supplement.archived) return events;

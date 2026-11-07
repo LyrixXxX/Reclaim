@@ -1,3 +1,4 @@
+import { hasSupplementGoal, SUPPLEMENT_GOAL_ID } from './supplements';
 import { AppPreferences, AppSection, HealthModule, NavigationSection, TrackerState } from '@/models/tracker';
 import { defaultDashboard, normalizeDashboard } from './dashboard';
 import { templateConfig } from './good-habit-templates';
@@ -90,8 +91,9 @@ export function setHomeGoalColors(state: TrackerState, selected: Record<string, 
 }
 
 /** Everything that can hold a Home color, including sections and habits that are hidden for now. */
-export function homeColorGoals(state: Pick<TrackerState, 'trackers' | 'stepGoals' | 'nutritionGoals'>): ColoredGoal[] {
+export function homeColorGoals(state: Pick<TrackerState, 'trackers' | 'stepGoals' | 'nutritionGoals' | 'medications'>): ColoredGoal[] {
   return [
+    ...(hasSupplementGoal(state.medications) ? [{ id: SUPPLEMENT_GOAL_ID, kind: 'supplements' }] : []),
     ...(state.stepGoals?.length ? [{ id: 'steps', kind: 'steps' }] : []),
     ...(state.nutritionGoals?.length ? [{ id: 'nutrition', kind: 'nutrition' }] : []),
     ...state.trackers.filter((item) => !item.archived && (item.habitTemplate === 'water' || templateConfig(item.habitTemplate))).map((item) => ({ id: item.id, kind: item.habitTemplate ?? 'habit' })),

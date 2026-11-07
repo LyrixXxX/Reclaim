@@ -18,7 +18,7 @@ import { useTrackers } from '@/state/tracker-context';
 import { colors, font, layout, spacing } from '@/theme';
 
 const RANGES = [{ label: '7 days', days: 7 }, { label: '30 days', days: 30 }, { label: '90 days', days: 90 }] as const;
-const FALLBACK: Record<TrendSeries['kind'], string> = { steps: colors.activityNav, nutrition: colors.nutritionNav, water: colors.habitsNav, habit: colors.habitsNav };
+const FALLBACK: Record<TrendSeries['kind'], string> = { steps: colors.activityNav, nutrition: colors.nutritionNav, water: colors.habitsNav, habit: colors.habitsNav, supplements: colors.habitsNav };
 
 /** Opened by tapping Today's progress on Home: each of those goals, day by day. */
 export default function ProgressTrendsScreen() {

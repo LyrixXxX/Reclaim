@@ -1,3 +1,4 @@
+import { hasSupplementGoal, SUPPLEMENT_GOAL_ID, supplementDayGoal } from './supplements';
 import { StepDay, TrackerState } from '@/models/tracker';
 import { goalForDate as stepGoalForDate } from './activity-step-history';
 import { goalForDate as nutritionGoalForDate, nutritionCalorieTarget, nutritionTotals } from './nutrition';
@@ -9,7 +10,7 @@ import { waterDisplayAmount, waterGoalOn, waterTotalOn } from './water-habit';
 
 /** One day of one goal. A null value means nothing to show for that day (not tracked yet, or no data). */
 export type TrendDay = { date: string; value: number | null; goal: number | null; reached: boolean | null; /** Extra detail for the day, such as where walking minutes came from. */ parts?: string[] };
-export type TrendSeries = { id: string; title: string; kind: 'steps' | 'nutrition' | 'water' | 'habit'; unit: string; href: string; days: TrendDay[] };
+export type TrendSeries = { id: string; title: string; kind: 'steps' | 'nutrition' | 'water' | 'habit' | 'supplements'; unit: string; href: string; days: TrendDay[] };
 export type TrendSummaryDay = { date: string; reached: number; total: number };
 export type TrendStats = { hitDays: number; countedDays: number; average: number | null };
 
@@ -79,6 +80,13 @@ export function progressTrends(state: TrackerState, { stepDays, phoneMinutesByDa
         `Logged ${minutes((state.goodHabitLogs ?? []).filter((log) => log.trackerId === tracker.id && log.eventDate === date).reduce((sum, log) => sum + log.amount, 0))}`,
       ] : undefined;
       return { date, value: progress.amount, goal: progress.goal, reached: progress.amount >= progress.goal, parts };
+    }) });
+  }
+
+  if (preferences.visibleSections.supplements && !hidden.has(SUPPLEMENT_GOAL_ID) && hasSupplementGoal(state.medications)) {
+    series.push({ id: SUPPLEMENT_GOAL_ID, title: 'Supplements', kind: 'supplements', unit: 'taken', href: '/supplements', days: dates.map((date) => {
+      const day = supplementDayGoal(state.medications ?? [], state.medicationEvents ?? [], date);
+      return day ? { date, value: day.taken, goal: day.total, reached: day.reached } : { date, value: null, goal: null, reached: null };
     }) });
   }
 

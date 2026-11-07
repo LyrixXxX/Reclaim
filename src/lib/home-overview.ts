@@ -7,7 +7,7 @@ import { goalForDate as nutritionGoalForDate, nutritionCalorieTarget, nutritionT
 import { DEFAULT_PREFERENCES } from './preferences';
 import { localDateKey } from './progress';
 import { formatMedicationTime } from './medications';
-import { supplementDosesForDate } from './supplements';
+import { SUPPLEMENT_GOAL_ID, supplementDayGoal, supplementDosesForDate } from './supplements';
 import { habitDate, habitProgress, routeMinutesOn, templateConfig } from './good-habit-templates';
 import { waterProgress, waterDisplayAmount } from './water-habit';
 import { walkingMinutesOutsideRoutes, WalkingInterval } from './walking-minutes';
@@ -68,7 +68,14 @@ export function homeOverview(state: TrackerState, steps: StepResult, now: Date, 
       progress: progress.goal > 0 ? progress.amount / progress.goal : 0,
       reached: progress.amount >= progress.goal, href: `/tracker/${encodeURIComponent(tracker.id)}`, weekly }];
   });
-  const dailyHabitGoals = habitGoals.filter((goal) => !goal.weekly);
+  const doses = preferences.visibleSections.supplements && !hidden.has(SUPPLEMENT_GOAL_ID) ? supplementDayGoal(state.medications ?? [], state.medicationEvents ?? [], today) : null;
+  const left = doses ? doses.total - doses.taken : 0;
+  const supplementGoal: HomeHabitGoal[] = doses ? [{
+    id: SUPPLEMENT_GOAL_ID, title: 'Supplements', value: `${doses.taken} / ${doses.total} taken`,
+    detail: `${doses.taken} of ${doses.total} taken today`, short: doses.reached ? 'All taken' : `${left} left today`,
+    progress: doses.taken / doses.total, reached: doses.reached, href: '/supplements', weekly: false,
+  }] : [];
+  const dailyHabitGoals = [...habitGoals.filter((goal) => !goal.weekly), ...supplementGoal];
   const weeklyHabitCards = habitGoals.filter((goal) => goal.weekly);
 
   const attention: HomeAttention[] = [];
