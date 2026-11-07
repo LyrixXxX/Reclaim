@@ -1,13 +1,12 @@
 export const HOME_CARDS = [
-  { id: 'quit', title: 'Featured quit timer', description: 'Your main quit, front and center.' },
+  { id: 'quit', title: 'Quit & taper timer', description: 'Time, next badge and support for what you’re quitting.' },
+  { id: 'habitBadges', title: 'Good habit badges', description: 'The next badge for each good habit.' },
   { id: 'weather', title: 'Weather', description: 'Today’s forecast for getting outside.' },
   { id: 'progress', title: 'Today’s progress', description: 'Your daily goals and how far along they are.' },
   { id: 'nutrition', title: 'Nutrition & Calories', description: 'What you’ve eaten and burned so far.' },
-  { id: 'badge', title: 'Next badge', description: 'The badge you’re closest to.' },
   { id: 'training', title: 'Training overview', description: 'Strength and cardio summaries.' },
   { id: 'mindfulness', title: 'Mindfulness', description: 'Your mindfulness goal and a quick way to start.' },
   { id: 'weekly', title: 'Weekly habits', description: 'Habits with a goal for the week.' },
-  { id: 'journey', title: 'Quitting & Tapering', description: 'Active items and their current timeframes.' },
   { id: 'weight', title: 'Weight', description: 'Your latest weigh-in and recent trend.' },
 ] as const;
 

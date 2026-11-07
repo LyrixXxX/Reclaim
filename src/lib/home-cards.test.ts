@@ -17,9 +17,15 @@ test('a saved order is kept, junk is dropped and new cards land at the end', () 
   expect(new Set(order).size).toBe(all.length);
 });
 
+test('the removed badge and journey cards drop out of a saved order', () => {
+  expect(normalizeHomeCardOrder(['journey', 'weight', 'badge'])[0]).toBe('weight');
+  expect(normalizeHomeCardOrder(['journey', 'weight', 'badge'])).not.toContain('journey');
+  expect(normalizeHiddenHomeCards(['badge', 'journey', 'quit'])).toEqual(['quit']);
+});
+
 test('hidden cards ignore anything unknown', () => {
-  expect(normalizeHiddenHomeCards(['badge', 'nope', 'badge'])).toEqual(['badge']);
-  expect(normalizeHiddenHomeCards('badge')).toEqual([]);
+  expect(normalizeHiddenHomeCards(['training', 'nope', 'training'])).toEqual(['training']);
+  expect(normalizeHiddenHomeCards('training')).toEqual([]);
 });
 
 test('weight can move to the very top', () => {
@@ -36,7 +42,7 @@ test('a move skips over cards this person cannot see', () => {
   const moved = moveHomeCard(all, 'weight', -1, available);
   expect(moved.filter((id) => available.includes(id))).toEqual(['progress', 'weight', 'nutrition']);
   expect(moved.indexOf('quit')).toBe(all.indexOf('quit'));
-  expect(moved.indexOf('badge')).toBe(all.indexOf('badge'));
+  expect(moved.indexOf('training')).toBe(all.indexOf('training'));
 });
 
 test('turned-off cards sort below the rest, keeping their order', () => {

@@ -112,3 +112,12 @@ export function validHabitLog(log: GoodHabitLog) {
     && (log.nutritionEntryId === undefined || typeof log.nutritionEntryId === 'string')
     && (log.source === undefined || log.source === 'manual' || log.source === 'nutrition'));
 }
+
+const SHORT_GOAL_NAMES: Record<string, string> = {
+  'Walk more': 'Walk', 'Build a sleep routine': 'Sleep', 'Fruits & vegetables': 'Produce', 'Read every day': 'Reading', 'Dental-care routine': 'Dental', 'Practice mindfulness': 'Mindfulness',
+};
+
+/** A short name for tight spaces. A habit someone renamed keeps their name. */
+export function shortGoalName(title: string): string {
+  return SHORT_GOAL_NAMES[title] ?? title;
+}

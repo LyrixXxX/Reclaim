@@ -1,5 +1,5 @@
 import { CravingEvent, Tracker } from '@/models/tracker';
-import { activeSavingsGoal, cravingsBeaten, featuredQuit, quitSummary, quittingStarts, totalQuitDays } from './quit-progress';
+import { activeSavingsGoal, cravingsBeaten, featuredQuit, quitSummary, quittingStarts, totalQuitDays, taperingStarts } from './quit-progress';
 
 const tracker = (id: string, startedAt?: string, extra: Partial<Tracker> = {}): Tracker => ({ id, name: id, icon: '•', color: '#fff', mode: 'abstinence', startedAt, ...extra } as Tracker);
 const DAY = 86_400_000;
@@ -48,4 +48,11 @@ describe('quit progress', () => {
     expect(activeSavingsGoal(goals, 30_000)?.progress).toBe(1);
     expect(activeSavingsGoal([], 100)).toBeUndefined();
   });
+});
+
+test('tapering items carry their level and when it began, and quits and habits stay out', () => {
+  const taper = { id: 't', name: 'Coffee', mode: 'reduction', current: 2, unit: 'cups', baseline: 4, currentStepStartedAt: '2026-11-01T08:00:00' } as never;
+  const quit = { id: 'q', name: 'Nicotine', mode: 'abstinence', startedAt: '2026-10-01T08:00:00' } as never;
+  const habit = { id: 'h', name: 'Water', mode: 'habit' } as never;
+  expect(taperingStarts([taper, quit, habit], [])).toEqual([{ tracker: taper, startedAt: '2026-11-01T08:00:00', amount: 2, unit: 'cups' }]);
 });

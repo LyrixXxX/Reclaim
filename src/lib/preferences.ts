@@ -10,7 +10,6 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   homeGoalColors: {},
   showQuittingTaperingOnHome: true,
   showTrainingOverviewOnHome: true,
-  showBadgesOnHome: true,
   homeCardOrder: normalizeHomeCardOrder(undefined),
   hiddenHomeCards: [],
   navigationOrder: ['activity', 'routes', 'goals', 'weight', 'nutrition', 'workouts', 'supplements'],
@@ -60,7 +59,6 @@ export function migratePreferences(state: TrackerState): TrackerState {
       homeGoalColors: normalizeHomeGoalColors(state.preferences?.homeGoalColors),
       showQuittingTaperingOnHome: state.preferences?.showQuittingTaperingOnHome !== false,
       showTrainingOverviewOnHome: state.preferences?.showTrainingOverviewOnHome !== false,
-      showBadgesOnHome: state.preferences?.showBadgesOnHome !== false,
       homeCardOrder: normalizeHomeCardOrder(state.preferences?.homeCardOrder),
       hiddenHomeCards: normalizeHiddenHomeCards(state.preferences?.hiddenHomeCards),
       navigationOrder: normalizeNavigationOrder(state.preferences?.navigationOrder),
@@ -121,11 +119,6 @@ export function trainingOverviewVisibleOnHome(preferences: AppPreferences): bool
 export function setHomeCards(state: TrackerState, order: readonly HomeCardId[], hidden: readonly HomeCardId[]): TrackerState {
   const preferences = state.preferences ?? DEFAULT_PREFERENCES;
   return { ...state, preferences: { ...preferences, homeCardOrder: normalizeHomeCardOrder(order), hiddenHomeCards: normalizeHiddenHomeCards(hidden) } };
-}
-
-export function setBadgesOnHome(state: TrackerState, visible: boolean): TrackerState {
-  const preferences = state.preferences ?? DEFAULT_PREFERENCES;
-  return { ...state, preferences: { ...preferences, showBadgesOnHome: visible } };
 }
 
 export function setTrainingOverviewOnHome(state: TrackerState, visible: boolean): TrackerState {

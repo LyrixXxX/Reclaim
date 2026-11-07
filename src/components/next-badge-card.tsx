@@ -17,7 +17,7 @@ export function NextBadgeCard({ next, earned = [], showLatest = false }: { next:
       <Image source={badgeImages(next.tracker)[next.index]} resizeMode="contain" style={styles.badge} accessible={false} />
       <View style={styles.copy}>
         <Text style={styles.eyebrow}>NEXT BADGE</Text>
-        <Text style={styles.title} numberOfLines={1}>{next.label} · {next.name}</Text>
+        <Text style={styles.title}>{next.label} · {next.name}</Text>
         <View style={styles.track}><View style={[styles.fill, { width: `${Math.max(percent, 2)}%`, backgroundColor: BADGE_ACCENTS[next.index] }]} /></View>
         <Text style={styles.line}>{next.line}</Text>
       </View>

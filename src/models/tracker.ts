@@ -215,7 +215,6 @@ export type AppPreferences = {
   dismissedNotices?: string[];
   /** Badges already celebrated, as trackerId:days. Unset until the first check, which celebrates nothing. */
   seenBadges?: string[];
-  showBadgesOnHome?: boolean;
   /** The order of the cards on Home. */
   homeCardOrder?: HomeCardId[];
   hiddenHomeCards?: HomeCardId[];

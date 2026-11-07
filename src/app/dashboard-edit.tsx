@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Chevron } from '@/components/icon';
 import { DASHBOARD_WIDGETS, dashboardWidgetAllowed, normalizeDashboard } from '@/lib/dashboard';
 import { HOME_CARDS, hiddenCardsLast, HomeCardId, moveHomeCard, normalizeHiddenHomeCards, normalizeHomeCardOrder, reorderForVisibility } from '@/lib/home-cards';
-import { quittingStarts } from '@/lib/quit-progress';
+import { quittingStarts, taperingStarts } from '@/lib/quit-progress';
 import { DEFAULT_PREFERENCES, homeColorGoals } from '@/lib/preferences';
 import { HOME_GOAL_COLOR_NAMES, HOME_GOAL_COLORS, homeGoalColor } from '@/lib/home-goal-colors';
 import { templateConfig } from '@/lib/good-habit-templates';
@@ -15,16 +15,15 @@ import { useTrackers } from '@/state/tracker-context';
 import { colors, layout, font } from '@/theme';
 
 export default function DashboardEditor() {
-  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setBadgesOnHome, setHomeCards, setQuittingTaperingOnHome, setTrainingOverviewOnHome, taperSteps = [] } = useTrackers();
+  const { preferences = DEFAULT_PREFERENCES, trackers, stepGoals = [], nutritionGoals = [], labTrackers = [], saveDashboard, setHomeHabitVisible, setHomeGoalColors, setHomeCards, setQuittingTaperingOnHome, setTrainingOverviewOnHome, taperSteps = [] } = useTrackers();
   const [draft, setDraft] = useState(() => normalizeDashboard(preferences.dashboard));
   const [hiddenHabits, setHiddenHabits] = useState<string[]>(preferences.hiddenHomeHabitIds ?? []);
   const [goalColors, setGoalColors] = useState<Record<string, string>>(preferences.homeGoalColors ?? {});
   // The older on/off settings still count, so anything already hidden shows as hidden here.
   const [hiddenCards, setHiddenCards] = useState<HomeCardId[]>(() => [...new Set<HomeCardId>([
     ...normalizeHiddenHomeCards(preferences.hiddenHomeCards),
-    ...(preferences.showQuittingTaperingOnHome === false ? ['quit', 'journey'] as const : []),
+    ...(preferences.showQuittingTaperingOnHome === false ? ['quit'] as const : []),
     ...(preferences.showTrainingOverviewOnHome === false ? ['training'] as const : []),
-    ...(preferences.showBadgesOnHome === false ? ['badge'] as const : []),
     ...(normalizeDashboard(preferences.dashboard).find((item) => item.id === 'weight')?.visible === false ? ['weight'] as const : []),
   ])]);
   const [cardOrder, setCardOrder] = useState(() => hiddenCardsLast(normalizeHomeCardOrder(preferences.homeCardOrder), hiddenCards));
@@ -44,17 +43,16 @@ export default function DashboardEditor() {
   const colorsInUse = (goalId: string) => new Set(homeColorGoals({ trackers, stepGoals, nutritionGoals }).filter((goal) => goal.id !== goalId).map((goal) => goalColors[goal.id]));
   const exit = () => router.replace('/' as Href);
   const sections = preferences.visibleSections;
-  const hasQuits = quittingStarts(trackers, taperSteps).length > 0;
+  const hasQuitsOrTapers = quittingStarts(trackers, taperSteps).length + taperingStarts(trackers, taperSteps).length > 0;
   const cardAvailable: Record<HomeCardId, boolean> = {
-    quit: sections.goals && hasQuits,
+    quit: sections.goals && hasQuitsOrTapers,
+    habitBadges: sections.goals && activeHabits.length > 0,
     weather: !!sections.routes,
     progress: true,
     nutrition: sections.nutrition && nutritionGoals.length > 0,
-    badge: sections.goals,
     training: !!sections.workouts,
     mindfulness: activeHabits.some((item) => item.habitTemplate === 'mindfulness'),
     weekly: activeHabits.some((item) => templateConfig(item.habitTemplate)?.period === 'week'),
-    journey: sections.goals && hasQuits,
     weight: dashboardWidgetAllowed('weight', preferences),
   };
   const shownOrder = cardOrder.filter((id) => cardAvailable[id]);
@@ -66,10 +64,9 @@ export default function DashboardEditor() {
   };
   const save = () => {
     for (const item of trackers) if ((preferences.hiddenHomeHabitIds ?? []).includes(item.id) !== hiddenHabits.includes(item.id)) setHomeHabitVisible(item.id, !hiddenHabits.includes(item.id));
-    const showQuitting = !(hiddenCards.includes('quit') && hiddenCards.includes('journey'));
+    const showQuitting = !hiddenCards.includes('quit');
     if ((preferences.showQuittingTaperingOnHome !== false) !== showQuitting) setQuittingTaperingOnHome(showQuitting);
     if ((preferences.showTrainingOverviewOnHome !== false) === hiddenCards.includes('training')) setTrainingOverviewOnHome(!hiddenCards.includes('training'));
-    if ((preferences.showBadgesOnHome !== false) === hiddenCards.includes('badge')) setBadgesOnHome(!hiddenCards.includes('badge'));
     setHomeGoalColors(goalColors);
     saveDashboard(draft.map((item) => item.id === 'weight' ? { ...item, visible: !hiddenCards.includes('weight') } : item));
     setHomeCards(cardOrder, hiddenCards);

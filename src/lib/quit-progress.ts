@@ -17,6 +17,23 @@ export function quittingStarts(trackers: readonly Tracker[], steps: readonly Tap
     });
 }
 
+export type TaperStart = { tracker: Tracker; startedAt?: string; amount?: number; unit: string };
+
+/** Everything being tapered, with when its current level began. */
+export function taperingStarts(trackers: readonly Tracker[], steps: readonly TaperStep[]): TaperStart[] {
+  return trackers
+    .filter((tracker) => !tracker.archived && trackerJourneySection(tracker, [...steps]) === 'reducing')
+    .map((tracker) => {
+      const current = steps.find((step) => step.trackerId === tracker.id && step.status === 'current');
+      return {
+        tracker,
+        startedAt: current?.startedAt ?? tracker.currentStepStartedAt ?? (tracker.baseline === tracker.current ? tracker.startedAt : undefined),
+        amount: current?.amount ?? tracker.current,
+        unit: (current?.unit ?? tracker.unit ?? '').trim(),
+      };
+    });
+}
+
 /** The quit the user chose to feature, or the first running one. */
 export function featuredQuit(starts: readonly QuitStart[], featuredId?: string): QuitStart | undefined {
   const running = starts.filter((item) => item.startedAt);

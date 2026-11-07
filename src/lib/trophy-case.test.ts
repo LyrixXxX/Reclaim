@@ -1,6 +1,6 @@
 import { Tracker } from '@/models/tracker';
 import { habitMilestones, templateMilestoneProgress } from './habit-milestones';
-import { badgeUnlocks, badgesEarnedToday, closestBadge, earnedBadges, nextBadge, trackerBadges, trophyCaseHref } from './trophy-case';
+import { badgeUnlocks, badgesEarnedToday, closestBadge, earnedBadges, nextBadge, trackerBadges, trophyCaseHref, goodHabitNextBadges } from './trophy-case';
 
 const water: Tracker = { id: 'water', name: 'Drink water', icon: 'water', color: '#fff', mode: 'habit', habitTemplate: 'water', startedAt: '2026-01-01T08:00:00', waterGoals: [{ effectiveDate: '2026-01-01', ounces: 64 }] };
 const waterLog = (date: string, ounces = 64) => ({ id: date, trackerId: 'water', eventDate: date, ounces, recordedAt: `${date}T12:00:00Z` });
@@ -136,4 +136,15 @@ describe('unlocks', () => {
 test('the trophy case opens on the tab a tracker belongs to', () => {
   expect(trophyCaseHref(water)).toBe('/trophy-case?tab=good');
   expect(trophyCaseHref(quit)).toBe('/trophy-case?tab=quit');
+});
+
+describe('good habit badges on Home', () => {
+  const badges = (id: string, quit: boolean, runDays: number) => ({ tracker: { id, name: id, mode: quit ? 'abstinence' : 'habit' }, name: id, quit, runDays, periodDays: 1, canEarn: true, started: true, awards: [] }) as never;
+  test('good habits only, closest first, without hidden ones', () => {
+    const list = [badges('slow', false, 2), badges('quit', true, 6), badges('close', false, 6), badges('hidden', false, 6)];
+    expect(goodHabitNextBadges(list, ['hidden']).map((item) => item.name)).toEqual(['close', 'slow']);
+  });
+  test('nothing to show with no good habits', () => {
+    expect(goodHabitNextBadges([badges('quit', true, 6)])).toEqual([]);
+  });
 });

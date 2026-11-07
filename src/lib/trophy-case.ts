@@ -57,6 +57,13 @@ export function closestBadge(list: readonly TrackerBadges[]): NextBadge | null {
   return options.sort((a, b) => b.progress - a.progress || a.remainingDays - b.remainingDays)[0] ?? null;
 }
 
+/** Each good habit's next badge, closest first. Habits hidden from Home stay out. */
+export function goodHabitNextBadges(list: readonly TrackerBadges[], hiddenIds: readonly string[] = []): NextBadge[] {
+  return list.filter((item) => !item.quit && !hiddenIds.includes(item.tracker.id))
+    .map(nextBadge).filter((item): item is NextBadge => item !== null)
+    .sort((a, b) => b.progress - a.progress || a.remainingDays - b.remainingDays);
+}
+
 /** Badges earned at least once, newest first. Earning one again adds to its count. */
 export function earnedBadges(list: readonly TrackerBadges[]): EarnedBadge[] {
   return list.flatMap(({ tracker, name, awards }) => awards.flatMap((award, index) => award.dates.length
