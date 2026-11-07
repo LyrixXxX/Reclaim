@@ -6,6 +6,16 @@ export type ReleaseNotes = { version: string; date: string; notes: string[] };
 
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
   {
+    version: '1.0.73',
+    date: 'November 6, 2026',
+    notes: [
+      'Put your Home cards in any order, and hide the ones you don’t need, in Edit dashboard.',
+      'Your quit timer now shows its next badge and includes anything you’re tapering. A new card does the same for good habits.',
+      'Long goal names no longer get cut off, and goals turn bold and colored at 100%.',
+      'The Fruits & vegetables goal has been removed, along with its history. Log them in Nutrition instead.',
+    ],
+  },
+  {
     version: '1.0.72',
     date: 'November 6, 2026',
     notes: [
