@@ -28,6 +28,8 @@ export default function NutritionAddScreen() {
   const [renaming, setRenaming] = useState<FoodChoice>();
   const [picked, setPicked] = useState<FoodChoice>();
   const [added, setAdded] = useState<{ ids: string[]; title: string; detail: string }>();
+  // The last food logged with "Log and add another", while the next one is being chosen.
+  const [lastAdded, setLastAdded] = useState<{ id: string; text: string }>();
   const groups = useMemo(() => nutritionMealGroups.filter((group) => !group.archived).sort((a, b) => a.sortOrder - b.sortOrder), [nutritionMealGroups]);
   const recents = useMemo(() => recentFoodChoices(nutritionEntries), [nutritionEntries]);
   const trimmed = query.trim();
@@ -56,10 +58,20 @@ export default function NutritionAddScreen() {
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
-  const finish = () => { setAdded(undefined); void showCompletionAd('meal').finally(() => router.replace({ pathname: '/nutrition', params: { date } })); };
+  const finish = () => {
+    setAdded(undefined);
+    if (date !== today()) { router.replace({ pathname: '/nutrition', params: { date } }); return; }
+    void showCompletionAd('meal').finally(() => router.replace({ pathname: '/nutrition', params: { date } }));
+  };
+  const addAnother = () => { setAdded(undefined); setQuery(''); setView('home'); };
   const undo = () => { added?.ids.forEach((id) => deleteNutritionEntry(id, true)); setAdded(undefined); };
 
   return <SafeAreaView style={styles.safe} edges={['bottom']}>
+    {lastAdded && <View style={styles.addedBar}>
+      <Text style={styles.addedText} numberOfLines={2}>{lastAdded.text}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Undo: ${lastAdded.text}`} hitSlop={8} onPress={() => { deleteNutritionEntry(lastAdded.id, true); setLastAdded(undefined); }}><Text style={styles.addedUndo}>Undo</Text></Pressable>
+      <Pressable accessibilityRole="button" hitSlop={8} onPress={finish}><Text style={styles.addedDone}>Done</Text></Pressable>
+    </View>}
     {view === 'home' ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
       <Text style={styles.prompt}>How would you like to add it?</Text>
       <Option icon="✦" title="Describe meal" detail="Type what you ate." onPress={() => openEntry('text')} />
@@ -93,18 +105,20 @@ export default function NutritionAddScreen() {
         </>}
       </ScrollView>
     </>}
-    {picked && <AmountSheet item={picked} date={date} groups={groups} initialMeal={params.meal ?? suggestedMealGroupId(groups) ?? groups[0]?.id} onClose={() => setPicked(undefined)} onLog={(entry, mealName) => {
+    {picked && <AmountSheet item={picked} date={date} groups={groups} initialMeal={params.meal ?? suggestedMealGroupId(groups) ?? groups[0]?.id} onClose={() => setPicked(undefined)} onLog={(entry, mealName, another) => {
       const batch = { entries: [entry], foods: [] };
       prepareNutritionLogBatch(batch);
       saveNutritionLogBatch(batch);
       setPicked(undefined);
       setQuery('');
       const calories = nutritionEntryCalories(entry);
+      if (another) { setLastAdded({ id: entry.id!, text: `Added ${entry.name} to ${mealName}` }); setView('home'); return; }
+      setLastAdded(undefined);
       if (date === today()) setAdded({ ids: [entry.id!], title: `Added to ${mealName}`, detail: `${entry.name} · ${fmt(calories)} kcal` });
       else router.replace({ pathname: '/nutrition', params: { date } });
     }} />}
     {renaming && <RenameDialog food={renaming} onClose={() => setRenaming(undefined)} onSave={(name) => { renameLoggedFood(renaming, name); setRenaming(undefined); }} />}
-    <SavedAdConfirmation visible={!!added} title={added?.title} subject={added?.detail} onContinue={finish} onUndo={undo} />
+    <SavedAdConfirmation visible={!!added} title={added?.title} subject={added?.detail} onContinue={finish} onUndo={undo} onAddAnother={addAnother} />
   </SafeAreaView>;
 }
 
@@ -153,7 +167,7 @@ function Highlighted({ text, query }: { text: string; query?: string }) {
 
 type EntryDraft = Parameters<typeof prepareNutritionLogBatch>[0]['entries'][number];
 
-function AmountSheet({ item, date, groups, initialMeal, onClose, onLog }: { item: FoodChoice; date: string; groups: { id: string; name: string }[]; initialMeal?: string; onClose: () => void; onLog: (entry: EntryDraft, mealName: string) => void }) {
+function AmountSheet({ item, date, groups, initialMeal, onClose, onLog }: { item: FoodChoice; date: string; groups: { id: string; name: string }[]; initialMeal?: string; onClose: () => void; onLog: (entry: EntryDraft, mealName: string, another: boolean) => void }) {
   const canWeigh = !!item.servingWeightGrams;
   const [mode, setMode] = useState<'servings' | 'weight'>('servings');
   const [servings, setServings] = useState(fmt(item.servings));
@@ -168,7 +182,7 @@ function AmountSheet({ item, date, groups, initialMeal, onClose, onLog }: { item
   const step = (delta: number) => setServings((current) => fmt(Math.max(0.25, (Number(current) || 0) + delta)));
   const group = groups.find((entry) => entry.id === meal);
 
-  const log = () => {
+  const log = (another: boolean) => {
     if (!multiplier) { setError(mode === 'weight' ? 'Enter how many grams you ate.' : 'Enter how many servings you ate.'); return; }
     if (!group) { setError('Choose a meal.'); return; }
     try {
@@ -177,7 +191,7 @@ function AmountSheet({ item, date, groups, initialMeal, onClose, onLog }: { item
         foodId: item.foodId, name: item.name, brand: item.brand, servingLabel: item.servingLabel || '1 serving', servings: multiplier,
         amountMode: mode, consumedAmount: mode === 'weight' ? Number(weight) : undefined, consumedUnit: mode === 'weight' ? 'g' : undefined,
         servingWeightGrams: item.servingWeightGrams, nutrients: item.nutrients, statedCalories: item.statedCalories, source: item.foodId ? 'saved_food' : 'manual',
-      }, group.name);
+      }, group.name, another);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Check the amount.'); }
   };
 
@@ -207,7 +221,8 @@ function AmountSheet({ item, date, groups, initialMeal, onClose, onLog }: { item
         <View style={styles.meals}>{groups.map((entry) => <Pressable key={entry.id} accessibilityRole="radio" accessibilityState={{ checked: meal === entry.id }} onPress={() => setMeal(entry.id)} style={[styles.mealChip, meal === entry.id && styles.mealChipOn]}><Text style={[styles.mealChipText, meal === entry.id && styles.mealChipTextOn]}>{entry.name}</Text></Pressable>)}</View>
 
         {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        <Pressable accessibilityRole="button" onPress={log} style={styles.logButton}><Text style={styles.logText}>Log{group ? ` to ${group.name}` : ''}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => log(false)} style={styles.logButton}><Text style={styles.logText}>Log{group ? ` to ${group.name}` : ''}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => log(true)} style={styles.anotherButton}><Text style={styles.anotherText}>Log and add another</Text></Pressable>
       </SafeAreaView>
     </View>
   </Modal>;
@@ -278,6 +293,12 @@ const styles = StyleSheet.create({
   mealChipText: { color: colors.textMuted, fontSize: 14, fontFamily: font.semibold },
   mealChipTextOn: { color: colors.nutritionNav },
   error: { color: colors.danger, fontSize: 13, fontFamily: font.medium, marginTop: 12 },
+  addedBar: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: spacing.lg, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.surfaceRaised },
+  addedText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18, fontFamily: font.medium },
+  addedUndo: { color: colors.textMuted, fontSize: 14, fontFamily: font.semibold },
+  addedDone: { color: colors.nutritionNav, fontSize: 14, fontFamily: font.bold },
+  anotherButton: { minHeight: 48, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  anotherText: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
   logButton: { minHeight: 54, borderRadius: radius.pill, backgroundColor: colors.nutritionNav, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
   logText: { color: colors.background, fontSize: 16, fontFamily: font.bold },
 });

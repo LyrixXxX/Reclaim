@@ -1,12 +1,13 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, layout, spacing, font } from '@/theme';
 
-export function SavedAdConfirmation({ visible, onContinue, onUndo, title = 'Saved', subject = 'Your entry' }: { visible: boolean; onContinue: () => void; onUndo?: () => void; title?: string; subject?: string }) {
+export function SavedAdConfirmation({ visible, onContinue, onUndo, onAddAnother, title = 'Saved', subject = 'Your entry' }: { visible: boolean; onContinue: () => void; onUndo?: () => void; onAddAnother?: () => void; title?: string; subject?: string }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onContinue}>
     <View style={styles.backdrop}><View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{onUndo ? subject : `${subject} is saved.`}</Text>
       <Pressable accessibilityRole="button" onPress={onContinue} style={styles.button}><Text style={styles.buttonText}>{onUndo ? 'Done' : 'Continue'}</Text></Pressable>
+      {onAddAnother && <Pressable accessibilityRole="button" onPress={onAddAnother} style={styles.another}><Text style={styles.anotherText}>Add another food</Text></Pressable>}
       {onUndo && <Pressable accessibilityRole="button" onPress={onUndo} style={styles.undo}><Text style={styles.undoText}>Undo</Text></Pressable>}
     </View></View>
   </Modal>;
@@ -19,6 +20,8 @@ const styles = StyleSheet.create({
   body: { color: colors.textMuted, fontSize: 15, fontFamily: font.regular, lineHeight: 22, marginTop: 10 },
   button: { minHeight: 48, backgroundColor: colors.accent, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   buttonText: { color: colors.background, fontSize: 15, fontFamily: font.semibold },
+  another: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  anotherText: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
   undo: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   undoText: { color: colors.textMuted, fontSize: 14, fontFamily: font.semibold },
 });
