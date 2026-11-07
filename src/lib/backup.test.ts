@@ -1,4 +1,4 @@
-import { backupSummary, createReclaimBackup, parseReclaimBackup } from '@/lib/backup';
+import { backupSummary, createReclaimBackup, parseReclaimBackup, importFileKind } from '@/lib/backup';
 import { TrackerState } from '@/models/tracker';
 
 const state: TrackerState = {
@@ -91,5 +91,16 @@ describe('full Reclaim backups', () => {
 
   it('summarizes records before a restore', () => {
     expect(backupSummary(state)).toEqual({ trackers: 1, checkIns: 2, cpapReadings: 1, weightEntries: 1, healthRecords: 0, nutritionEntries: 0 });
+  });
+});
+
+describe('one Import button', () => {
+  it('recognizes each Reclaim file and nothing else', () => {
+    expect(importFileKind(JSON.stringify(createReclaimBackup({ trackers: [], checkIns: [] } as never)))).toBe('backup');
+    expect(importFileKind(JSON.stringify({ format: 'reclaim-weight-export', version: 1, unit: 'lb', entries: [] }))).toBe('weight');
+    expect(importFileKind(JSON.stringify({ format: 'something-else' }))).toBeNull();
+    expect(importFileKind('[]')).toBeNull();
+    expect(importFileKind('null')).toBeNull();
+    expect(importFileKind('not json')).toBeNull();
   });
 });

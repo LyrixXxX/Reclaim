@@ -34,7 +34,7 @@ import {
   setTrackerArchived,
   TrackerDraft, isRemovedFruitAndVegGoal, removeFruitAndVegGoals } from '@/lib/tracker-management';
 import { addTaperStep, deleteTaperStep, editTaperStep, insertHistoricalTaperStep, migrateTaperState, TaperStepInput } from '@/lib/taper';
-import { mergeWeightImport, upsertWeightEntry, WeightExport } from '@/lib/weight';
+import { upsertWeightEntry, weightImportPlan, WeightExport } from '@/lib/weight';
 import { deleteRoutePhotos } from '@/lib/route-photos';
 import { assignHomeGoalColors, DEFAULT_PREFERENCES, migratePreferences, setHomeCards, setHomeGoalColors, setHomeHabitVisible, setNavigationOrder, setQuittingTaperingOnHome, setRouteCaloriesInNutrition, setSectionVisible, setTrainingOverviewOnHome } from '@/lib/preferences';
 import { restoreStepHistory, setDailyStepGoal } from '@/lib/activity-step-history';
@@ -377,8 +377,8 @@ export function TrackerProvider({ children }: PropsWithChildren) {
     deleteReductionStep: (stepId, confirmed) =>
       setState((previous) => deleteTaperStep(previous, stepId, confirmed).state),
     importWeightHistory: (file) => {
-      const result = mergeWeightImport(state.weightEntries ?? [], file);
-      setState((previous) => ({ ...previous, weightEntries: mergeWeightImport(previous.weightEntries ?? [], file).entries }));
+      const result = weightImportPlan(state.weightEntries ?? [], file);
+      setState((previous) => ({ ...previous, weightEntries: weightImportPlan(previous.weightEntries ?? [], file).entries }));
       return { added: result.added, duplicates: result.duplicates };
     },
     saveWeightEntry: (entry) => setState((previous) => ({ ...previous, weightEntries: upsertWeightEntry(previous.weightEntries ?? [], entry) })),

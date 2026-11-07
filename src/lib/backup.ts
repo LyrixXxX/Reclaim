@@ -304,3 +304,15 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
+
+/** Which kind of Reclaim file this is, so one Import button can handle them all. Null for anything else. */
+export function importFileKind(raw: string): 'backup' | 'weight' | null {
+  try {
+    const format = (JSON.parse(raw) as { format?: unknown } | null)?.format;
+    if (format === RECLAIM_BACKUP_FORMAT) return 'backup';
+    if (format === 'reclaim-weight-export') return 'weight';
+    return null;
+  } catch {
+    return null;
+  }
+}

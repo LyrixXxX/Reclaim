@@ -53,6 +53,16 @@ export function mergeWeightImport(existing: WeightEntry[], file: WeightExport) {
   return { entries: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)), added, duplicates };
 }
 
+/**
+ * What an import would do, for showing before anything changes. Old goal weights are left out,
+ * because the newest saved goal becomes the current one and an old file could replace it.
+ */
+export function weightImportPlan(existing: WeightEntry[], file: WeightExport) {
+  const merged = mergeWeightImport(existing, { ...file, entries: file.entries.map(({ goal: _goal, ...entry }) => entry) });
+  const added = [...file.entries].map((entry) => entry.date).filter((date) => !existing.some((entry) => entry.date === date)).sort();
+  return { ...merged, firstDate: added[0], lastDate: added.at(-1) };
+}
+
 export function upsertWeightEntry(entries: WeightEntry[], input: Omit<WeightEntry, 'id' | 'recordedAt'>, now = new Date().toISOString()) {
   const next: WeightEntry = { ...input, id: `weight-${input.date}`, recordedAt: now };
   return [...entries.filter((entry) => entry.date !== input.date), next].sort((a, b) => a.date.localeCompare(b.date));

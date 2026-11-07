@@ -11,7 +11,8 @@ import { AdsConsent } from 'react-native-google-mobile-ads';
 import { MainScreenHeader } from '@/components/main-screen-header';
 import { LocalSaveStatus } from '@/components/local-save-status';
 import { RemoveAdsButton } from '@/components/remove-ads-button';
-import { backupSummary, parseReclaimBackup } from '@/lib/backup';
+import { backupSummary, importFileKind, parseReclaimBackup } from '@/lib/backup';
+import { parseWeightExport, weightImportPlan } from '@/lib/weight';
 import { readActiveRoute } from '@/lib/activity-recording';
 import { createPortableBackup, restorePortableBackup } from '@/lib/backup-files';
 import { DEFAULT_PREFERENCES, moveNavigationSection, normalizeNavigationOrder } from '@/lib/preferences';
@@ -40,6 +41,8 @@ export default function SettingsScreen() {
     setRouteCaloriesInNutrition,
     getBackupState,
     restoreBackupState,
+    weightEntries = [],
+    importWeightHistory,
   } = useTrackers();
   const [backupBusy, setBackupBusy] = useState(false);
   const [draggingNavigation, setDraggingNavigation] = useState(false);
@@ -67,24 +70,50 @@ export default function SettingsScreen() {
     }
   };
 
-  const chooseBackup = async () => {
+  const askToRestore = (raw: string) => {
+    const backup = parseReclaimBackup(raw);
+    const summary = backupSummary(backup.state);
+    const exported = new Date(backup.exportedAt).toLocaleString(undefined, { hour12: true });
+    Alert.alert(
+      'Restore this Reclaim backup?',
+      `Created ${exported}\n\n${summary.trackers} trackers · ${summary.weightEntries} weigh-ins · ${summary.nutritionEntries} food entries\n\nThis replaces all the data in this copy of Reclaim. It does not change or delete data in the app that created the backup.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restore backup', onPress: () => { void finishRestore(backup); } },
+      ],
+    );
+  };
+
+  const askToAddWeights = (raw: string) => {
+    const file = parseWeightExport(raw);
+    const plan = weightImportPlan(weightEntries, file);
+    if (!plan.added) { Alert.alert('Nothing to add', 'Every date in this file already has a weigh-in, so nothing changed.'); return; }
+    const shortDate = (date?: string) => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    Alert.alert(
+      `Add ${plan.added} ${plan.added === 1 ? 'weigh-in' : 'weigh-ins'}?`,
+      `From ${shortDate(plan.firstDate)} to ${shortDate(plan.lastDate)}.${plan.duplicates ? ` ${plan.duplicates} ${plan.duplicates === 1 ? 'date already has a weigh-in and will be' : 'dates already have a weigh-in and will be'} skipped.` : ''}\n\nYour existing weigh-ins won’t change. There’s no one-tap undo, so consider exporting a backup first.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add weigh-ins', onPress: () => {
+          const done = importWeightHistory(file);
+          Alert.alert('Weight history added', `Added ${done.added} ${done.added === 1 ? 'weigh-in' : 'weigh-ins'}.${done.duplicates ? ` Skipped ${done.duplicates} ${done.duplicates === 1 ? 'date' : 'dates'} that already had one.` : ''}`);
+        } },
+      ],
+    );
+  };
+
+  const chooseImport = async () => {
     if (backupBusy) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (result.canceled) return;
-      const backup = parseReclaimBackup(await new File(result.assets[0].uri).text());
-      const summary = backupSummary(backup.state);
-      const exported = new Date(backup.exportedAt).toLocaleString(undefined, { hour12: true });
-      Alert.alert(
-        'Restore this Reclaim backup?',
-        `Created ${exported}\n\n${summary.trackers} trackers · ${summary.weightEntries} weigh-ins · ${summary.nutritionEntries} food entries\n\nThis replaces the data in this copy of Reclaim. It does not change or delete data in the app that created the backup.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Restore backup', onPress: () => { void finishRestore(backup); } },
-        ],
-      );
+      const raw = await new File(result.assets[0].uri).text();
+      const kind = importFileKind(raw);
+      if (kind === 'backup') askToRestore(raw);
+      else if (kind === 'weight') askToAddWeights(raw);
+      else Alert.alert('Not a Reclaim file', 'Choose a backup or weight history file exported from Reclaim. Nothing was changed.');
     } catch (error) {
-      Alert.alert('Could not read backup', messageFrom(error));
+      Alert.alert('Could not read this file', messageFrom(error));
     }
   };
 
@@ -140,8 +169,9 @@ export default function SettingsScreen() {
       <Text style={styles.backupTitle}>Your Reclaim data</Text>
       <Text style={styles.backupText}>Export your local records and settings. The backup stays local until you choose where to save it.</Text>
       <Pressable disabled={backupBusy} style={[styles.primary, backupBusy && styles.disabled]} onPress={() => { void exportBackup(); }}><Text style={styles.primaryText}>{backupBusy ? 'Working…' : 'Export Reclaim backup'}</Text></Pressable>
-      <Pressable disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseBackup(); }}><Text style={styles.secondaryText}>Restore from backup</Text></Pressable>
-      <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust.</Text>
+      <Pressable accessibilityRole="button" disabled={backupBusy} style={[styles.secondary, backupBusy && styles.disabled]} onPress={() => { void chooseImport(); }}><Text style={styles.secondaryText}>Import</Text></Pressable>
+      <Text style={styles.privacy}>Import works with any Reclaim file and tells you what it will do first. A full backup replaces everything here. A weight history file only adds dates you don’t have yet.</Text>
+      <Text style={styles.privacy}>Backup files can contain private health information. Store them somewhere you trust. Route photos and walking-time history stay on this phone and aren’t included.</Text>
     </View>
     <Text style={styles.section}>Bottom navigation</Text><Text style={styles.navHint}>Drag the handles to set the order. The first three sit in the bottom bar next to Home; the rest are under More.</Text><View style={styles.card}>{navigationOrder.map((id, index) => { const item = sections.find((section) => section.id === id)!; return <NavigationSettingRow key={item.id} pinned={navigationOrder.filter((sectionId) => preferences.visibleSections[sectionId]).slice(0, 3).includes(item.id)} index={index} count={navigationOrder.length} label={item.label} description={item.description} value={preferences.visibleSections[item.id] ?? false} onDragStart={() => setDraggingNavigation(true)} onDragEnd={(offset) => { setDraggingNavigation(false); const target = Math.max(0, Math.min(navigationOrder.length - 1, index + Math.round(offset / 78))); setNavigationOrder(moveNavigationSection(navigationOrder, index, target)); }} onChange={(value) => {
       if (item.id !== 'routes' || value) { setSectionVisibility(item.id, value); return; }
