@@ -4,7 +4,7 @@ export const PRIVACY_POLICY_URL = 'https://lyrixstudios.com/reclaim/privacy/';
 export const PRIVACY_SECTIONS = [
   {
     title: 'What stays on your device',
-    body: 'Habit and quit trackers, cravings, savings goals, good-habit logs, weight, meals, supplement schedules and dose history, step totals and walking-time intervals, workouts and routines, and saved routes and any photos you add to them are stored on your device. Reclaim does not require an account and has no analytics or tracking SDKs. App-lock PIN verification stays in secure device storage and is not included in backups. Route photos are not included in backups either, so they stay on the phone you added them on. Some records from earlier versions may remain locally and in backups, but are not displayed or updated.',
+    body: 'Habit and quit trackers, cravings, savings goals, good-habit logs, weight, meals, supplement schedules and dose history, step totals and walking-time intervals, workouts and routines, and saved routes and any photos you add to them, and your height, birth year and calorie-formula choice if you add them, are stored on your device. Reclaim does not require an account and has no analytics or tracking SDKs. App-lock PIN verification stays in secure device storage and is not included in backups. Route photos are not included in backups either, so they stay on the phone you added them on. Some records from earlier versions may remain locally and in backups, but are not displayed or updated.',
   },
   {
     title: 'Permissions and location',

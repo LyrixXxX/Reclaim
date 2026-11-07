@@ -31,7 +31,7 @@ describe('walkingStride', () => {
   });
 
   it('falls back to height, then a typical stride', () => {
-    expect(walkingStride({ weightTdeeProfile: { heightCm: 180, birthDate: '1990-01-01', formulaSex: 'male' } })).toEqual({ meters: 1.8 * 0.413, source: 'height', walkCount: 0 });
+    expect(walkingStride({ weightTdeeProfile: { heightCm: 180, birthYear: 1990, formulaSex: 'male' } })).toEqual({ meters: 1.8 * 0.413, source: 'height', walkCount: 0 });
     expect(walkingStride({ nutritionGoals: [{ id: 'g', effectiveDate: '2026-10-01', recordedAt: '2026-10-01', calculation: { sourceWeightLb: 180, referenceWeightLb: 170, heightCm: 170 } } as never] }).meters).toBeCloseTo(1.7 * 0.413);
     expect(walkingStride(undefined)).toEqual({ meters: TYPICAL_STRIDE_METERS, source: 'typical', walkCount: 0 });
   });

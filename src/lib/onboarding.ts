@@ -3,6 +3,7 @@ import { setDailyStepGoal } from './activity-step-history';
 import { macroCalories, upsertNutritionGoal } from './nutrition';
 import { localDateKey } from './progress';
 import { upsertWeightEntry } from './weight';
+import { parseDetails } from './personal-details';
 import { generateTrackerId, trackerFromDraft, TrackerDraft } from './tracker-management';
 import { GOOD_HABIT_TEMPLATES } from './good-habit-templates';
 import { WATER_HABIT_NAME } from './water-habit';
@@ -10,6 +11,13 @@ import { AppPreferences, DashboardWidgetId, NavigationSection, OnboardingArea, O
 import { colors } from '@/theme';
 
 export type OnboardingSetupDraft = NonNullable<TrackerState['onboardingSetupDraft']>;
+
+const DETAILS_AREAS: readonly OnboardingArea[] = ['activity', 'routes', 'nutrition', 'weight', 'workouts'];
+
+/** Height, birth year and weight only matter to areas that estimate calories or distance. */
+export function needsPersonalDetails(picks: readonly OnboardingArea[]) {
+  return picks.some((area) => DETAILS_AREAS.includes(area));
+}
 
 export function parseFirstWeight(value: string) {
   const weight = Number(value.trim());
@@ -146,7 +154,8 @@ export function completeOnboarding(state: TrackerState, now = new Date()): Track
   const dashboard = widgetOrder.map((id) => ({ id, visible: selectedWidgets.includes(id), expanded: false }));
   const date = localDateKey(now);
   const draft = state.onboardingSetupDraft;
-  const weightEntries = has('weight') && draft?.weight && !draft.weight.skipped && draft.weight.value.trim()
+  const details = needsPersonalDetails(selections) && draft?.details && !draft.details.skipped ? parseDetails(draft.details, now) : {};
+  const weightEntries = needsPersonalDetails(selections) && draft?.weight && !draft.weight.skipped && draft.weight.value.trim()
     ? upsertWeightEntry(state.weightEntries ?? [], { date, weight: parseFirstWeight(draft.weight.value), unit: draft.weight.unit })
     : state.weightEntries;
   const nutritionGoals = has('nutrition') && draft?.nutrition && !draft.nutrition.skipped && Object.values(draft.nutrition).some((value) => typeof value === 'string' && value.trim())
@@ -163,6 +172,7 @@ export function completeOnboarding(state: TrackerState, now = new Date()): Track
     trackers: [...state.trackers, ...setupTrackers],
     onboardingSelections: selections,
     weightEntries,
+    ...(Object.keys(details).length ? { weightTdeeProfile: { ...state.weightTdeeProfile, ...details } } : {}),
     nutritionGoals,
     stepGoals,
     preferences: { ...state.preferences, visibleSections, visibleHealthModules, dashboard, navigationOrder: navigationOrderFromPicks(state.onboardingSelections ?? []) },

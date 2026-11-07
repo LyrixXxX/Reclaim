@@ -13,6 +13,7 @@ import { routeDisplayName } from '@/components/activity-route-details';
 import { RouteMapPreview } from '@/components/route-map-preview';
 import { RoutePreview } from '@/components/route-preview';
 import { RouteElevationCard } from '@/components/route-elevation-card';
+import { routeElevation } from '@/lib/route-elevation';
 import { activityToday } from '@/lib/activity-overview';
 import { activeRouteDurationMs, activityDurationMs, averagePaceMinPerMile, estimatedRouteCalories, latestRouteWeightKg, routeDistanceMeters, routeMovingDurationMs, movedEnoughToUpdate } from '@/lib/activity';
 import { motionTotals } from '@/lib/activity-motion';
@@ -317,7 +318,7 @@ export default function ActivityMapScreen() {
   const changePendingKind = (choice: 'walk' | 'hike' | 'run') => {
     if (!pending) return;
     const calorieDuration = pending.movingMs === undefined ? activityDurationMs(pending) : pending.movingMs;
-    setPending({ ...pending, kind: choice, estimatedCalories: estimatedRouteCalories(pending.distanceMeters, calorieDuration, pending.estimateWeightKg, choice) ?? undefined });
+    setPending({ ...pending, kind: choice, estimatedCalories: estimatedRouteCalories(pending.distanceMeters, calorieDuration, pending.estimateWeightKg, choice, routeElevation(pending.points)?.gainMeters) ?? undefined });
   };
   // Page swiping in the section pager only conflicts with a pannable map: the expanded map, or a
   // route being recorded. The collapsed idle map ignores drags, so sections can swipe past it.
@@ -364,7 +365,7 @@ export default function ActivityMapScreen() {
   const activeTimes = motionTotals(active?.motion, activeDuration);
   const activePace = averagePaceMinPerMile(activeDistance, activeTimes.movingMs ?? 0);
   const activeOverallPace = averagePaceMinPerMile(activeDistance, activeDuration);
-  const activeCalories = active ? estimatedRouteCalories(activeDistance, active?.motion ? activeTimes.movingMs ?? 0 : activeDuration, active.estimateWeightKg, active.kind) : null;
+  const activeCalories = active ? estimatedRouteCalories(activeDistance, active?.motion ? activeTimes.movingMs ?? 0 : activeDuration, active.estimateWeightKg, active.kind, routeElevation(active.points)?.gainMeters) : null;
   const routeStatus = active?.pausedAt ? 'Manually paused' : active?.autoPausedAt ? 'Auto-paused' : recording ? 'Recording…' : 'Interrupted';
   const gpsStatus = !position ? 'Finding signal' : active?.pausedAt ? 'Paused' : recording ? 'Tracking' : 'Needs attention';
   // Fixes only arrive after moving ~10 m, so a still phone keeps its last reading for a couple of minutes.

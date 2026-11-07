@@ -157,9 +157,9 @@ export type WeightEntry = {
 };
 
 export type WeightTdeeProfile = {
-  heightCm: number;
-  birthDate: string;
-  formulaSex: 'male' | 'female';
+  heightCm?: number;
+  birthYear?: number;
+  formulaSex?: 'male' | 'female';
 };
 
 export type CpapEquipment = {
@@ -220,7 +220,7 @@ export type AppPreferences = {
 export type DashboardWidgetId = 'quickActions' | 'nutrition' | 'medications' | 'cpap' | 'weight' | 'bloodPressure' | 'labs' | 'habits' | 'activity';
 export type ActivityPoint = { latitude: number; longitude: number; timestamp: number; accuracy?: number | null; altitudeMeters?: number | null; altitudeAccuracyMeters?: number | null; segment?: number };
 export type ActivityTimeInterval = { startedAt: string; endedAt: string };
-export type ActivityRoute = { id: string; /** Photo file names kept on this phone. */ photos?: string[]; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; routeSteps?: number; routeStepStatus?: 'available' | 'unavailable' | 'partial'; name?: string; notes?: string };
+export type ActivityRoute = { id: string; /** 2 once calories use distance and climb. */ calorieModel?: number; /** Photo file names kept on this phone. */ photos?: string[]; kind: 'walk' | 'hike' | 'run' | 'route'; startedAt: string; endedAt: string; pausedMs: number; distanceMeters: number; points: ActivityPoint[]; movingMs?: number; stoppedMs?: number; unclassifiedMs?: number; manualPauseIntervals?: ActivityTimeInterval[]; stationaryIntervals?: ActivityTimeInterval[]; autoPauseIntervals?: ActivityTimeInterval[]; estimateWeightKg?: number; estimatedCalories?: number; routeSteps?: number; routeStepStatus?: 'available' | 'unavailable' | 'partial'; name?: string; notes?: string };
 export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'arms' | 'quadriceps' | 'hamstrings' | 'glutes' | 'calves' | 'legs' | 'core' | 'traps' | 'forearms' | 'full body';
 export type ExerciseEquipment = 'machine' | 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'other';
 export type ExerciseMeasurement = 'weighted_reps' | 'bodyweight_reps' | 'assisted_reps' | 'timed_hold' | 'distance_carry';
@@ -434,6 +434,8 @@ export type TrackerState = {
   onboardingSelections?: OnboardingArea[];
   onboardingSetupDraft?: {
     weight?: { value: string; unit: 'lb' | 'kg'; skipped?: boolean };
+    /** Optional height, birth year and BMR formula, for areas that estimate calories. */
+    details?: { feet: string; inches: string; birthYear: string; formulaSex: '' | 'male' | 'female'; skipped?: boolean };
     nutrition?: { calories?: string; carbs: string; protein: string; fat: string; fiber: string; skipped?: boolean };
     activity?: { stepGoal: string; enableStepTracking: boolean; skipped?: boolean };
     /** Things to quit, set up as abstinence trackers when setup finishes. */

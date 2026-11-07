@@ -4,7 +4,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { PrivacyContent } from '@/components/privacy-content';
 import { KeyboardSafeScrollView } from '@/components/keyboard-safe-scroll-view';
-import { BUILD_SUGGESTIONS, navigationOrderFromPicks, ONBOARDING_AREAS, OnboardingSetupDraft, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight, QUIT_SUGGESTIONS } from '@/lib/onboarding';
+import { PersonalDetailsFields } from '@/components/personal-details';
+import { EMPTY_DETAILS, parseDetails } from '@/lib/personal-details';
+import { needsPersonalDetails, BUILD_SUGGESTIONS, navigationOrderFromPicks, ONBOARDING_AREAS, OnboardingSetupDraft, parseFirstNutrition, parseFirstStepGoal, parseFirstWeight, QUIT_SUGGESTIONS } from '@/lib/onboarding';
 import { localDateKey } from '@/lib/progress';
 import { OnboardingArea, OnboardingQuit } from '@/models/tracker';
 import { colors, layout, spacing, font } from '@/theme';
@@ -20,7 +22,7 @@ type Props = {
 
 export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onFinish }: Props) {
   const insets = useSafeAreaInsets();
-  type Step = 'welcome' | 'choices' | 'quit' | 'build' | 'weight' | 'nutrition' | 'activity' | 'finish';
+  type Step = 'welcome' | 'choices' | 'quit' | 'build' | 'weight' | 'nutrition' | 'activity' | 'details' | 'finish';
   const [step, setStep] = useState<Step>(selected.length ? 'choices' : 'welcome');
   const [busy, setBusy] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -32,6 +34,7 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
     ...(selected.includes('weight') ? ['weight'] as const : []),
     ...(selected.includes('nutrition') ? ['nutrition'] as const : []),
     ...(selected.includes('activity') ? ['activity'] as const : []),
+    ...(needsPersonalDetails(selected) ? ['details'] as const : []),
     'finish'];
   const position = Math.max(0, sequence.indexOf(step));
   const go = (offset: 1 | -1) => { setError(''); setStep(sequence[Math.min(sequence.length - 1, Math.max(0, position + offset))]); };
@@ -84,6 +87,20 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
     try { parseFirstStepGoal(draft.activity?.stepGoal ?? ''); onDraftChange({ ...draft, activity: { stepGoal: draft.activity!.stepGoal, enableStepTracking: draft.activity?.enableStepTracking ?? false, skipped: false } }); next(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Check your step goal.'); }
   };
+  const details = draft.details ?? { ...EMPTY_DETAILS };
+  const askWeightWithDetails = !selected.includes('weight');
+  const continueDetails = () => {
+    try {
+      parseDetails(details);
+      if (askWeightWithDetails && draft.weight?.value.trim()) parseFirstWeight(draft.weight.value);
+      onDraftChange((previous) => ({ ...previous, details: { ...details, skipped: false } }));
+      next();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Check your details.'); }
+  };
+  const skipDetails = () => {
+    onDraftChange((previous) => ({ ...previous, details: { ...details, skipped: true }, weight: askWeightWithDetails && previous.weight ? { ...previous.weight, skipped: true } : previous.weight }));
+    next();
+  };
   const finish = async () => {
     if (busy) return;
     setBusy(true);
@@ -104,7 +121,7 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
         {step !== 'welcome' && <Text style={styles.stepCount}>{position} of {sequence.length - 1}</Text>}
       </View>
       {step !== 'welcome' && <View style={styles.progress} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{sequence.slice(1).map((item, index) => <View key={item} style={[styles.progressDot, index < position && styles.progressDotOn]} />)}</View>}
-      <Text style={styles.step}>{({ welcome: 'WELCOME', choices: 'YOUR AREAS', quit: 'QUITTING · OPTIONAL', build: 'GOOD HABITS', weight: 'FIRST WEIGH-IN', nutrition: 'NUTRITION TARGETS', activity: 'DAILY STEPS', finish: 'READY' } as const)[step]}</Text>
+      <Text style={styles.step}>{({ welcome: 'WELCOME', choices: 'YOUR AREAS', quit: 'QUITTING · OPTIONAL', build: 'GOOD HABITS', details: 'YOUR DETAILS · OPTIONAL', weight: 'FIRST WEIGH-IN', nutrition: 'NUTRITION TARGETS', activity: 'DAILY STEPS', finish: 'READY' } as const)[step]}</Text>
       {step === 'welcome' && <>
         <Text style={styles.title}>Your health and habits, in one place.</Text>
         <Text style={styles.body}>Steps, walks and hikes, workouts, food, weight and habits. Pick the ones you care about, and Reclaim shows only those.</Text>
@@ -177,6 +194,16 @@ export function OnboardingScreen({ selected, draft, onChange, onDraftChange, onF
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" onPress={continueActivity} style={styles.primary}><Text style={styles.primaryText}>Save goal and continue</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { onDraftChange((previous) => ({ ...previous, activity: { stepGoal: previous.activity?.stepGoal ?? '', enableStepTracking: false, skipped: true } })); next(); }} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={back} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
+      </>}
+      {step === 'details' && <>
+        <Text style={styles.title}>A few details for your calorie estimates.</Text>
+        <Text style={styles.body}>These stay on this phone. Fill in what you’re comfortable with and leave the rest blank.</Text>
+        <PersonalDetailsFields draft={details} onChange={(patch) => { setError(''); onDraftChange((previous) => ({ ...previous, details: { ...details, ...patch, skipped: false } })); }} weight={askWeightWithDetails ? { value: draft.weight?.value ?? '', unit: draft.weight?.unit ?? 'lb' } : undefined} onWeightChange={(patch) => updateWeight(patch)} />
+        <Text style={styles.help}>Without your weight, step calories use an average and routes show no calories. Without your height, birth year and formula choice, resting calories (BMR) won’t show. You can add these any time.</Text>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        <Pressable accessibilityRole="button" onPress={continueDetails} style={styles.primary}><Text style={styles.primaryText}>Save and continue</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={skipDetails} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={back} style={styles.secondary}><Text style={styles.secondaryText}>Back</Text></Pressable>
       </>}
       {step === 'finish' && <>

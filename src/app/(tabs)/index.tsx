@@ -10,7 +10,10 @@ import { RemoveAdsButton } from '@/components/remove-ads-button';
 import { DASHBOARD_WIDGETS, homeSecondaryWidgets } from '@/lib/dashboard';
 import { DashboardContent, dashboardContent, dashboardDate } from '@/lib/dashboard-content';
 import { homeOverview, nutritionShortDetail } from '@/lib/home-overview';
-import { stepCalories } from '@/lib/step-calories';
+import { stepCalories, stepsOutsideRoutes } from '@/lib/step-calories';
+import { dailyCalories } from '@/lib/daily-calories';
+import { latestRouteWeightKg } from '@/lib/activity';
+import { PersonalDetailsModal } from '@/components/personal-details';
 import { walkingStride } from '@/lib/stride';
 import { homeQuittingTapering, type HomeJourney } from '@/lib/home-quitting';
 import { quittingStarts } from '@/lib/quit-progress';
@@ -46,11 +49,13 @@ export default function DashboardScreen() {
   const [now, setNow] = useState(() => new Date());
   const [stepDays, setStepDays] = useState<StepDay[]>([]);
   const [showAllTiles, setShowAllTiles] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const cardWidth = '100%' as const;
   const live = useLiveSteps({ enabled: preferences.visibleSections.activity, walking: true });
   const steps = live.steps;
-  const stepBurn = steps.status === 'available' ? stepCalories(steps.count, state.weightEntries, localDateKey(now), walkingStride(state).meters) : undefined;
   const walking = live.walking;
+  const stride = walkingStride(state).meters;
+  const stepBurn = steps.status === 'available' ? stepCalories(stepsOutsideRoutes(steps.count, state.activityRoutes ?? [], localDateKey(now), stride, walking.activeRoute), state.weightEntries, localDateKey(now), stride) : undefined;
   useFocusEffect(useCallback(() => {
     setNow(new Date());
     if (preferences.visibleSections.activity) void readStepHistory().then(setStepDays).catch(() => undefined);
@@ -120,7 +125,8 @@ export default function DashboardScreen() {
       </View>
     </View>}
 
-    {overview.nutrition && <NutritionCard {...overview.nutrition} color={goalColor('nutrition', colors.nutritionNav)} />}
+    {overview.nutrition && <NutritionCard {...overview.nutrition} color={goalColor('nutrition', colors.nutritionNav)} day={dailyCalories(state, localDateKey(overviewNow), steps.status === 'available' ? steps.count : undefined, walking.activeRoute, overviewNow.getTime())} onSetUp={() => setDetailsOpen(true)} />}
+    {detailsOpen && <PersonalDetailsModal title="Your details" note="BMR uses your height, birth year, formula choice and weight. These stay on this phone, and you can leave any of them blank." profile={state.weightTdeeProfile} askWeight={!latestRouteWeightKg([...(state.weightEntries ?? [])], todayKey)} onClose={() => setDetailsOpen(false)} onSave={(profile, weight) => { state.saveWeightTdeeProfile(profile); if (weight) state.saveWeightEntry({ date: todayKey, weight: weight.value, unit: weight.unit }); setDetailsOpen(false); }} />}
 
     {preferences.visibleSections.goals && preferences.showBadgesOnHome !== false && trophies.closest && <NextBadgeCard next={trophies.closest} />}
 
@@ -178,13 +184,28 @@ function ProgressTile({ title, value, detail, progress, color, valueColor, href 
   </Pressable>;
 }
 
-/** Today's calories, for reference. They're reported and not scored, so this isn't one of the goals above. */
-function NutritionCard({ calories, budget, entryCount, color }: { calories: number; budget: number; entryCount: number; color: string }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Open Nutrition" onPress={() => router.push('/nutrition' as Href)} style={({ pressed }) => [styles.nutritionCard, pressed && { opacity: 0.8 }]}>
-    <View style={styles.cardHeader}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle}>Nutrition</Text></View><Chevron color={colors.textMuted} /></View>
+function BurnRow({ label, detail, value }: { label: string; detail?: string; value: ReactNode }) {
+  return <View style={styles.burnedRow}><View style={styles.burnedWords}><Text style={styles.burnedLabel}>{label}</Text>{detail && <Text style={styles.caption}>{detail}</Text>}</View>{typeof value === 'string' ? <Text style={styles.burnedValue}>{value}</Text> : value}</View>;
+}
+
+/** Today's calories in and out, as of now. These are for reference and aren't scored as a goal. */
+function NutritionCard({ calories, budget, entryCount, color, day, onSetUp }: { calories: number; budget: number; entryCount: number; color: string; day: ReturnType<typeof dailyCalories>; onSetUp: () => void }) {
+  const kcal = (value: number) => `${value.toLocaleString()} kcal`;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Nutrition and calories. Open Nutrition" onPress={() => router.push('/nutrition' as Href)} style={({ pressed }) => [styles.nutritionCard, pressed && { opacity: 0.8 }]}>
+    <View style={styles.cardHeader}><View style={styles.cardTitleRow}><View style={[styles.cardDot, { backgroundColor: color }]} /><Text style={styles.cardTitle}>Nutrition & Calories</Text></View><Chevron color={colors.textMuted} /></View>
+    <Text style={styles.burnedHeading}>Consumption</Text>
     <Text style={styles.cardValue}>{Math.round(calories).toLocaleString()} / {Math.round(budget).toLocaleString()} kcal</Text>
     <Text style={styles.caption}>{nutritionShortDetail(calories, budget, entryCount)}</Text>
     <View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, Math.max(0, calories / Math.max(1, budget) * 100))}%`, backgroundColor: color }]} /></View>
+    <View style={styles.burned}>
+      <Text style={styles.burnedHeading}>Burned so far</Text>
+      <BurnRow label="BMR (resting)" value={day.resting === null ? <Pressable accessibilityRole="button" accessibilityLabel="Set up BMR" hitSlop={8} onPress={onSetUp}><Text style={[styles.burnedValue, { color }]}>Set up</Text></Pressable> : kcal(day.resting)} />
+      <BurnRow label="Routes" detail={day.routes.length ? `${formatMiles(day.routeDistanceMeters)}${day.routeGainMeters ? ` · ${Math.round(day.routeGainMeters * 3.28084).toLocaleString()} ft climbed` : ''}` : undefined} value={kcal(day.routeTotal)} />
+      <BurnRow label="Steps (outside routes)" detail={day.walking.steps === undefined ? 'Steps aren’t available' : `${day.walking.steps.toLocaleString()} steps`} value={day.walking.kcal === null ? '—' : kcal(day.walking.kcal)} />
+      {day.workouts > 0 && <BurnRow label="Workouts" value={kcal(day.workouts)} />}
+      <BurnRow label="Food digestion estimate" value={kcal(day.digestion)} />
+      <View style={styles.burnedTotalRow}><Text style={styles.burnedTitle}>Total</Text><Text style={styles.burnedTotal}>About {kcal(day.burned)}</Text></View>
+    </View>
   </Pressable>;
 }
 
@@ -219,7 +240,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, content: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, marginTop: 10, marginBottom: 4 }, headingText: { flex: 1, minWidth: 180, gap: 2 }, greeting: { color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, date: { color: colors.text, ...type.display }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 }, edit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.pill }, editText: { color: colors.text, fontSize: 13, fontFamily: font.semibold },
   panelTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  progressPanel: { ...card, padding: 18, gap: 16 }, panelHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, progressTitle: { color: colors.text, ...type.title }, panelCount: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, progressBody: { gap: 16 }, progressHero: { flexDirection: 'row', alignItems: 'center', gap: 20 }, legend: { flex: 1, gap: 10 }, legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, legendName: { flex: 1, color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, legendValue: { color: colors.text, fontSize: 14, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, goalRing: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center' }, goalRingLabel: { position: 'absolute', alignItems: 'center' }, goalRingValue: { color: colors.text, fontSize: 28, fontFamily: font.extrabold, letterSpacing: -0.6 }, goalRingCaption: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, moreTiles: { alignSelf: 'stretch', minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: 10 }, moreTilesText: { color: colors.text, fontSize: 14, fontFamily: font.semibold }, progressTiles: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, progressTile: { flexBasis: '48%', flexGrow: 0, width: '48.5%', minWidth: 0, height: 108, justifyContent: 'space-between', borderRadius: radius.md, backgroundColor: colors.surfaceRaised, padding: 12 }, tileDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.medium }, tileStrong: { color: colors.text, fontFamily: font.bold }, tileTitle: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, flexShrink: 1 }, tileValue: { color: colors.text, fontSize: 17, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden', marginTop: 4 }, fill: { height: '100%', borderRadius: 3 },
+  progressPanel: { ...card, padding: 18, gap: 16 }, panelHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, progressTitle: { color: colors.text, ...type.title }, panelCount: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, progressBody: { gap: 16 }, progressHero: { flexDirection: 'row', alignItems: 'center', gap: 20 }, legend: { flex: 1, gap: 10 }, legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, legendName: { flex: 1, color: colors.textMuted, fontSize: 14, fontFamily: font.medium }, legendValue: { color: colors.text, fontSize: 14, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, goalRing: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center' }, goalRingLabel: { position: 'absolute', alignItems: 'center' }, goalRingValue: { color: colors.text, fontSize: 28, fontFamily: font.extrabold, letterSpacing: -0.6 }, goalRingCaption: { color: colors.textMuted, fontSize: 13 , fontFamily: font.regular}, burned: { gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }, burnedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, burnedWords: { flex: 1, gap: 2 }, burnedHeading: { color: colors.textMuted, fontSize: 13, fontFamily: font.semibold, marginTop: 8 }, burnedTotalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }, burnedTitle: { flex: 1, color: colors.text, fontSize: 15, fontFamily: font.bold }, burnedTotal: { color: colors.text, fontSize: 15, fontFamily: font.bold }, burnedLabel: { color: colors.text, fontSize: 14, fontFamily: font.medium }, burnedValue: { color: colors.text, fontSize: 14, fontFamily: font.semibold }, moreTiles: { alignSelf: 'stretch', minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: 10 }, moreTilesText: { color: colors.text, fontSize: 14, fontFamily: font.semibold }, progressTiles: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, progressTile: { flexBasis: '48%', flexGrow: 0, width: '48.5%', minWidth: 0, height: 108, justifyContent: 'space-between', borderRadius: radius.md, backgroundColor: colors.surfaceRaised, padding: 12 }, tileDetail: { color: colors.textMuted, fontSize: 12, fontFamily: font.medium }, tileStrong: { color: colors.text, fontFamily: font.bold }, tileTitle: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, flexShrink: 1 }, tileValue: { color: colors.text, fontSize: 17, fontFamily: font.bold, fontVariant: ['tabular-nums'] }, track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden', marginTop: 4 }, fill: { height: '100%', borderRadius: 3 },
   arrow: { color: colors.textDim, fontSize: 22, fontFamily: font.medium },
   journeyPanel: { ...card, padding: 18, gap: 12 }, journeyTitle: { color: colors.text, ...type.title }, journeyScroll: { maxHeight: 244 }, journeyScrollContent: { gap: 8 }, journeyHint: { color: colors.textDim, fontSize: 11, fontFamily: font.regular, textAlign: 'center' }, journeyList: { gap: 8 }, journeyGroup: { color: colors.textMuted, fontSize: 12, fontFamily: font.semibold, letterSpacing: 0.6, textTransform: 'uppercase' }, journeyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 58, padding: 12, borderRadius: radius.md, backgroundColor: colors.surfaceRaised }, journeyName: { color: colors.text, fontSize: 15, fontFamily: font.semibold, marginBottom: 2 },
   nutritionCard: { ...card, padding: 18, gap: 8 },

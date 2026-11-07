@@ -1,3 +1,4 @@
+import { PersonalDetailsModal } from '@/components/personal-details';
 import { HistoryPages } from '@/components/history-pages';
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -12,7 +13,7 @@ import { shouldOfferWeightSaveAd } from '@/lib/ad-frequency';
 import { suggestedMacroUpdate, weightPounds } from '@/lib/macro-targets';
 import { goalForDate } from '@/lib/nutrition';
 import { readStepHistory } from '@/lib/activity-step-history';
-import { estimateDailyTdee, feetInchesFromCm, heightCmFromFeetInches, previousDayCalories, previousLocalDate, validTdeeProfile } from '@/lib/weight-tdee';
+import { estimateDailyTdee, previousDayCalories, previousLocalDate, validTdeeProfile } from '@/lib/weight-tdee';
 import { dashboardDate } from '@/lib/dashboard-content';
 import { localDateKey } from '@/lib/progress';
 import { useTrackers } from '@/state/tracker-context';
@@ -148,7 +149,7 @@ function WeightEntryModal({ entry, allEntries, nutritionEntries, routes, steps, 
     {!entry && !caloriesEdited && <Text style={estimateStyles.note}>{suggestedCalories == null ? 'No food logged in Nutrition for that day; left blank.' : 'Suggested from Nutrition. You can change or clear this value.'}</Text>}
     <Text style={styles.fieldLabel}>Estimated burn / TDEE for {activityDate ? shortDate(activityDate) : 'previous day'} (optional)</Text><TextInput value={displayedBurn} onChangeText={(value) => { setBurnEdited(true); setBurn(value); }} keyboardType="number-pad" placeholder="Estimated burn" placeholderTextColor={colors.textDim} style={styles.input} />
     {estimate ? <View style={estimateStyles.card}><Text style={estimateStyles.title}>Estimated TDEE · {estimate.total.toLocaleString()} kcal</Text><Text style={estimateStyles.line}>BMR {estimate.bmr} + ordinary activity {estimate.ordinaryActivity}</Text><Text style={estimateStyles.line}>Other steps {estimate.stepCalories} + saved routes {estimate.routeCalories}</Text><Text style={estimateStyles.line}>Food digestion {estimate.foodDigestion} kcal</Text><Text style={estimateStyles.note}>{estimate.stepStatus === 'recorded' ? `${estimate.remainingSteps.toLocaleString()} steps outside saved routes` : estimate.stepStatus === 'partial' ? 'Step tracking was partial; the walking estimate may be low.' : 'No step total for this day; only saved routes contribute movement.'} Ordinary activity is estimated at 10% of BMR, digestion at 10% of TDEE, and route-overlap steps from approximate stride length. These are not measured calories.</Text></View>
-      : <Text style={estimateStyles.note}>{profile ? 'Enter a valid date and weight to see the estimate.' : 'Optional TDEE setup is available on the Weight overview.'}</Text>}
+      : <Text style={estimateStyles.note}>{profile && validTdeeProfile(profile) ? 'Enter a valid date and weight to see the estimate.' : 'Add your height, birth year and formula choice on the Weight overview to see a TDEE estimate.'}</Text>}
     <Text style={styles.fieldLabel}>Goal weight (optional)</Text><TextInput value={goal} onChangeText={setGoal} keyboardType="decimal-pad" placeholder={currentGoal !== undefined ? `Current goal: ${format(currentGoal)}` : 'Goal'} placeholderTextColor={colors.textDim} style={styles.input} />
     <Text style={styles.fieldLabel}>Notes (optional)</Text><TextInput value={notes} onChangeText={setNotes} multiline placeholder="Notes" placeholderTextColor={colors.textDim} style={[styles.input, styles.notes]} />
     </>}
@@ -157,26 +158,7 @@ function WeightEntryModal({ entry, allEntries, nutritionEntries, routes, steps, 
 }
 
 function TdeeSettingsModal({ profile, onClose, onSave }: { profile?: WeightTdeeProfile; onClose: () => void; onSave: (profile: WeightTdeeProfile) => void }) {
-  const insets = useSafeAreaInsets();
-  const savedHeight = profile ? feetInchesFromCm(profile.heightCm) : null;
-  const [feet, setFeet] = useState(savedHeight ? String(savedHeight.feet) : '');
-  const [inches, setInches] = useState(savedHeight ? String(savedHeight.inches) : '');
-  const [birthDate, setBirthDate] = useState(profile?.birthDate ?? '');
-  const [formulaSex, setFormulaSex] = useState<WeightTdeeProfile['formulaSex']>(profile?.formulaSex ?? 'male');
-  const save = () => {
-    const heightCm = feet.trim() && inches.trim() ? heightCmFromFeetInches(Number(feet), Number(inches)) : null;
-    const next = { heightCm: heightCm ?? 0, birthDate, formulaSex };
-    if (!validTdeeProfile(next)) { Alert.alert('Check TDEE setup', 'Enter a valid height in feet and inches (0–11.9 inches), birth date, and formula choice.'); return; }
-    onSave(next);
-  };
-  return <Modal visible animationType="slide" onRequestClose={onClose}><SafeAreaView style={styles.modal}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 60 }]}>
-    <Text style={styles.modalTitle}>TDEE estimate setup</Text><Text style={styles.subtitle}>Optional and stored on this device. The formula choice is used only for the BMR calculation.</Text>
-    <Text style={styles.fieldLabel}>Height</Text><View style={estimateStyles.formulaRow}><View style={estimateStyles.heightField}><TextInput value={feet} onChangeText={setFeet} keyboardType="number-pad" placeholder="Feet" placeholderTextColor={colors.textDim} style={styles.input} /></View><View style={estimateStyles.heightField}><TextInput value={inches} onChangeText={setInches} keyboardType="decimal-pad" placeholder="Inches" placeholderTextColor={colors.textDim} style={styles.input} /></View></View>
-    <Text style={styles.fieldLabel}>Birth date</Text><DateField value={birthDate} onChangeText={setBirthDate} placeholderTextColor={colors.textDim} style={styles.input} />
-    <Text style={styles.fieldLabel}>Mifflin–St Jeor formula</Text><View style={estimateStyles.formulaRow}>{(['male', 'female'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: formulaSex === choice }} onPress={() => setFormulaSex(choice)} style={[estimateStyles.formulaChoice, formulaSex === choice && estimateStyles.formulaSelected]}><Text style={styles.importText}>{choice === 'male' ? 'Male formula' : 'Female formula'}</Text></Pressable>)}</View>
-    <Text style={estimateStyles.note}>This predicts resting energy expenditure. Reclaim adds estimated ordinary activity, non-route steps, saved routes and digestion for a daily TDEE estimate. It will not change older weigh-ins or Nutrition targets.</Text>
-    <Pressable style={styles.primary} onPress={save}><Text style={styles.primaryText}>Save estimate setup</Text></Pressable><Pressable style={styles.cancel} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-  </ScrollView></SafeAreaView></Modal>;
+  return <PersonalDetailsModal title="TDEE estimate setup" note="Optional and stored on this device. Your height, birth year and formula choice predict resting energy use. Reclaim adds estimated ordinary activity, non-route steps, saved routes and digestion for a daily TDEE estimate. It will not change older weigh-ins or Nutrition targets." profile={profile} onClose={onClose} onSave={(next) => onSave(next)} />;
 }
 
 function rowMeta(entry: WeightEntry) {

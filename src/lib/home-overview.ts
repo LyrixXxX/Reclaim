@@ -1,5 +1,6 @@
 import { TrackerState } from '@/models/tracker';
 import { StepResult } from './activity-steps';
+import type { RecordingRoute } from './daily-calories';
 import { goalForDate as stepGoalForDate } from './activity-step-history';
 import { exerciseCaloriesForDate } from './workouts';
 import { goalForDate as nutritionGoalForDate, nutritionCalorieTarget, nutritionTotals } from './nutrition';
@@ -13,7 +14,7 @@ import { walkingMinutesOutsideRoutes, WalkingInterval } from './walking-minutes'
 
 export type HomeAttention = { id: string; title: string; detail: string; href: '/activity' | '/supplements' };
 export type HomeHabitGoal = { id: string; title: string; value: string; detail: string; /** One short line for compact tiles. */ short: string; progress: number; reached: boolean; href: string; weekly: boolean };
-export type HomeWalkingData = { date?: string; intervals: WalkingInterval[] | null; activeRoute?: { startedAt: string } | null };
+export type HomeWalkingData = { date?: string; intervals: WalkingInterval[] | null; activeRoute?: RecordingRoute | null };
 
 /** One short line for the compact Home tile. */
 export function nutritionShortDetail(calories: number, budget: number, entryCount: number) {

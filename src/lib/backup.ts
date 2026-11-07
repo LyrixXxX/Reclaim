@@ -159,11 +159,11 @@ function validateState(value: Record<string, unknown>) {
     }
   }
   if (value.weightTdeeProfile !== undefined && (!isObject(value.weightTdeeProfile)
-    || typeof value.weightTdeeProfile.heightCm !== 'number' || !Number.isFinite(value.weightTdeeProfile.heightCm)
-    || value.weightTdeeProfile.heightCm < 80 || value.weightTdeeProfile.heightCm > 250
-    || typeof value.weightTdeeProfile.birthDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.weightTdeeProfile.birthDate)
-    || !Number.isFinite(Date.parse(`${value.weightTdeeProfile.birthDate}T12:00:00`))
-    || !['male', 'female'].includes(String(value.weightTdeeProfile.formulaSex)))) {
+    || (value.weightTdeeProfile.heightCm !== undefined && (typeof value.weightTdeeProfile.heightCm !== 'number' || !Number.isFinite(value.weightTdeeProfile.heightCm) || value.weightTdeeProfile.heightCm < 80 || value.weightTdeeProfile.heightCm > 250))
+    || (value.weightTdeeProfile.birthYear !== undefined && !Number.isInteger(value.weightTdeeProfile.birthYear))
+    // Older backups hold a full birth date, which becomes a year when restored.
+    || (value.weightTdeeProfile.birthDate !== undefined && (typeof value.weightTdeeProfile.birthDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.weightTdeeProfile.birthDate)))
+    || (value.weightTdeeProfile.formulaSex !== undefined && !['male', 'female'].includes(String(value.weightTdeeProfile.formulaSex))))) {
     throw new Error('This Reclaim backup contains an invalid Weight estimate profile. Nothing was restored.');
   }
   if (Array.isArray(value.cravings) && value.cravings.some((item) => !isObject(item) || typeof item.id !== 'string' || typeof item.at !== 'string' || !Number.isFinite(Date.parse(item.at))
@@ -189,6 +189,7 @@ function validateState(value: Record<string, unknown>) {
     || ['manualPauseIntervals', 'stationaryIntervals', 'autoPauseIntervals'].some((key) => route[key] !== undefined && (!Array.isArray(route[key]) || route[key].some((interval: unknown) => !isObject(interval) || typeof interval.startedAt !== 'string' || typeof interval.endedAt !== 'string' || !Number.isFinite(Date.parse(interval.startedAt)) || !Number.isFinite(Date.parse(interval.endedAt)) || Date.parse(interval.endedAt) < Date.parse(interval.startedAt))))
     || (route.estimateWeightKg !== undefined && (typeof route.estimateWeightKg !== 'number' || !Number.isFinite(route.estimateWeightKg) || route.estimateWeightKg <= 0))
     || (route.estimatedCalories !== undefined && (typeof route.estimatedCalories !== 'number' || !Number.isFinite(route.estimatedCalories) || route.estimatedCalories < 0))
+    || (route.calorieModel !== undefined && typeof route.calorieModel !== 'number')
     || (route.routeSteps !== undefined && (typeof route.routeSteps !== 'number' || !Number.isInteger(route.routeSteps) || route.routeSteps < 0))
     || (route.routeStepStatus !== undefined && !['available', 'unavailable', 'partial'].includes(String(route.routeStepStatus)))
     || (route.name !== undefined && (typeof route.name !== 'string' || route.name.length > 120))

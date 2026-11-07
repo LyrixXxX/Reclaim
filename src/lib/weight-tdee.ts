@@ -1,3 +1,4 @@
+import { stepsOutsideRoutes } from './step-calories';
 import { ActivityRoute, NutritionEntry, StepDay, WeightTdeeProfile } from '@/models/tracker';
 import { localDateKey } from './progress';
 import { nutritionTotals } from './nutrition';
@@ -33,13 +34,27 @@ export function previousDayCalories(entries: NutritionEntry[], weighInDate: stri
   return totals.entryCount ? totals.calories : null;
 }
 
-export function validTdeeProfile(profile: WeightTdeeProfile, asOf = new Date()): boolean {
-  const born = new Date(`${profile.birthDate}T12:00:00`);
-  return Number.isFinite(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250
-    && /^\d{4}-\d{2}-\d{2}$/.test(profile.birthDate)
-    && !Number.isNaN(born.getTime()) && localDateKey(born) === profile.birthDate
-    && born <= asOf && born.getFullYear() >= 1900
+/** BMR needs all three details, and its formula is for adults. */
+export function validTdeeProfile(profile: WeightTdeeProfile, asOf = new Date()): profile is Required<WeightTdeeProfile> {
+  const age = asOf.getFullYear() - (profile.birthYear ?? NaN);
+  return Number.isFinite(profile.heightCm) && profile.heightCm! >= 80 && profile.heightCm! <= 250
+    && Number.isInteger(profile.birthYear) && age >= 18 && age <= 120
     && (profile.formulaSex === 'male' || profile.formulaSex === 'female');
+}
+
+/** Only the birth year is kept now, so an older saved birth date is reduced to its year. */
+export function migrateTdeeProfile<T extends WeightTdeeProfile | undefined>(profile: T): T {
+  const saved = profile as (WeightTdeeProfile & { birthDate?: unknown }) | undefined;
+  if (typeof saved?.birthDate !== 'string') return profile;
+  const { birthDate, ...rest } = saved;
+  const year = Number((birthDate as string).slice(0, 4));
+  return { ...rest, ...(Number.isInteger(year) ? { birthYear: year } : {}) } as T;
+}
+
+/** Mifflin-St Jeor: calories the body burns in a full day at rest. Null until the profile is complete. */
+export function restingCaloriesPerDay(profile: WeightTdeeProfile, weightKg: number, asOf: Date): number | null {
+  if (!validTdeeProfile(profile, asOf) || !Number.isFinite(weightKg) || weightKg <= 0) return null;
+  return Math.round(10 * weightKg + 6.25 * profile.heightCm - 5 * (asOf.getFullYear() - profile.birthYear) + (profile.formulaSex === 'male' ? 5 : -161));
 }
 
 export function estimateDailyTdee(input: {
@@ -55,10 +70,7 @@ export function estimateDailyTdee(input: {
   const asOf = new Date(`${activityDate}T23:59:59`);
   if (!activityDate || !validTdeeProfile(profile, asOf) || !Number.isFinite(weight) || weight <= 0) return null;
   const weightKg = unit === 'lb' ? weight * LB_TO_KG : weight;
-  const born = new Date(`${profile.birthDate}T12:00:00`);
-  let age = asOf.getFullYear() - born.getFullYear();
-  if (asOf.getMonth() < born.getMonth() || (asOf.getMonth() === born.getMonth() && asOf.getDate() < born.getDate())) age -= 1;
-  const bmr = Math.round(10 * weightKg + 6.25 * profile.heightCm - 5 * age + (profile.formulaSex === 'male' ? 5 : -161));
+  const bmr = restingCaloriesPerDay(profile, weightKg, asOf)!;
   // A small non-step allowance covers unmeasured daily movement. It is not a chosen activity multiplier.
   const ordinaryActivity = Math.round(bmr * 0.1);
   const matchingRoutes = routes.filter((route) => localDateKey(new Date(route.startedAt)) === activityDate
@@ -66,8 +78,7 @@ export function estimateDailyTdee(input: {
   const routeCalories = Math.round(matchingRoutes.reduce((sum, route) => sum + route.estimatedCalories!, 0));
   const stepDay = steps.find((day) => day.date === activityDate);
   const strideMeters = profile.heightCm / 100 * 0.415;
-  const routeEquivalentSteps = matchingRoutes.reduce((sum, route) => sum + route.distanceMeters / strideMeters, 0);
-  const remainingSteps = stepDay ? Math.max(0, stepDay.count - Math.min(stepDay.count, Math.round(routeEquivalentSteps))) : 0;
+  const remainingSteps = stepsOutsideRoutes(stepDay?.count, matchingRoutes, activityDate, strideMeters) ?? 0;
   const remainingDistanceMeters = remainingSteps * strideMeters;
   const walkingHours = remainingDistanceMeters / WALKING_METERS_PER_HOUR;
   // Net activity calories: resting expenditure is already included in BMR.

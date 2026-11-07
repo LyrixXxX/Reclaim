@@ -16,6 +16,8 @@ import { upsertSupplementStack, validateSupplementStack } from '@/lib/medication
 import { beginWorkoutState, DEFAULT_WORKOUT_SETTINGS, finishWorkout } from '@/lib/workouts';
 import { createFreshState, needsOnboarding, pickedAreas, OnboardingSetupDraft, persistCompletedOnboarding, shouldEnableFirstStepTracking } from '@/lib/onboarding';
 import { readTodaySteps } from '@/lib/activity-steps';
+import { migrateRouteCalories } from '@/lib/daily-calories';
+import { migrateTdeeProfile } from '@/lib/weight-tdee';
 import { saveDashboardLayout } from '@/lib/dashboard';
 import { localDateKey } from '@/lib/progress';
 import { deleteTrackerHistory } from '@/lib/recovery';
@@ -381,7 +383,7 @@ export function TrackerProvider({ children }: PropsWithChildren) {
       return { added: result.added, duplicates: result.duplicates };
     },
     saveWeightEntry: (entry) => setState((previous) => ({ ...previous, weightEntries: upsertWeightEntry(previous.weightEntries ?? [], entry) })),
-    saveWeightTdeeProfile: (profile) => setState((previous) => ({ ...previous, weightTdeeProfile: profile })),
+    saveWeightTdeeProfile: (profile) => setState((previous) => ({ ...previous, weightTdeeProfile: Object.keys(profile).length ? profile : undefined })),
     deleteWeightEntry: (date, confirmed) => {
       if (confirmed) setState((previous) => ({ ...previous, weightEntries: (previous.weightEntries ?? []).filter((entry) => entry.date !== date) }));
     },
@@ -543,7 +545,7 @@ const storageStyles = StyleSheet.create({
 function migrateStoredState(parsed: TrackerState): TrackerState {
   // Keep older medical records untouched for future full-edition restores.
   const migrated = migratePreferences(renameDefaultWaterHabit(migrateNutritionState(migrateTaperState(parsed))));
-  return { ...migrated, trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
+  return { ...migrated, weightTdeeProfile: migrateTdeeProfile(migrated.weightTdeeProfile), activityRoutes: migrated.activityRoutes && migrateRouteCalories(migrated.activityRoutes, migrated.weightEntries), trackers: migrated.trackers.map((item) => item.habitTemplate === 'exercise' ? { ...item, archived: true, habitReminderTime: undefined, habitNotificationId: undefined } : item) };
 }
 
 export function useTrackers() {
