@@ -1,6 +1,6 @@
 import { Href, router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chevron } from '@/components/icon';
@@ -29,7 +29,8 @@ export default function DashboardEditor() {
   ])]);
   const [cardOrder, setCardOrder] = useState(() => hiddenCardsLast(normalizeHomeCardOrder(preferences.homeCardOrder), hiddenCards));
   const [openColor, setOpenColor] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
+  // The card being dragged and the slot it would land in, so the others can make room.
+  const [drag, setDrag] = useState<{ id: HomeCardId; target: number } | null>(null);
   const { fontScale } = useWindowDimensions();
   const rowHeight = Math.max(64, Math.ceil(64 * fontScale));
   const insets = useSafeAreaInsets();
@@ -74,12 +75,12 @@ export default function DashboardEditor() {
     setHomeCards(cardOrder, hiddenCards);
     exit();
   };
-  return <ScrollView style={styles.safe} scrollEnabled={!dragging} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
+  return <ScrollView style={styles.safe} scrollEnabled={!drag} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
     <Text style={styles.body}>Put your cards in any order, and choose what shows on Home. Hiding something never stops its tracking.</Text>
     <Text style={styles.section}>Home cards</Text>
     <Text style={styles.help}>Drag the handle, or use the arrows. The top of this list is the top of Home, and cards you turn off move to the bottom.</Text>
     <View style={styles.orderList}>
-      {shownOrder.map((id, index) => <OrderRow key={id} id={id} index={index} count={onHome.length} height={rowHeight} hidden={hiddenCards.includes(id)} move={moveCard} onDragging={setDragging} onVisible={(visible) => setCardVisible(id, visible)} />)}
+      {shownOrder.map((id, index) => <OrderRow key={id} id={id} index={index} count={onHome.length} height={rowHeight} hidden={hiddenCards.includes(id)} dragging={!!drag} shift={drag ? rowShift(index, onHome.indexOf(drag.id), drag.target) : 0} move={moveCard} onDragTarget={(target) => setDrag((current) => current?.id === id && current.target === target ? current : { id, target })} onDragEnd={() => setDrag(null)} onVisible={(visible) => setCardVisible(id, visible)} />)}
     </View>
     {activeHabits.length > 0 && <><Text style={styles.section}>Goals on Home</Text>
     <Text style={styles.help}>Choose which habits count toward your daily goals or get their own card.</Text></>}
@@ -110,23 +111,45 @@ export default function DashboardEditor() {
   </ScrollView>;
 }
 
-function OrderRow({ id, index, count, height, hidden, move, onDragging, onVisible }: {
-  id: HomeCardId; index: number; count: number; height: number; hidden: boolean;
-  move: (id: HomeCardId, delta: number) => void; onDragging: (dragging: boolean) => void; onVisible: (visible: boolean) => void;
+/** How many rows a card slides to make room: everything between the dragged card and its new slot moves over one. */
+function rowShift(index: number, from: number, target: number) {
+  if (index > from && index <= target) return -1;
+  if (index < from && index >= target) return 1;
+  return 0;
+}
+
+function OrderRow({ id, index, count, height, hidden, dragging, shift, move, onDragTarget, onDragEnd, onVisible }: {
+  id: HomeCardId; index: number; count: number; height: number; hidden: boolean; dragging: boolean; shift: number;
+  move: (id: HomeCardId, delta: number) => void; onDragTarget: (target: number) => void; onDragEnd: () => void; onVisible: (visible: boolean) => void;
 }) {
-  const [translation, setTranslation] = useState(0);
+  const [offset] = useState(() => new Animated.Value(0));
   const [active, setActive] = useState(false);
   const title = HOME_CARDS.find((item) => item.id === id)!.title;
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { setActive(true); onDragging(true); },
-    onPanResponderMove: (_, gesture) => setTranslation(Math.max(-index * height, Math.min((count - index - 1) * height, gesture.dy))),
-    onPanResponderRelease: (_, gesture) => { setTranslation(0); setActive(false); onDragging(false); move(id, Math.round(gesture.dy / height)); },
-    onPanResponderTerminate: () => { setTranslation(0); setActive(false); onDragging(false); },
-    onPanResponderTerminationRequest: () => false,
-  }), [index, count, height, id, move, onDragging]);
-  return <View style={[styles.orderRow, { height, transform: [{ translateY: translation }], zIndex: active ? 10 : 0 }, active && styles.dragging]}>
+  // Cards slide aside during a drag, then snap into their real slots in the same frame the order changes.
+  useLayoutEffect(() => {
+    if (!dragging) { offset.stopAnimation(); offset.setValue(0); return; }
+    if (active) return;
+    Animated.timing(offset, { toValue: shift * height, duration: 140, useNativeDriver: true }).start();
+  }, [active, dragging, height, offset, shift]);
+  // One responder for the whole gesture: rebuilding it mid-drag, as each new slot re-renders the list, would drop the card.
+  const latest = useRef({ index, count, height, id, move, onDragTarget, onDragEnd });
+  useLayoutEffect(() => { latest.current = { index, count, height, id, move, onDragTarget, onDragEnd }; });
+  // These handlers only read the ref during a gesture, never while rendering.
+  // eslint-disable-next-line react-hooks/refs
+  const [responder] = useState(() => {
+    const clamp = (dy: number) => { const row = latest.current; return Math.max(-row.index * row.height, Math.min((row.count - row.index - 1) * row.height, dy)); };
+    const finish = () => { setActive(false); latest.current.onDragEnd(); };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => { setActive(true); latest.current.onDragTarget(latest.current.index); },
+      onPanResponderMove: (_, gesture) => { const dy = clamp(gesture.dy); offset.setValue(dy); latest.current.onDragTarget(latest.current.index + Math.round(dy / latest.current.height)); },
+      onPanResponderRelease: (_, gesture) => { const row = latest.current; row.move(row.id, Math.round(clamp(gesture.dy) / row.height)); finish(); },
+      onPanResponderTerminate: finish,
+      onPanResponderTerminationRequest: () => false,
+    });
+  });
+  return <Animated.View style={[styles.orderRow, { height, transform: [{ translateY: offset }], zIndex: active ? 10 : 0 }, active && styles.dragging]}>
     {hidden ? <View style={styles.handleSpace} /> : <View {...responder.panHandlers} accessible accessibilityLabel={`Drag ${title}; move buttons also available`} style={styles.handle}><Text style={styles.handleText}>⠿</Text></View>}
     <Text style={[styles.rowTitle, hidden && styles.rowHidden]} numberOfLines={2}>{title}</Text>
     {!hidden && <>
@@ -134,7 +157,7 @@ function OrderRow({ id, index, count, height, hidden, move, onDragging, onVisibl
       <Pressable accessibilityRole="button" accessibilityLabel={`Move ${title} down`} disabled={index === count - 1} onPress={() => move(id, 1)} style={[styles.arrow, index === count - 1 && styles.disabled]}><Text style={styles.buttonText}>↓</Text></Pressable>
     </>}
     <Switch accessibilityLabel={`Show ${title} on Home`} value={!hidden} onValueChange={onVisible} />
-  </View>;
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({
